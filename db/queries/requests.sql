@@ -1,0 +1,27 @@
+-- name: GetRequest :one
+SELECT * FROM requests WHERE id = ? LIMIT 1;
+
+-- name: ListRequests :many
+SELECT * FROM requests ORDER BY name;
+
+-- name: ListRequestsByCollection :many
+SELECT * FROM requests WHERE collection_id = ? ORDER BY name;
+
+-- name: CreateRequest :one
+INSERT INTO requests (collection_id, name, method, url, headers, body, body_type)
+VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *;
+
+-- name: UpdateRequest :one
+UPDATE requests SET
+    collection_id = ?,
+    name = ?,
+    method = ?,
+    url = ?,
+    headers = ?,
+    body = ?,
+    body_type = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ? RETURNING *;
+
+-- name: DeleteRequest :exec
+DELETE FROM requests WHERE id = ?;

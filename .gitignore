@@ -1,0 +1,33 @@
+# Binaries
+reley
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Database
+*.db
+*.db-journal
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# Go
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Build artifacts
+cmd/server/dist/

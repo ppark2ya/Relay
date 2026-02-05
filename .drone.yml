@@ -1,0 +1,57 @@
+kind: pipeline
+type: docker
+name: default
+
+steps:
+  - name: test-backend
+    image: golang:1.22-alpine
+    commands:
+      - apk add --no-cache gcc musl-dev
+      - go mod download
+      - go test ./...
+
+  - name: test-frontend
+    image: node:20-alpine
+    commands:
+      - cd web
+      - npm ci
+      - npm run lint
+      - npm run build
+
+  - name: build-push
+    image: plugins/docker
+    settings:
+      repo: ${DRONE_REPO}
+      tags:
+        - latest
+        - ${DRONE_COMMIT_SHA:0:8}
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+    when:
+      branch:
+        - main
+      event:
+        - push
+
+  - name: deploy
+    image: docker:dind
+    environment:
+      DOCKER_HOST: tcp://docker-host:2375
+    commands:
+      - docker pull ${DRONE_REPO}:${DRONE_COMMIT_SHA:0:8}
+      - docker stack deploy -c docker-compose.yml reley
+    when:
+      branch:
+        - main
+      event:
+        - push
+
+trigger:
+  branch:
+    - main
+    - develop
+  event:
+    - push
+    - pull_request

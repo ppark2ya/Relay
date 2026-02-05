@@ -1,0 +1,15 @@
+services:
+  reley:
+    build: .
+    container_name: reley
+    ports:
+      - "8080:8080"
+    volumes:
+      - reley-data:/data
+    environment:
+      - DB_PATH=/data/reley.db
+      - PORT=8080
+    restart: unless-stopped
+
+volumes:
+  reley-data:
