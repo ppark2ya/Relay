@@ -1,0 +1,19 @@
+# Dependencies
+web/node_modules/
+web/dist/
+
+# Build artifacts
+reley
+*.db
+cmd/server/dist/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Git
+.git/
+.gitignore
