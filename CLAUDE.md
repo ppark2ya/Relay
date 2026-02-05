@@ -5,7 +5,7 @@
 ## 기술 스택
 
 - **Backend**: Go 1.18, Chi router, SQLite (modernc.org/sqlite)
-- **Frontend**: React, TypeScript, Vite, TailwindCSS, TanStack Query
+- **Frontend**: React, TypeScript, Vite, TailwindCSS, TanStack Query, pnpm
 - **Build**: 단일 바이너리 (Go embed로 프론트엔드 포함)
 
 ## 프로젝트 구조

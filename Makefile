@@ -12,7 +12,7 @@ build: frontend backend
 
 # Build frontend only
 frontend:
-	cd $(FRONTEND_DIR) && npm install && npm run build
+	cd $(FRONTEND_DIR) && pnpm install && pnpm run build
 	rm -rf $(BACKEND_DIR)/dist
 	cp -r $(FRONTEND_DIR)/dist $(BACKEND_DIR)/
 
@@ -22,7 +22,7 @@ backend:
 
 # Development mode - run frontend and backend separately
 dev-frontend:
-	cd $(FRONTEND_DIR) && npm run dev
+	cd $(FRONTEND_DIR) && pnpm run dev
 
 dev-backend:
 	go run ./$(BACKEND_DIR)
@@ -34,7 +34,7 @@ test-backend:
 	go test ./...
 
 test-frontend:
-	cd $(FRONTEND_DIR) && npm run lint
+	cd $(FRONTEND_DIR) && pnpm run lint
 
 # Clean build artifacts
 clean:
@@ -53,7 +53,7 @@ run: build
 
 # Docker build
 docker:
-	docker build -t api-tester .
+	docker build -t reley .
 
 # Docker compose up
 compose-up:
