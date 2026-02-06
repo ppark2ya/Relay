@@ -42,6 +42,12 @@ type RequestResponse struct {
 
 type ExecuteRequest struct {
 	Variables map[string]string `json:"variables"`
+	// Inline overrides (optional) - use current form values without saving
+	Method   string `json:"method,omitempty"`
+	URL      string `json:"url,omitempty"`
+	Headers  string `json:"headers,omitempty"`
+	Body     string `json:"body,omitempty"`
+	BodyType string `json:"bodyType,omitempty"`
 }
 
 func (h *RequestHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -235,7 +241,19 @@ func (h *RequestHandler) Execute(w http.ResponseWriter, r *http.Request) {
 	var execReq ExecuteRequest
 	decodeJSON(r, &execReq) // OK if empty
 
-	result, err := h.executor.Execute(r.Context(), id, execReq.Variables)
+	// Build inline overrides if provided
+	var overrides *service.RequestOverrides
+	if execReq.URL != "" {
+		overrides = &service.RequestOverrides{
+			Method:   execReq.Method,
+			URL:      execReq.URL,
+			Headers:  execReq.Headers,
+			Body:     execReq.Body,
+			BodyType: execReq.BodyType,
+		}
+	}
+
+	result, err := h.executor.Execute(r.Context(), id, execReq.Variables, overrides)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

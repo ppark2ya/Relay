@@ -69,7 +69,15 @@ export const useDeleteRequest = () => {
 export const useExecuteRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, variables }: { id: number; variables?: Record<string, string> }) => api.executeRequest(id, variables),
+    mutationFn: ({
+      id,
+      variables,
+      overrides,
+    }: {
+      id: number;
+      variables?: Record<string, string>;
+      overrides?: { method: string; url: string; headers: string; body: string; bodyType: string };
+    }) => api.executeRequest(id, variables, overrides),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['history'] }),
   });
 };

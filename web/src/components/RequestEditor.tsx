@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useUpdateRequest, useExecuteRequest } from '../hooks/useApi';
 import type { Request, ExecuteResult } from '../types';
 
@@ -23,66 +23,145 @@ const METHOD_COLORS: Record<string, string> = {
 type Tab = 'params' | 'headers' | 'body';
 
 export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorProps) {
+  const [name, setName] = useState('');
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('');
-  const [headers, setHeaders] = useState('{}');
   const [body, setBody] = useState('');
   const [bodyType, setBodyType] = useState('none');
   const [activeTab, setActiveTab] = useState<Tab>('params');
   const [showMethodDropdown, setShowMethodDropdown] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+
+  const [headerItems, setHeaderItems] = useState<Array<{ key: string; value: string }>>([]);
+  const [paramItems, setParamItems] = useState<Array<{ key: string; value: string }>>([]);
 
   const updateRequest = useUpdateRequest();
   const executeRequest = useExecuteRequest();
 
+  // Sync form state with request prop
   useEffect(() => {
     if (request) {
+      setName(request.name);
       setMethod(request.method);
       setUrl(request.url);
-      setHeaders(request.headers || '{}');
       setBody(request.body || '');
       setBodyType(request.bodyType || 'none');
+
+      // Parse headers
+      try {
+        const parsed = JSON.parse(request.headers || '{}');
+        setHeaderItems(Object.entries(parsed).map(([key, value]) => ({ key, value: String(value) })));
+      } catch {
+        setHeaderItems([]);
+      }
+
+      // Parse params from URL
+      parseParamsFromUrl(request.url);
     }
-  }, [request]);
+  }, [request?.id]);
+
+  // Parse query params from URL
+  const parseParamsFromUrl = (urlString: string) => {
+    try {
+      const urlObj = new URL(urlString);
+      const params: Array<{ key: string; value: string }> = [];
+      urlObj.searchParams.forEach((value, key) => {
+        params.push({ key, value });
+      });
+      setParamItems(params);
+    } catch {
+      setParamItems([]);
+    }
+  };
+
+  // Build URL from base + params
+  const buildUrlWithParams = (baseUrl: string, params: Array<{ key: string; value: string }>) => {
+    try {
+      const urlObj = new URL(baseUrl.split('?')[0]);
+      params.forEach(({ key, value }) => {
+        if (key.trim()) {
+          urlObj.searchParams.set(key, value);
+        }
+      });
+      return urlObj.toString();
+    } catch {
+      // If URL is invalid, just append params manually
+      const validParams = params.filter(p => p.key.trim());
+      if (validParams.length === 0) return baseUrl.split('?')[0];
+      const queryString = validParams.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
+      return `${baseUrl.split('?')[0]}?${queryString}`;
+    }
+  };
+
+  // Update URL when params change
+  const handleParamChange = (newParams: Array<{ key: string; value: string }>) => {
+    setParamItems(newParams);
+    const newUrl = buildUrlWithParams(url, newParams);
+    setUrl(newUrl);
+  };
+
+  // Update params when URL changes
+  const handleUrlChange = (newUrl: string) => {
+    setUrl(newUrl);
+    parseParamsFromUrl(newUrl);
+  };
+
+  const getHeadersJson = () => {
+    const obj: Record<string, string> = {};
+    headerItems.forEach(({ key, value }) => {
+      if (key.trim()) obj[key] = value;
+    });
+    return JSON.stringify(obj, null, 2);
+  };
 
   const handleSave = () => {
     if (request) {
+      const headersJson = getHeadersJson();
       updateRequest.mutate({
         id: request.id,
-        data: { ...request, method, url, headers, body, bodyType },
+        data: {
+          ...request,
+          name,
+          method,
+          url,
+          headers: headersJson,
+          body,
+          bodyType,
+          collectionId: request.collectionId, // Preserve collectionId
+        },
       }, {
-        onSuccess: (data) => onUpdate(data),
+        onSuccess: (data) => {
+          onUpdate(data);
+        },
       });
     }
   };
 
-  const handleExecute = async () => {
+  const handleExecute = () => {
     if (!request) return;
 
-    // Save first
-    handleSave();
+    const headersJson = getHeadersJson();
 
-    // Then execute
-    executeRequest.mutate({ id: request.id }, {
+    // Execute with current form values (without needing to save)
+    executeRequest.mutate({
+      id: request.id,
+      overrides: {
+        method,
+        url,
+        headers: headersJson,
+        body,
+        bodyType,
+      },
+    }, {
       onSuccess: (result) => onExecute(result),
     });
   };
 
-  const parseHeaders = (): Array<{ key: string; value: string }> => {
-    try {
-      const parsed = JSON.parse(headers);
-      return Object.entries(parsed).map(([key, value]) => ({ key, value: String(value) }));
-    } catch {
-      return [];
-    }
-  };
-
-  const updateHeaders = (items: Array<{ key: string; value: string }>) => {
-    const obj: Record<string, string> = {};
-    items.forEach(({ key, value }) => {
-      if (key.trim()) obj[key] = value;
-    });
-    setHeaders(JSON.stringify(obj, null, 2));
-  };
+  // Count params with non-empty keys
+  const validParamsCount = useMemo(() =>
+    paramItems.filter(p => p.key.trim()).length,
+    [paramItems]
+  );
 
   if (!request) {
     return (
@@ -97,12 +176,39 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     );
   }
 
-  const headerItems = parseHeaders();
-
   return (
     <div className="border-b border-gray-200 bg-white">
+      {/* Request Name */}
+      <div className="px-4 pt-3 pb-1">
+        {isEditingName ? (
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onBlur={() => setIsEditingName(false)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') setIsEditingName(false);
+              if (e.key === 'Escape') {
+                setName(request.name);
+                setIsEditingName(false);
+              }
+            }}
+            className="text-lg font-medium px-2 py-1 border border-blue-500 rounded focus:outline-none"
+            autoFocus
+          />
+        ) : (
+          <h2
+            onClick={() => setIsEditingName(true)}
+            className="text-lg font-medium cursor-pointer hover:text-blue-600"
+            title="Click to edit name"
+          >
+            {name}
+          </h2>
+        )}
+      </div>
+
       {/* URL Bar */}
-      <div className="p-4 flex gap-2">
+      <div className="p-4 pt-2 flex gap-2">
         <div className="relative">
           <button
             onClick={() => setShowMethodDropdown(!showMethodDropdown)}
@@ -130,7 +236,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
         <input
           type="text"
           value={url}
-          onChange={e => setUrl(e.target.value)}
+          onChange={e => handleUrlChange(e.target.value)}
           placeholder="Enter URL or paste text"
           className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
@@ -163,8 +269,11 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
             }`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            {tab === 'headers' && headerItems.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 rounded-full">{headerItems.length}</span>
+            {tab === 'params' && validParamsCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 rounded-full">{validParamsCount}</span>
+            )}
+            {tab === 'headers' && headerItems.filter(h => h.key.trim()).length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 rounded-full">{headerItems.filter(h => h.key.trim()).length}</span>
             )}
           </button>
         ))}
@@ -173,8 +282,49 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
       {/* Tab Content */}
       <div className="p-4 max-h-48 overflow-y-auto">
         {activeTab === 'params' && (
-          <div className="text-sm text-gray-500">
-            Query parameters are included in the URL. Edit the URL directly.
+          <div className="space-y-2">
+            {paramItems.map((item, index) => (
+              <div key={index} className="flex gap-2">
+                <input
+                  type="text"
+                  value={item.key}
+                  onChange={e => {
+                    const newItems = [...paramItems];
+                    newItems[index] = { ...newItems[index], key: e.target.value };
+                    handleParamChange(newItems);
+                  }}
+                  placeholder="Parameter name"
+                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                />
+                <input
+                  type="text"
+                  value={item.value}
+                  onChange={e => {
+                    const newItems = [...paramItems];
+                    newItems[index] = { ...newItems[index], value: e.target.value };
+                    handleParamChange(newItems);
+                  }}
+                  placeholder="Value"
+                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                />
+                <button
+                  onClick={() => {
+                    handleParamChange(paramItems.filter((_, i) => i !== index));
+                  }}
+                  className="p-1 text-red-500 hover:bg-red-50 rounded"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => setParamItems([...paramItems, { key: '', value: '' }])}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              + Add Parameter
+            </button>
           </div>
         )}
 
@@ -187,8 +337,8 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                   value={item.key}
                   onChange={e => {
                     const newItems = [...headerItems];
-                    newItems[index].key = e.target.value;
-                    updateHeaders(newItems);
+                    newItems[index] = { ...newItems[index], key: e.target.value };
+                    setHeaderItems(newItems);
                   }}
                   placeholder="Header name"
                   className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
@@ -198,16 +348,15 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                   value={item.value}
                   onChange={e => {
                     const newItems = [...headerItems];
-                    newItems[index].value = e.target.value;
-                    updateHeaders(newItems);
+                    newItems[index] = { ...newItems[index], value: e.target.value };
+                    setHeaderItems(newItems);
                   }}
                   placeholder="Value"
                   className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
                 />
                 <button
                   onClick={() => {
-                    const newItems = headerItems.filter((_, i) => i !== index);
-                    updateHeaders(newItems);
+                    setHeaderItems(headerItems.filter((_, i) => i !== index));
                   }}
                   className="p-1 text-red-500 hover:bg-red-50 rounded"
                 >
@@ -218,7 +367,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
               </div>
             ))}
             <button
-              onClick={() => updateHeaders([...headerItems, { key: '', value: '' }])}
+              onClick={() => setHeaderItems([...headerItems, { key: '', value: '' }])}
               className="text-sm text-blue-600 hover:underline"
             >
               + Add Header

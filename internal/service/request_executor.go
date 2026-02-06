@@ -36,10 +36,34 @@ type ExecuteResult struct {
 	ResolvedHeaders map[string]string `json:"resolvedHeaders"`
 }
 
-func (re *RequestExecutor) Execute(ctx context.Context, requestID int64, runtimeVars map[string]string) (*ExecuteResult, error) {
+type RequestOverrides struct {
+	Method   string
+	URL      string
+	Headers  string
+	Body     string
+	BodyType string
+}
+
+func (re *RequestExecutor) Execute(ctx context.Context, requestID int64, runtimeVars map[string]string, overrides *RequestOverrides) (*ExecuteResult, error) {
 	req, err := re.queries.GetRequest(ctx, requestID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Apply overrides if provided
+	if overrides != nil {
+		if overrides.Method != "" {
+			req.Method = overrides.Method
+		}
+		if overrides.URL != "" {
+			req.Url = overrides.URL
+		}
+		if overrides.Headers != "" {
+			req.Headers = sql.NullString{String: overrides.Headers, Valid: true}
+		}
+		if overrides.Body != "" {
+			req.Body = sql.NullString{String: overrides.Body, Valid: true}
+		}
 	}
 
 	return re.ExecuteRequest(ctx, req, runtimeVars)

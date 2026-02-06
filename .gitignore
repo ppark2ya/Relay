@@ -32,3 +32,5 @@ Thumbs.db
 
 # Build artifacts
 cmd/server/dist/
+tmp/
+build-errors.log

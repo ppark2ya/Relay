@@ -44,13 +44,15 @@ func (h *CollectionHandler) List(w http.ResponseWriter, r *http.Request) {
 	requestsByCollection := make(map[int64][]RequestResponse)
 	for _, req := range requests {
 		if req.CollectionID.Valid {
-			requestsByCollection[req.CollectionID.Int64] = append(
-				requestsByCollection[req.CollectionID.Int64],
+			collID := req.CollectionID.Int64
+			requestsByCollection[collID] = append(
+				requestsByCollection[collID],
 				RequestResponse{
-					ID:     req.ID,
-					Name:   req.Name,
-					Method: req.Method,
-					URL:    req.Url,
+					ID:           req.ID,
+					CollectionID: &collID,
+					Name:         req.Name,
+					Method:       req.Method,
+					URL:          req.Url,
 				},
 			)
 		}

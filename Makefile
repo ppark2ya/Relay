@@ -25,6 +25,9 @@ dev-frontend:
 	cd $(FRONTEND_DIR) && pnpm run dev
 
 dev-backend:
+	air
+
+dev-backend-simple:
 	go run ./$(BACKEND_DIR)
 
 # Run tests

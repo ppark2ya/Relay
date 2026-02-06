@@ -18,7 +18,11 @@ export const getRequest = (id: number) => api.get<Request>(`/requests/${id}`).th
 export const createRequest = (data: Partial<Request>) => api.post<Request>('/requests', data).then(r => r.data);
 export const updateRequest = (id: number, data: Partial<Request>) => api.put<Request>(`/requests/${id}`, data).then(r => r.data);
 export const deleteRequest = (id: number) => api.delete(`/requests/${id}`);
-export const executeRequest = (id: number, variables?: Record<string, string>) => api.post<ExecuteResult>(`/requests/${id}/execute`, { variables }).then(r => r.data);
+export const executeRequest = (
+  id: number,
+  variables?: Record<string, string>,
+  overrides?: { method: string; url: string; headers: string; body: string; bodyType: string }
+) => api.post<ExecuteResult>(`/requests/${id}/execute`, { variables, ...overrides }).then(r => r.data);
 
 // Environments
 export const getEnvironments = () => api.get<Environment[]>('/environments').then(r => r.data);
