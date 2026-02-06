@@ -30,6 +30,9 @@ Thumbs.db
 .env
 .env.local
 
+# Local settings
+.settings.local.json
+
 # Build artifacts
 cmd/server/dist/
 tmp/

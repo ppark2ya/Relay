@@ -1,12 +1,15 @@
-import { useState } from 'react';
-import { useCollections, useCreateCollection, useDeleteCollection, useCreateRequest, useDeleteRequest, useFlows, useHistory, useDeleteHistory } from '../hooks/useApi';
-import type { Request, Collection } from '../types';
+import { useState, useCallback } from 'react';
+import { useCollections, useCreateCollection, useDeleteCollection, useCreateRequest, useDeleteRequest, useFlows, useCreateFlow, useDeleteFlow, useHistory, useDeleteHistory } from '../hooks/useApi';
+import { useClickOutside } from '../hooks/useClickOutside';
+import type { Request, Collection, Flow } from '../types';
 
 interface SidebarProps {
   view: 'requests' | 'flows' | 'history';
   onViewChange: (view: 'requests' | 'flows' | 'history') => void;
   onSelectRequest: (request: Request | null) => void;
+  onSelectFlow: (flow: Flow | null) => void;
   selectedRequestId?: number;
+  selectedFlowId?: number;
 }
 
 const METHOD_COLORS: Record<string, string> = {
@@ -119,7 +122,7 @@ function CollectionTree({
   );
 }
 
-export function Sidebar({ view, onViewChange, onSelectRequest, selectedRequestId }: SidebarProps) {
+export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, selectedRequestId, selectedFlowId }: SidebarProps) {
   const { data: collections = [] } = useCollections();
   const { data: flows = [] } = useFlows();
   const { data: history = [] } = useHistory();
@@ -127,10 +130,17 @@ export function Sidebar({ view, onViewChange, onSelectRequest, selectedRequestId
   const deleteCollection = useDeleteCollection();
   const createRequest = useCreateRequest();
   const deleteRequest = useDeleteRequest();
+  const createFlow = useCreateFlow();
+  const deleteFlow = useDeleteFlow();
   const deleteHistory = useDeleteHistory();
 
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollection, setShowNewCollection] = useState(false);
+  const [newFlowName, setNewFlowName] = useState('');
+  const [showNewFlow, setShowNewFlow] = useState(false);
+
+  const closeNewFlow = useCallback(() => setShowNewFlow(false), []);
+  const newFlowRef = useClickOutside<HTMLDivElement>(closeNewFlow, showNewFlow);
 
   const handleCreateCollection = () => {
     if (newCollectionName.trim()) {
@@ -147,6 +157,26 @@ export function Sidebar({ view, onViewChange, onSelectRequest, selectedRequestId
       method: 'GET',
       url: 'https://api.example.com',
     });
+  };
+
+  const handleCreateFlow = () => {
+    if (newFlowName.trim()) {
+      createFlow.mutate({ name: newFlowName.trim(), description: '' }, {
+        onSuccess: (flow) => {
+          onSelectFlow(flow);
+        },
+      });
+      setNewFlowName('');
+      setShowNewFlow(false);
+    }
+  };
+
+  const handleDeleteFlow = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteFlow.mutate(id);
+    if (selectedFlowId === id) {
+      onSelectFlow(null);
+    }
   };
 
   return (
@@ -213,18 +243,69 @@ export function Sidebar({ view, onViewChange, onSelectRequest, selectedRequestId
         )}
 
         {view === 'flows' && (
-          <div className="space-y-1">
-            {flows.length === 0 ? (
-              <p className="text-sm text-gray-500 p-2">No flows created yet</p>
-            ) : (
-              flows.map(flow => (
-                <div key={flow.id} className="px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
-                  <div className="text-sm font-medium">{flow.name}</div>
-                  <div className="text-xs text-gray-500">{flow.description || 'No description'}</div>
+          <>
+            <div className="mb-2" ref={newFlowRef}>
+              {showNewFlow ? (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    value={newFlowName}
+                    onChange={e => setNewFlowName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleCreateFlow()}
+                    placeholder="Flow name"
+                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                    autoFocus
+                  />
+                  <button onClick={handleCreateFlow} className="px-2 py-1 bg-blue-600 text-white text-sm rounded">
+                    Add
+                  </button>
+                  <button onClick={() => setShowNewFlow(false)} className="px-2 py-1 text-sm text-gray-500">
+                    Cancel
+                  </button>
                 </div>
-              ))
-            )}
-          </div>
+              ) : (
+                <button
+                  onClick={() => setShowNewFlow(true)}
+                  className="w-full px-2 py-1 text-sm text-left text-blue-600 hover:bg-blue-50 rounded flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Flow
+                </button>
+              )}
+            </div>
+            <div className="space-y-1">
+              {flows.length === 0 ? (
+                <p className="text-sm text-gray-500 p-2">No flows created yet</p>
+              ) : (
+                flows.map(flow => (
+                  <div
+                    key={flow.id}
+                    onClick={() => onSelectFlow(flow)}
+                    className={`px-2 py-1 rounded cursor-pointer group ${
+                      selectedFlowId === flow.id ? 'bg-blue-100' : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{flow.name}</div>
+                        <div className="text-xs text-gray-500 truncate">{flow.description || 'No description'}</div>
+                      </div>
+                      <button
+                        onClick={(e) => handleDeleteFlow(flow.id, e)}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded ml-1"
+                      >
+                        <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
         )}
 
         {view === 'history' && (

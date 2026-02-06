@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useEnvironments, useActivateEnvironment, useProxies, useActivateProxy } from '../hooks/useApi';
+import { useClickOutside } from '../hooks/useClickOutside';
 
 export function Header() {
   const { data: environments = [] } = useEnvironments();
@@ -13,6 +14,12 @@ export function Header() {
   const [showEnvDropdown, setShowEnvDropdown] = useState(false);
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
 
+  const closeEnvDropdown = useCallback(() => setShowEnvDropdown(false), []);
+  const closeProxyDropdown = useCallback(() => setShowProxyDropdown(false), []);
+
+  const envDropdownRef = useClickOutside<HTMLDivElement>(closeEnvDropdown, showEnvDropdown);
+  const proxyDropdownRef = useClickOutside<HTMLDivElement>(closeProxyDropdown, showProxyDropdown);
+
   return (
     <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-4">
       <div className="flex items-center gap-2">
@@ -25,7 +32,7 @@ export function Header() {
       <div className="flex-1" />
 
       {/* Environment Selector */}
-      <div className="relative">
+      <div className="relative" ref={envDropdownRef}>
         <button
           onClick={() => { setShowEnvDropdown(!showEnvDropdown); setShowProxyDropdown(false); }}
           className="px-3 py-1.5 border border-gray-300 rounded-md text-sm flex items-center gap-2 hover:bg-gray-50"
@@ -59,7 +66,7 @@ export function Header() {
       </div>
 
       {/* Proxy Selector */}
-      <div className="relative">
+      <div className="relative" ref={proxyDropdownRef}>
         <button
           onClick={() => { setShowProxyDropdown(!showProxyDropdown); setShowEnvDropdown(false); }}
           className="px-3 py-1.5 border border-gray-300 rounded-md text-sm flex items-center gap-2 hover:bg-gray-50"

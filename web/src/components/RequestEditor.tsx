@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUpdateRequest, useExecuteRequest } from '../hooks/useApi';
+import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult } from '../types';
 
 interface RequestEditorProps {
@@ -37,6 +38,9 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
 
   const updateRequest = useUpdateRequest();
   const executeRequest = useExecuteRequest();
+
+  const closeMethodDropdown = useCallback(() => setShowMethodDropdown(false), []);
+  const methodDropdownRef = useClickOutside<HTMLDivElement>(closeMethodDropdown, showMethodDropdown);
 
   // Sync form state with request prop
   useEffect(() => {
@@ -209,7 +213,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
 
       {/* URL Bar */}
       <div className="p-4 pt-2 flex gap-2">
-        <div className="relative">
+        <div className="relative" ref={methodDropdownRef}>
           <button
             onClick={() => setShowMethodDropdown(!showMethodDropdown)}
             className={`px-3 py-2 rounded-l-md text-white font-medium ${METHOD_COLORS[method]} flex items-center gap-1`}
