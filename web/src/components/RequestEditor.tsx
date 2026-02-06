@@ -21,6 +21,16 @@ const METHOD_COLORS: Record<string, string> = {
   OPTIONS: 'bg-gray-500',
 };
 
+const METHOD_TEXT_COLORS: Record<string, string> = {
+  GET: 'text-green-600',
+  POST: 'text-yellow-600',
+  PUT: 'text-blue-600',
+  DELETE: 'text-red-600',
+  PATCH: 'text-purple-600',
+  HEAD: 'text-gray-600',
+  OPTIONS: 'text-gray-600',
+};
+
 type Tab = 'params' | 'headers' | 'body';
 
 export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorProps) {
@@ -319,7 +329,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                 <button
                   key={m}
                   onClick={() => { setMethod(m); setShowMethodDropdown(false); }}
-                  className={`block w-full px-4 py-2 text-left hover:bg-gray-100 ${method === m ? 'bg-gray-100' : ''}`}
+                  className={`block w-full px-4 py-2 text-left hover:bg-gray-100 font-medium ${METHOD_TEXT_COLORS[m]} ${method === m ? 'bg-gray-100' : ''}`}
                 >
                   {m}
                 </button>
