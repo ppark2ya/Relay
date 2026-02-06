@@ -39,6 +39,7 @@ export const createProxy = (data: { name: string; url: string }) => api.post<Pro
 export const updateProxy = (id: number, data: { name: string; url: string }) => api.put<Proxy>(`/proxies/${id}`, data).then(r => r.data);
 export const deleteProxy = (id: number) => api.delete(`/proxies/${id}`);
 export const activateProxy = (id: number) => api.post<Proxy>(`/proxies/${id}/activate`).then(r => r.data);
+export const deactivateProxy = () => api.post('/proxies/deactivate');
 export const testProxy = (id: number) => api.post<{ success: boolean; error?: string; message?: string }>(`/proxies/${id}/test`).then(r => r.data);
 
 // Flows

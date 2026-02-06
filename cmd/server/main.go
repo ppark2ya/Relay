@@ -92,6 +92,7 @@ func main() {
 		r.Put("/proxies/{id}", proxyHandler.Update)
 		r.Delete("/proxies/{id}", proxyHandler.Delete)
 		r.Post("/proxies/{id}/activate", proxyHandler.Activate)
+		r.Post("/proxies/deactivate", proxyHandler.Deactivate)
 		r.Post("/proxies/{id}/test", proxyHandler.Test)
 
 		// Flows

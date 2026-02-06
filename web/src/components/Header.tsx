@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useEnvironments, useActivateEnvironment, useProxies, useActivateProxy } from '../hooks/useApi';
+import { useEnvironments, useActivateEnvironment, useProxies, useActivateProxy, useDeactivateProxy } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { EnvironmentEditor } from './EnvironmentEditor';
 import { ProxyEditor } from './ProxyEditor';
@@ -9,6 +9,7 @@ export function Header() {
   const { data: proxies = [] } = useProxies();
   const activateEnv = useActivateEnvironment();
   const activateProxy = useActivateProxy();
+  const deactivateProxy = useDeactivateProxy();
 
   const activeEnv = environments.find(e => e.isActive);
   const activeProxy = proxies.find(p => p.isActive);
@@ -96,20 +97,23 @@ export function Header() {
         {showProxyDropdown && (
           <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-10">
             <div className="py-1">
-              {proxies.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-gray-500">No proxies</div>
-              ) : (
-                proxies.map(proxy => (
-                  <button
-                    key={proxy.id}
-                    onClick={() => { activateProxy.mutate(proxy.id); setShowProxyDropdown(false); }}
-                    className={`w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2 ${proxy.isActive ? 'bg-blue-50' : ''}`}
-                  >
-                    {proxy.isActive && <span className="w-2 h-2 rounded-full bg-yellow-500" />}
-                    {proxy.name}
-                  </button>
-                ))
-              )}
+              <button
+                onClick={() => { deactivateProxy.mutate(undefined); setShowProxyDropdown(false); }}
+                className={`w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2 ${!activeProxy ? 'bg-blue-50' : ''}`}
+              >
+                {!activeProxy && <span className="w-2 h-2 rounded-full bg-gray-400" />}
+                <span className="text-gray-500">No Proxy</span>
+              </button>
+              {proxies.map(proxy => (
+                <button
+                  key={proxy.id}
+                  onClick={() => { activateProxy.mutate(proxy.id); setShowProxyDropdown(false); }}
+                  className={`w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2 ${proxy.isActive ? 'bg-blue-50' : ''}`}
+                >
+                  {proxy.isActive && <span className="w-2 h-2 rounded-full bg-yellow-500" />}
+                  {proxy.name}
+                </button>
+              ))}
             </div>
             <div className="border-t border-gray-200 py-1">
               <button

@@ -5,6 +5,7 @@ import {
   useUpdateProxy,
   useDeleteProxy,
   useActivateProxy,
+  useDeactivateProxy,
   useTestProxy,
 } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
@@ -21,6 +22,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
   const updateProxy = useUpdateProxy();
   const deleteProxy = useDeleteProxy();
   const activateProxy = useActivateProxy();
+  const deactivateProxy = useDeactivateProxy();
   const testProxy = useTestProxy();
 
   const [selectedProxy, setSelectedProxy] = useState<Proxy | null>(null);
@@ -103,9 +105,12 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
   };
 
   const handleDeactivate = () => {
-    // To deactivate, we just need to activate with id 0 or handle it differently
-    // For now, we'll show a message that deactivation requires activating another proxy
-    alert('To deactivate this proxy, activate another one or delete this proxy.');
+    if (!selectedProxy) return;
+    deactivateProxy.mutate(undefined, {
+      onSuccess: () => {
+        setSelectedProxy({ ...selectedProxy, isActive: false });
+      },
+    });
   };
 
   const handleTest = () => {
@@ -151,7 +156,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
           <div className="w-48 border-r border-gray-200 flex flex-col">
             <div className="p-3 border-b border-gray-200">
               {showNewProxyInput ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     value={newProxyName}
@@ -164,15 +169,23 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                       }
                     }}
                     placeholder="Proxy name"
-                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
                     autoFocus
                   />
-                  <button
-                    onClick={handleCreateProxy}
-                    className="px-2 py-1 bg-blue-600 text-white text-sm rounded"
-                  >
-                    Add
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => { setShowNewProxyInput(false); setNewProxyName(''); }}
+                      className="flex-1 px-2 py-1 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleCreateProxy}
+                      className="flex-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button
@@ -228,14 +241,17 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                       {!selectedProxy.isActive ? (
                         <button
                           onClick={handleActivate}
-                          className="px-3 py-2 text-sm text-green-600 border border-green-300 rounded-md hover:bg-green-50"
+                          className="px-3 py-2 text-sm text-green-600 border border-green-300 rounded-md hover:bg-green-50 whitespace-nowrap"
                         >
                           Set Active
                         </button>
                       ) : (
-                        <span className="px-3 py-2 text-sm text-green-600 bg-green-50 rounded-md">
+                        <button
+                          onClick={handleDeactivate}
+                          className="px-3 py-2 text-sm text-green-600 bg-green-50 border border-green-200 rounded-md hover:bg-red-50 hover:text-red-600 hover:border-red-300 whitespace-nowrap"
+                        >
                           Active
-                        </span>
+                        </button>
                       )}
                     </div>
                   </div>

@@ -153,6 +153,14 @@ export const useActivateProxy = () => {
   });
 };
 
+export const useDeactivateProxy = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.deactivateProxy,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['proxies'] }),
+  });
+};
+
 export const useTestProxy = () => {
   return useMutation({
     mutationFn: api.testProxy,

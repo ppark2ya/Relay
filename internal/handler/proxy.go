@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"crypto/tls"
+	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"relay/internal/repository"
 )
@@ -174,6 +177,15 @@ func (h *ProxyHandler) Activate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *ProxyHandler) Deactivate(w http.ResponseWriter, r *http.Request) {
+	if err := h.queries.DeactivateAllProxies(r.Context()); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *ProxyHandler) Test(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r, "id")
 	if err != nil {
@@ -187,18 +199,36 @@ func (h *ProxyHandler) Test(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Test proxy by parsing URL
-	_, err = url.Parse(proxy.Url)
-	if err != nil {
+	proxyURL, err := url.Parse(proxy.Url)
+	if err != nil || proxyURL.Host == "" {
 		respondJSON(w, http.StatusOK, map[string]interface{}{
 			"success": false,
-			"error":   "Invalid proxy URL: " + err.Error(),
+			"error":   "Invalid proxy URL format",
 		})
 		return
 	}
 
+	// Actually connect through the proxy to verify it works
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy:           http.ProxyURL(proxyURL),
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Get("https://www.google.com")
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Proxy connection failed: %s", err.Error()),
+		})
+		return
+	}
+	resp.Body.Close()
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
-		"message": "Proxy URL is valid",
+		"message": fmt.Sprintf("Proxy is working (status %d)", resp.StatusCode),
 	})
 }
