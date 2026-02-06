@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"net/http"
 
-	"reley/internal/repository"
-	"reley/internal/service"
+	"relay/internal/repository"
+	"relay/internal/service"
 )
 
 type FlowHandler struct {

@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"reley/internal/repository"
+	"relay/internal/repository"
 )
 
 type CollectionHandler struct {
@@ -37,50 +37,73 @@ func (h *CollectionHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build tree structure
-	collectionMap := make(map[int64]*CollectionResponse)
-	var roots []CollectionResponse
-
-	// First pass: create all collection responses
-	for _, c := range collections {
-		resp := CollectionResponse{
-			ID:        c.ID,
-			Name:      c.Name,
-			Children:  []CollectionResponse{},
-			Requests:  []RequestResponse{},
-			CreatedAt: formatTime(c.CreatedAt),
-			UpdatedAt: formatTime(c.UpdatedAt),
-		}
-		if c.ParentID.Valid {
-			parentID := c.ParentID.Int64
-			resp.ParentID = &parentID
-		}
-		collectionMap[c.ID] = &resp
-	}
-
-	// Second pass: build tree
-	for _, resp := range collectionMap {
-		if resp.ParentID != nil {
-			if parent, ok := collectionMap[*resp.ParentID]; ok {
-				parent.Children = append(parent.Children, *resp)
-			}
-		} else {
-			roots = append(roots, *resp)
-		}
-	}
-
-	// Get requests for each collection
+	// Get all requests
 	requests, _ := h.queries.ListRequests(r.Context())
+
+	// Build request map by collection ID
+	requestsByCollection := make(map[int64][]RequestResponse)
 	for _, req := range requests {
 		if req.CollectionID.Valid {
-			if coll, ok := collectionMap[req.CollectionID.Int64]; ok {
-				coll.Requests = append(coll.Requests, RequestResponse{
+			requestsByCollection[req.CollectionID.Int64] = append(
+				requestsByCollection[req.CollectionID.Int64],
+				RequestResponse{
 					ID:     req.ID,
 					Name:   req.Name,
 					Method: req.Method,
 					URL:    req.Url,
-				})
-			}
+				},
+			)
+		}
+	}
+
+	// Build collection map
+	collectionMap := make(map[int64]*CollectionResponse)
+	childrenMap := make(map[int64][]int64) // parent_id -> child_ids
+
+	for _, c := range collections {
+		resp := &CollectionResponse{
+			ID:        c.ID,
+			Name:      c.Name,
+			Children:  []CollectionResponse{},
+			Requests:  requestsByCollection[c.ID],
+			CreatedAt: formatTime(c.CreatedAt),
+			UpdatedAt: formatTime(c.UpdatedAt),
+		}
+		if resp.Requests == nil {
+			resp.Requests = []RequestResponse{}
+		}
+		if c.ParentID.Valid {
+			parentID := c.ParentID.Int64
+			resp.ParentID = &parentID
+			childrenMap[parentID] = append(childrenMap[parentID], c.ID)
+		}
+		collectionMap[c.ID] = resp
+	}
+
+	// Recursive function to build tree
+	var buildTree func(id int64) CollectionResponse
+	buildTree = func(id int64) CollectionResponse {
+		coll := collectionMap[id]
+		result := CollectionResponse{
+			ID:        coll.ID,
+			Name:      coll.Name,
+			ParentID:  coll.ParentID,
+			Requests:  coll.Requests,
+			Children:  []CollectionResponse{},
+			CreatedAt: coll.CreatedAt,
+			UpdatedAt: coll.UpdatedAt,
+		}
+		for _, childID := range childrenMap[id] {
+			result.Children = append(result.Children, buildTree(childID))
+		}
+		return result
+	}
+
+	// Build roots
+	var roots []CollectionResponse
+	for _, c := range collections {
+		if !c.ParentID.Valid {
+			roots = append(roots, buildTree(c.ID))
 		}
 	}
 

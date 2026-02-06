@@ -15,16 +15,16 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend-builder /app/web/dist ./cmd/server/dist
-RUN CGO_ENABLED=0 go build -o reley ./cmd/server
+RUN CGO_ENABLED=0 go build -o relay ./cmd/server
 
 # Create data directory
 RUN mkdir -p /data
 
-ENV DB_PATH=/data/reley.db
+ENV DB_PATH=/data/relay.db
 ENV PORT=8080
 
 EXPOSE 8080
 
 VOLUME ["/data"]
 
-CMD ["./reley"]
+CMD ["./relay"]

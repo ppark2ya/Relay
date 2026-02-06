@@ -41,7 +41,7 @@ steps:
       DOCKER_HOST: tcp://docker-host:2375
     commands:
       - docker pull ${DRONE_REPO}:${DRONE_COMMIT_SHA:0:8}
-      - docker stack deploy -c docker-compose.yml reley
+      - docker stack deploy -c docker-compose.yml relay
     when:
       branch:
         - main

@@ -19,7 +19,7 @@ export function Header() {
         <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        <span className="font-bold text-xl text-gray-800">Reley</span>
+        <span className="font-bold text-xl text-gray-800">Relay</span>
       </div>
 
       <div className="flex-1" />

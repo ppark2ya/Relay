@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	"reley/internal/repository"
+	"relay/internal/repository"
 )
 
 type EnvironmentHandler struct {

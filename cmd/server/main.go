@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"os"
 
-	"reley/internal/handler"
-	"reley/internal/middleware"
-	"reley/internal/repository"
-	"reley/internal/service"
+	"relay/internal/handler"
+	"relay/internal/middleware"
+	"relay/internal/repository"
+	"relay/internal/service"
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
@@ -25,7 +25,7 @@ func main() {
 	// Database setup
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
-		dbPath = "./reley.db"
+		dbPath = "./relay.db"
 	}
 
 	db, err := sql.Open("sqlite", dbPath+"?_foreign_keys=on")

@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"reley/internal/repository"
+	"relay/internal/repository"
 )
 
 type HistoryHandler struct {

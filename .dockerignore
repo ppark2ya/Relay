@@ -3,7 +3,7 @@ web/node_modules/
 web/dist/
 
 # Build artifacts
-reley
+relay
 *.db
 cmd/server/dist/
 

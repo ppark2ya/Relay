@@ -1,4 +1,4 @@
-# Reley
+# Relay
 
 사내 업무망용 Postman-like API 테스트 도구. Go 단일 바이너리 배포.
 
@@ -11,7 +11,7 @@
 ## 프로젝트 구조
 
 ```
-reley/
+relay/
 ├── cmd/server/main.go           # 진입점, embed 설정
 ├── internal/
 │   ├── handler/                 # HTTP 핸들러
@@ -55,8 +55,8 @@ make test
 make sqlc
 
 # Docker 빌드
-docker build -t reley .                              # 개발용
-docker build -f Dockerfile_alpine -t reley:alpine .  # 프로덕션용
+docker build -t relay .                              # 개발용
+docker build -f Dockerfile_alpine -t relay:alpine .  # 프로덕션용
 ```
 
 ## API 엔드포인트
@@ -82,5 +82,5 @@ History:     GET /api/history, GET/DELETE /api/history/:id
 
 ## 환경 변수
 
-- `DB_PATH`: SQLite DB 경로 (기본값: `./reley.db`)
+- `DB_PATH`: SQLite DB 경로 (기본값: `./relay.db`)
 - `PORT`: 서버 포트 (기본값: `8080`)

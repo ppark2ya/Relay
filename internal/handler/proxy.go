@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"reley/internal/repository"
+	"relay/internal/repository"
 )
 
 type ProxyHandler struct {

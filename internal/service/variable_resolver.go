@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"reley/internal/repository"
+	"relay/internal/repository"
 )
 
 type VariableResolver struct {

@@ -1,7 +1,7 @@
 .PHONY: build dev clean test frontend backend all
 
 # Variables
-BINARY=reley
+BINARY=relay
 FRONTEND_DIR=web
 BACKEND_DIR=cmd/server
 
@@ -53,7 +53,7 @@ run: build
 
 # Docker build
 docker:
-	docker build -t reley .
+	docker build -t relay .
 
 # Docker compose up
 compose-up:

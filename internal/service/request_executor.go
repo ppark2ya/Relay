@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"time"
 
-	"reley/internal/repository"
+	"relay/internal/repository"
 )
 
 type RequestExecutor struct {

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"reley/internal/repository"
+	"relay/internal/repository"
 
 	"github.com/PaesslerAG/jsonpath"
 )
