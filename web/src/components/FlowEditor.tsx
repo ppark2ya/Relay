@@ -5,11 +5,12 @@ import {
   useUpdateFlow,
   useRunFlow,
   useCreateFlowStep,
+  useUpdateFlowStep,
   useDeleteFlowStep,
   useRequests,
 } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
-import type { Flow, FlowResult } from '../types';
+import type { Flow, FlowStep, FlowResult } from '../types';
 
 interface FlowEditorProps {
   flow: Flow | null;
@@ -24,13 +25,44 @@ const METHOD_COLORS: Record<string, string> = {
   PATCH: 'text-purple-600',
 };
 
+const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+const BODY_TYPES = ['none', 'json', 'text', 'xml', 'form-urlencoded', 'graphql'];
+
+interface StepEditState {
+  name: string;
+  method: string;
+  url: string;
+  headers: string;
+  body: string;
+  bodyType: string;
+  delayMs: number;
+  extractVars: string;
+  condition: string;
+}
+
+function stepToEditState(step: FlowStep): StepEditState {
+  return {
+    name: step.name,
+    method: step.method,
+    url: step.url,
+    headers: step.headers || '{}',
+    body: step.body || '',
+    bodyType: step.bodyType || 'none',
+    delayMs: step.delayMs,
+    extractVars: step.extractVars || '{}',
+    condition: step.condition || '',
+  };
+}
+
 export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const [showRequestDropdown, setShowRequestDropdown] = useState(false);
   const [flowResult, setFlowResult] = useState<FlowResult | null>(null);
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
+  const [editStates, setEditStates] = useState<Record<number, StepEditState>>({});
 
   const { data: flowData } = useFlow(flow?.id || 0);
   const { data: steps = [] } = useFlowSteps(flow?.id || 0);
@@ -39,10 +71,14 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const updateFlow = useUpdateFlow();
   const runFlow = useRunFlow();
   const createStep = useCreateFlowStep();
+  const updateStep = useUpdateFlowStep();
   const deleteStep = useDeleteFlowStep();
 
-  const closeRequestDropdown = useCallback(() => setShowRequestDropdown(false), []);
-  const requestDropdownRef = useClickOutside<HTMLDivElement>(closeRequestDropdown, showRequestDropdown);
+  const closeAddMenu = useCallback(() => {
+    setShowAddMenu(false);
+    setShowRequestDropdown(false);
+  }, []);
+  const addMenuRef = useClickOutside<HTMLDivElement>(closeAddMenu, showAddMenu || showRequestDropdown);
 
   useEffect(() => {
     if (flowData) {
@@ -70,8 +106,32 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     }
   };
 
-  const handleAddStep = (requestId: number) => {
+  const handleAddBlankStep = () => {
     if (flow) {
+      const nextOrder = steps.length > 0 ? Math.max(...steps.map(s => s.stepOrder)) + 1 : 1;
+      createStep.mutate({
+        flowId: flow.id,
+        data: {
+          stepOrder: nextOrder,
+          delayMs: 0,
+          extractVars: '{}',
+          condition: '',
+          name: '',
+          method: 'GET',
+          url: '',
+          headers: '{}',
+          body: '',
+          bodyType: 'none',
+        },
+      });
+      setShowAddMenu(false);
+    }
+  };
+
+  const handleCopyFromRequest = (requestId: number) => {
+    if (flow) {
+      const req = requests.find(r => r.id === requestId);
+      if (!req) return;
       const nextOrder = steps.length > 0 ? Math.max(...steps.map(s => s.stepOrder)) + 1 : 1;
       createStep.mutate({
         flowId: flow.id,
@@ -81,19 +141,77 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           delayMs: 0,
           extractVars: '{}',
           condition: '',
+          name: req.name,
+          method: req.method,
+          url: req.url,
+          headers: req.headers || '{}',
+          body: req.body || '',
+          bodyType: req.bodyType || 'none',
         },
       });
       setShowRequestDropdown(false);
+      setShowAddMenu(false);
     }
   };
 
   const handleDeleteStep = (stepId: number) => {
     if (flow) {
       deleteStep.mutate({ flowId: flow.id, stepId });
+      if (expandedStepId === stepId) {
+        setExpandedStepId(null);
+      }
+      setEditStates(prev => {
+        const next = { ...prev };
+        delete next[stepId];
+        return next;
+      });
     }
   };
 
-  const getRequestById = (id: number) => requests.find(r => r.id === id);
+  const handleExpandStep = (stepId: number) => {
+    if (expandedStepId === stepId) {
+      setExpandedStepId(null);
+    } else {
+      setExpandedStepId(stepId);
+      const step = steps.find(s => s.id === stepId);
+      if (step && !editStates[stepId]) {
+        setEditStates(prev => ({ ...prev, [stepId]: stepToEditState(step) }));
+      }
+    }
+  };
+
+  const handleEditChange = (stepId: number, field: keyof StepEditState, value: string | number) => {
+    setEditStates(prev => ({
+      ...prev,
+      [stepId]: { ...prev[stepId], [field]: value },
+    }));
+  };
+
+  const handleSaveStep = (stepId: number) => {
+    if (!flow) return;
+    const edit = editStates[stepId];
+    if (!edit) return;
+    const step = steps.find(s => s.id === stepId);
+    if (!step) return;
+
+    updateStep.mutate({
+      flowId: flow.id,
+      stepId,
+      data: {
+        requestId: step.requestId,
+        stepOrder: step.stepOrder,
+        delayMs: edit.delayMs,
+        extractVars: edit.extractVars,
+        condition: edit.condition,
+        name: edit.name,
+        method: edit.method,
+        url: edit.url,
+        headers: edit.headers,
+        body: edit.body,
+        bodyType: edit.bodyType,
+      },
+    });
+  };
 
   if (!flow) {
     return (
@@ -187,13 +305,13 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
             {steps.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <p>No steps in this flow yet.</p>
-                <p className="text-sm">Add requests to create your flow.</p>
+                <p className="text-sm">Add a blank step or copy from an existing request.</p>
               </div>
             ) : (
               steps
                 .sort((a, b) => a.stepOrder - b.stepOrder)
                 .map((step, index) => {
-                  const request = getRequestById(step.requestId);
+                  const edit = editStates[step.id];
                   return (
                     <div key={step.id} className="flex items-stretch gap-3">
                       {/* Step number */}
@@ -209,7 +327,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       {/* Step content */}
                       <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden group">
                         <div
-                          onClick={() => setExpandedStepId(expandedStepId === step.id ? null : step.id)}
+                          onClick={() => handleExpandStep(step.id)}
                           className="p-4 cursor-pointer hover:bg-gray-50"
                         >
                           <div className="flex items-center gap-3">
@@ -221,11 +339,11 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                             >
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
-                            <span className={`text-xs font-mono font-semibold ${METHOD_COLORS[request?.method || ''] || 'text-gray-600'}`}>
-                              {request?.method || 'N/A'}
+                            <span className={`text-xs font-mono font-semibold ${METHOD_COLORS[step.method] || 'text-gray-600'}`}>
+                              {step.method}
                             </span>
-                            <span className="font-medium">{request?.name || 'Unknown Request'}</span>
-                            <span className="text-xs text-gray-400 truncate flex-1">{request?.url}</span>
+                            <span className="font-medium">{step.name || 'Untitled Step'}</span>
+                            <span className="text-xs text-gray-400 truncate flex-1">{step.url}</span>
                             <button
                               onClick={(e) => { e.stopPropagation(); handleDeleteStep(step.id); }}
                               className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded"
@@ -247,61 +365,132 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                           )}
                         </div>
 
-                        {/* Expanded Request Details */}
-                        {expandedStepId === step.id && request && (
+                        {/* Expanded Inline Edit */}
+                        {expandedStepId === step.id && edit && (
                           <div className="border-t border-gray-200 bg-gray-50 p-4">
                             <div className="space-y-3 text-sm">
-                              {/* URL */}
+                              {/* Name */}
                               <div>
-                                <div className="text-xs font-medium text-gray-500 mb-1">URL</div>
-                                <div className="font-mono text-xs bg-white p-2 rounded border border-gray-200 break-all">
-                                  {request.url}
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">Name</label>
+                                <input
+                                  type="text"
+                                  value={edit.name}
+                                  onChange={e => handleEditChange(step.id, 'name', e.target.value)}
+                                  placeholder="Step name"
+                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500"
+                                />
+                              </div>
+
+                              {/* Method + URL */}
+                              <div>
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">Request</label>
+                                <div className="flex gap-2">
+                                  <select
+                                    value={edit.method}
+                                    onChange={e => handleEditChange(step.id, 'method', e.target.value)}
+                                    className="px-2 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500"
+                                  >
+                                    {METHODS.map(m => (
+                                      <option key={m} value={m}>{m}</option>
+                                    ))}
+                                  </select>
+                                  <input
+                                    type="text"
+                                    value={edit.url}
+                                    onChange={e => handleEditChange(step.id, 'url', e.target.value)}
+                                    placeholder="https://api.example.com/endpoint"
+                                    className="flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500"
+                                  />
                                 </div>
                               </div>
 
                               {/* Headers */}
-                              {request.headers && request.headers !== '{}' && (
-                                <div>
-                                  <div className="text-xs font-medium text-gray-500 mb-1">Headers</div>
-                                  <pre className="font-mono text-xs bg-white p-2 rounded border border-gray-200 overflow-x-auto">
-                                    {(() => {
-                                      try {
-                                        return JSON.stringify(JSON.parse(request.headers), null, 2);
-                                      } catch {
-                                        return request.headers;
-                                      }
-                                    })()}
-                                  </pre>
-                                </div>
-                              )}
+                              <div>
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">Headers (JSON)</label>
+                                <textarea
+                                  value={edit.headers}
+                                  onChange={e => handleEditChange(step.id, 'headers', e.target.value)}
+                                  placeholder='{"Content-Type": "application/json"}'
+                                  rows={3}
+                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500 resize-y"
+                                />
+                              </div>
 
-                              {/* Body */}
-                              {request.body && request.bodyType !== 'none' && (
-                                <div>
-                                  <div className="text-xs font-medium text-gray-500 mb-1">
-                                    Body <span className="text-gray-400">({request.bodyType})</span>
-                                  </div>
-                                  <pre className="font-mono text-xs bg-white p-2 rounded border border-gray-200 overflow-x-auto max-h-40">
-                                    {(() => {
-                                      if (request.bodyType === 'json') {
-                                        try {
-                                          return JSON.stringify(JSON.parse(request.body), null, 2);
-                                        } catch {
-                                          return request.body;
-                                        }
-                                      }
-                                      return request.body;
-                                    })()}
-                                  </pre>
+                              {/* Body Type + Body */}
+                              <div>
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">Body</label>
+                                <div className="flex gap-2 mb-2">
+                                  {BODY_TYPES.map(bt => (
+                                    <button
+                                      key={bt}
+                                      onClick={() => handleEditChange(step.id, 'bodyType', bt)}
+                                      className={`px-2 py-1 text-xs rounded border ${
+                                        edit.bodyType === bt
+                                          ? 'bg-blue-100 border-blue-300 text-blue-700'
+                                          : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                                      }`}
+                                    >
+                                      {bt}
+                                    </button>
+                                  ))}
                                 </div>
-                              )}
+                                {edit.bodyType !== 'none' && (
+                                  <textarea
+                                    value={edit.body}
+                                    onChange={e => handleEditChange(step.id, 'body', e.target.value)}
+                                    placeholder="Request body..."
+                                    rows={4}
+                                    className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500 resize-y"
+                                  />
+                                )}
+                              </div>
 
-                              {/* No headers/body message */}
-                              {(!request.headers || request.headers === '{}') && (!request.body || request.bodyType === 'none') && (
-                                <div className="text-xs text-gray-400 italic">
-                                  No headers or body configured
-                                </div>
-                              )}
+                              {/* Delay */}
+                              <div>
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">Delay (ms)</label>
+                                <input
+                                  type="number"
+                                  value={edit.delayMs}
+                                  onChange={e => handleEditChange(step.id, 'delayMs', parseInt(e.target.value) || 0)}
+                                  min={0}
+                                  className="w-32 px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500"
+                                />
+                              </div>
+
+                              {/* Extract Variables */}
+                              <div>
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">Extract Variables (JSON: varName → JSONPath)</label>
+                                <textarea
+                                  value={edit.extractVars}
+                                  onChange={e => handleEditChange(step.id, 'extractVars', e.target.value)}
+                                  placeholder='{"token": "$.data.accessToken"}'
+                                  rows={2}
+                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500 resize-y"
+                                />
+                              </div>
+
+                              {/* Condition */}
+                              <div>
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">Condition</label>
+                                <input
+                                  type="text"
+                                  value={edit.condition}
+                                  onChange={e => handleEditChange(step.id, 'condition', e.target.value)}
+                                  placeholder='{{token}}'
+                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500"
+                                />
+                              </div>
+
+                              {/* Save Button */}
+                              <div className="flex justify-end pt-2">
+                                <button
+                                  onClick={() => handleSaveStep(step.id)}
+                                  disabled={updateStep.isPending}
+                                  className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                  {updateStep.isPending ? 'Saving...' : 'Save Step'}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -313,9 +502,9 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           </div>
 
           {/* Add Step Button */}
-          <div className="mt-4 relative" ref={requestDropdownRef}>
+          <div className="mt-4 relative" ref={addMenuRef}>
             <button
-              onClick={() => setShowRequestDropdown(!showRequestDropdown)}
+              onClick={() => setShowAddMenu(!showAddMenu)}
               className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -323,15 +512,54 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               </svg>
               Add Step
             </button>
+            {showAddMenu && !showRequestDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                <button
+                  onClick={handleAddBlankStep}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center gap-3 border-b border-gray-100"
+                >
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <div>
+                    <div className="font-medium">Add Blank Step</div>
+                    <div className="text-xs text-gray-500">Create an empty step and configure it manually</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setShowRequestDropdown(true)}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center gap-3"
+                >
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <div>
+                    <div className="font-medium">Copy From Request</div>
+                    <div className="text-xs text-gray-500">Copy data from an existing request as a template</div>
+                  </div>
+                </button>
+              </div>
+            )}
             {showRequestDropdown && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
+                <div className="px-4 py-2 border-b border-gray-100 flex items-center gap-2">
+                  <button
+                    onClick={() => setShowRequestDropdown(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <span className="text-sm font-medium text-gray-600">Select a request to copy</span>
+                </div>
                 {requests.length === 0 ? (
                   <div className="p-4 text-sm text-gray-500">No requests available. Create requests first.</div>
                 ) : (
                   requests.map(req => (
                     <button
                       key={req.id}
-                      onClick={() => handleAddStep(req.id)}
+                      onClick={() => handleCopyFromRequest(req.id)}
                       className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-3"
                     >
                       <span className={`text-xs font-mono font-semibold ${METHOD_COLORS[req.method] || 'text-gray-600'}`}>
@@ -374,7 +602,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{index + 1}. {stepResult.requestName}</span>
+                    <span className="font-medium">{index + 1}. {stepResult.requestName || 'Untitled'}</span>
                     {stepResult.skipped ? (
                       <span className="text-xs text-gray-500">Skipped: {stepResult.skipReason}</span>
                     ) : (

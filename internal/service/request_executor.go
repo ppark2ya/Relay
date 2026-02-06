@@ -187,7 +187,7 @@ func (re *RequestExecutor) saveHistory(ctx context.Context, req repository.Reque
 	}
 
 	re.queries.CreateHistory(ctx, repository.CreateHistoryParams{
-		RequestID:       sql.NullInt64{Int64: req.ID, Valid: true},
+		RequestID:       sql.NullInt64{Int64: req.ID, Valid: req.ID != 0},
 		FlowID:          fid,
 		Method:          req.Method,
 		Url:             result.ResolvedURL,

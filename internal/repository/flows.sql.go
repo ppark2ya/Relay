@@ -33,17 +33,24 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, e
 }
 
 const createFlowStep = `-- name: CreateFlowStep :one
-INSERT INTO flow_steps (flow_id, request_id, step_order, delay_ms, extract_vars, condition)
-VALUES (?, ?, ?, ?, ?, ?) RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, created_at, updated_at
+INSERT INTO flow_steps (flow_id, request_id, step_order, delay_ms, extract_vars, condition,
+                        name, method, url, headers, body, body_type)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, created_at, updated_at
 `
 
 type CreateFlowStepParams struct {
 	FlowID      int64          `json:"flow_id"`
-	RequestID   int64          `json:"request_id"`
+	RequestID   sql.NullInt64  `json:"request_id"`
 	StepOrder   int64          `json:"step_order"`
 	DelayMs     sql.NullInt64  `json:"delay_ms"`
 	ExtractVars sql.NullString `json:"extract_vars"`
 	Condition   sql.NullString `json:"condition"`
+	Name        string         `json:"name"`
+	Method      string         `json:"method"`
+	Url         string         `json:"url"`
+	Headers     sql.NullString `json:"headers"`
+	Body        sql.NullString `json:"body"`
+	BodyType    sql.NullString `json:"body_type"`
 }
 
 func (q *Queries) CreateFlowStep(ctx context.Context, arg CreateFlowStepParams) (FlowStep, error) {
@@ -54,6 +61,12 @@ func (q *Queries) CreateFlowStep(ctx context.Context, arg CreateFlowStepParams) 
 		arg.DelayMs,
 		arg.ExtractVars,
 		arg.Condition,
+		arg.Name,
+		arg.Method,
+		arg.Url,
+		arg.Headers,
+		arg.Body,
+		arg.BodyType,
 	)
 	var i FlowStep
 	err := row.Scan(
@@ -64,6 +77,12 @@ func (q *Queries) CreateFlowStep(ctx context.Context, arg CreateFlowStepParams) 
 		&i.DelayMs,
 		&i.ExtractVars,
 		&i.Condition,
+		&i.Name,
+		&i.Method,
+		&i.Url,
+		&i.Headers,
+		&i.Body,
+		&i.BodyType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -115,7 +134,7 @@ func (q *Queries) GetFlow(ctx context.Context, id int64) (Flow, error) {
 }
 
 const getFlowStep = `-- name: GetFlowStep :one
-SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, created_at, updated_at FROM flow_steps WHERE id = ? LIMIT 1
+SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, created_at, updated_at FROM flow_steps WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
@@ -129,6 +148,12 @@ func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
 		&i.DelayMs,
 		&i.ExtractVars,
 		&i.Condition,
+		&i.Name,
+		&i.Method,
+		&i.Url,
+		&i.Headers,
+		&i.Body,
+		&i.BodyType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -136,7 +161,7 @@ func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
 }
 
 const listFlowSteps = `-- name: ListFlowSteps :many
-SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, created_at, updated_at FROM flow_steps WHERE flow_id = ? ORDER BY step_order
+SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, created_at, updated_at FROM flow_steps WHERE flow_id = ? ORDER BY step_order
 `
 
 func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, error) {
@@ -156,6 +181,12 @@ func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, 
 			&i.DelayMs,
 			&i.ExtractVars,
 			&i.Condition,
+			&i.Name,
+			&i.Method,
+			&i.Url,
+			&i.Headers,
+			&i.Body,
+			&i.BodyType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -235,16 +266,28 @@ UPDATE flow_steps SET
     delay_ms = ?,
     extract_vars = ?,
     condition = ?,
+    name = ?,
+    method = ?,
+    url = ?,
+    headers = ?,
+    body = ?,
+    body_type = ?,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = ? RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, created_at, updated_at
+WHERE id = ? RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, created_at, updated_at
 `
 
 type UpdateFlowStepParams struct {
-	RequestID   int64          `json:"request_id"`
+	RequestID   sql.NullInt64  `json:"request_id"`
 	StepOrder   int64          `json:"step_order"`
 	DelayMs     sql.NullInt64  `json:"delay_ms"`
 	ExtractVars sql.NullString `json:"extract_vars"`
 	Condition   sql.NullString `json:"condition"`
+	Name        string         `json:"name"`
+	Method      string         `json:"method"`
+	Url         string         `json:"url"`
+	Headers     sql.NullString `json:"headers"`
+	Body        sql.NullString `json:"body"`
+	BodyType    sql.NullString `json:"body_type"`
 	ID          int64          `json:"id"`
 }
 
@@ -255,6 +298,12 @@ func (q *Queries) UpdateFlowStep(ctx context.Context, arg UpdateFlowStepParams) 
 		arg.DelayMs,
 		arg.ExtractVars,
 		arg.Condition,
+		arg.Name,
+		arg.Method,
+		arg.Url,
+		arg.Headers,
+		arg.Body,
+		arg.BodyType,
 		arg.ID,
 	)
 	var i FlowStep
@@ -266,6 +315,12 @@ func (q *Queries) UpdateFlowStep(ctx context.Context, arg UpdateFlowStepParams) 
 		&i.DelayMs,
 		&i.ExtractVars,
 		&i.Condition,
+		&i.Name,
+		&i.Method,
+		&i.Url,
+		&i.Headers,
+		&i.Body,
+		&i.BodyType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

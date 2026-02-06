@@ -49,11 +49,17 @@ CREATE TABLE IF NOT EXISTS flows (
 CREATE TABLE IF NOT EXISTS flow_steps (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     flow_id INTEGER NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
-    request_id INTEGER NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+    request_id INTEGER REFERENCES requests(id) ON DELETE SET NULL,
     step_order INTEGER NOT NULL,
     delay_ms INTEGER DEFAULT 0,
     extract_vars TEXT DEFAULT '{}',
     condition TEXT DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    method TEXT NOT NULL DEFAULT 'GET',
+    url TEXT NOT NULL DEFAULT '',
+    headers TEXT DEFAULT '{}',
+    body TEXT DEFAULT '',
+    body_type TEXT DEFAULT 'none',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

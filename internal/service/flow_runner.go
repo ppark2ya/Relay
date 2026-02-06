@@ -26,7 +26,7 @@ func NewFlowRunner(queries *repository.Queries, re *RequestExecutor, vr *Variabl
 
 type StepResult struct {
 	StepID        int64             `json:"stepId"`
-	RequestID     int64             `json:"requestId"`
+	RequestID     *int64            `json:"requestId"`
 	RequestName   string            `json:"requestName"`
 	ExecuteResult *ExecuteResult    `json:"executeResult"`
 	ExtractedVars map[string]string `json:"extractedVars"`
@@ -66,22 +66,35 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64) (*FlowResult, error
 	startTime := time.Now()
 
 	for _, step := range steps {
+		var reqID *int64
+		if step.RequestID.Valid {
+			reqID = &step.RequestID.Int64
+		}
+
 		stepResult := StepResult{
 			StepID:        step.ID,
-			RequestID:     step.RequestID,
+			RequestID:     reqID,
+			RequestName:   step.Name,
 			ExtractedVars: make(map[string]string),
 		}
 
-		// Get request info
-		req, err := fr.queries.GetRequest(ctx, step.RequestID)
-		if err != nil {
-			stepResult.ExecuteResult = &ExecuteResult{Error: err.Error()}
+		// Build request from step's inline fields
+		req := repository.Request{
+			Name:     step.Name,
+			Method:   step.Method,
+			Url:      step.Url,
+			Headers:  step.Headers,
+			Body:     step.Body,
+			BodyType: step.BodyType,
+		}
+
+		if step.Url == "" {
+			stepResult.ExecuteResult = &ExecuteResult{Error: "step has no URL configured"}
 			result.Steps = append(result.Steps, stepResult)
 			result.Success = false
-			result.Error = err.Error()
+			result.Error = "step has no URL configured"
 			break
 		}
-		stepResult.RequestName = req.Name
 
 		// Check condition
 		if step.Condition.Valid && step.Condition.String != "" {
@@ -99,7 +112,7 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64) (*FlowResult, error
 			time.Sleep(time.Duration(step.DelayMs.Int64) * time.Millisecond)
 		}
 
-		// Execute request
+		// Execute request using inline fields
 		execResult, err := fr.requestExecutor.ExecuteRequest(ctx, req, runtimeVars)
 		if err != nil {
 			stepResult.ExecuteResult = &ExecuteResult{Error: err.Error()}

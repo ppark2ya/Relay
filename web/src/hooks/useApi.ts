@@ -212,6 +212,15 @@ export const useCreateFlowStep = () => {
   });
 };
 
+export const useUpdateFlowStep = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ flowId, stepId, data }: { flowId: number; stepId: number; data: Partial<import('../types').FlowStep> }) =>
+      api.updateFlowStep(flowId, stepId, data),
+    onSuccess: (_, { flowId }) => queryClient.invalidateQueries({ queryKey: ['flows', flowId, 'steps'] }),
+  });
+};
+
 export const useDeleteFlowStep = () => {
   const queryClient = useQueryClient();
   return useMutation({

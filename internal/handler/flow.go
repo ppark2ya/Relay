@@ -31,23 +31,59 @@ type FlowResponse struct {
 }
 
 type FlowStepRequest struct {
-	RequestID   int64  `json:"requestId"`
+	RequestID   *int64 `json:"requestId"`
 	StepOrder   int64  `json:"stepOrder"`
 	DelayMs     int64  `json:"delayMs"`
 	ExtractVars string `json:"extractVars"`
 	Condition   string `json:"condition"`
+	Name        string `json:"name"`
+	Method      string `json:"method"`
+	URL         string `json:"url"`
+	Headers     string `json:"headers"`
+	Body        string `json:"body"`
+	BodyType    string `json:"bodyType"`
 }
 
 type FlowStepResponse struct {
 	ID          int64  `json:"id"`
 	FlowID      int64  `json:"flowId"`
-	RequestID   int64  `json:"requestId"`
+	RequestID   *int64 `json:"requestId"`
 	StepOrder   int64  `json:"stepOrder"`
 	DelayMs     int64  `json:"delayMs"`
 	ExtractVars string `json:"extractVars"`
 	Condition   string `json:"condition"`
+	Name        string `json:"name"`
+	Method      string `json:"method"`
+	URL         string `json:"url"`
+	Headers     string `json:"headers"`
+	Body        string `json:"body"`
+	BodyType    string `json:"bodyType"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
+}
+
+func toFlowStepResponse(s repository.FlowStep) FlowStepResponse {
+	var reqID *int64
+	if s.RequestID.Valid {
+		reqID = &s.RequestID.Int64
+	}
+	return FlowStepResponse{
+		ID:          s.ID,
+		FlowID:      s.FlowID,
+		RequestID:   reqID,
+		StepOrder:   s.StepOrder,
+		DelayMs:     s.DelayMs.Int64,
+		ExtractVars: s.ExtractVars.String,
+		Condition:   s.Condition.String,
+		Name:        s.Name,
+		Method:      s.Method,
+		URL:         s.Url,
+		Headers:     s.Headers.String,
+		Body:        s.Body.String,
+		BodyType:    s.BodyType.String,
+		CreatedAt:   formatTime(s.CreatedAt),
+		UpdatedAt:   formatTime(s.UpdatedAt),
+	}
 }
 
 func (h *FlowHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -196,17 +232,7 @@ func (h *FlowHandler) ListSteps(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]FlowStepResponse, 0, len(steps))
 	for _, s := range steps {
-		resp = append(resp, FlowStepResponse{
-			ID:          s.ID,
-			FlowID:      s.FlowID,
-			RequestID:   s.RequestID,
-			StepOrder:   s.StepOrder,
-			DelayMs:     s.DelayMs.Int64,
-			ExtractVars: s.ExtractVars.String,
-			Condition:   s.Condition.String,
-			CreatedAt:   formatTime(s.CreatedAt),
-			UpdatedAt:   formatTime(s.UpdatedAt),
-		})
+		resp = append(resp, toFlowStepResponse(s))
 	}
 
 	respondJSON(w, http.StatusOK, resp)
@@ -228,31 +254,41 @@ func (h *FlowHandler) CreateStep(w http.ResponseWriter, r *http.Request) {
 	if req.ExtractVars == "" {
 		req.ExtractVars = "{}"
 	}
+	if req.Method == "" {
+		req.Method = "GET"
+	}
+	if req.Headers == "" {
+		req.Headers = "{}"
+	}
+	if req.BodyType == "" {
+		req.BodyType = "none"
+	}
+
+	var reqID sql.NullInt64
+	if req.RequestID != nil {
+		reqID = sql.NullInt64{Int64: *req.RequestID, Valid: true}
+	}
 
 	step, err := h.queries.CreateFlowStep(r.Context(), repository.CreateFlowStepParams{
 		FlowID:      flowID,
-		RequestID:   req.RequestID,
+		RequestID:   reqID,
 		StepOrder:   req.StepOrder,
 		DelayMs:     sql.NullInt64{Int64: req.DelayMs, Valid: true},
 		ExtractVars: sql.NullString{String: req.ExtractVars, Valid: true},
 		Condition:   sql.NullString{String: req.Condition, Valid: req.Condition != ""},
+		Name:        req.Name,
+		Method:      req.Method,
+		Url:         req.URL,
+		Headers:     sql.NullString{String: req.Headers, Valid: true},
+		Body:        sql.NullString{String: req.Body, Valid: true},
+		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, FlowStepResponse{
-		ID:          step.ID,
-		FlowID:      step.FlowID,
-		RequestID:   step.RequestID,
-		StepOrder:   step.StepOrder,
-		DelayMs:     step.DelayMs.Int64,
-		ExtractVars: step.ExtractVars.String,
-		Condition:   step.Condition.String,
-		CreatedAt:   formatTime(step.CreatedAt),
-		UpdatedAt:   formatTime(step.UpdatedAt),
-	})
+	respondJSON(w, http.StatusCreated, toFlowStepResponse(step))
 }
 
 func (h *FlowHandler) UpdateStep(w http.ResponseWriter, r *http.Request) {
@@ -268,30 +304,31 @@ func (h *FlowHandler) UpdateStep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var reqID sql.NullInt64
+	if req.RequestID != nil {
+		reqID = sql.NullInt64{Int64: *req.RequestID, Valid: true}
+	}
+
 	step, err := h.queries.UpdateFlowStep(r.Context(), repository.UpdateFlowStepParams{
 		ID:          stepID,
-		RequestID:   req.RequestID,
+		RequestID:   reqID,
 		StepOrder:   req.StepOrder,
 		DelayMs:     sql.NullInt64{Int64: req.DelayMs, Valid: true},
 		ExtractVars: sql.NullString{String: req.ExtractVars, Valid: true},
 		Condition:   sql.NullString{String: req.Condition, Valid: req.Condition != ""},
+		Name:        req.Name,
+		Method:      req.Method,
+		Url:         req.URL,
+		Headers:     sql.NullString{String: req.Headers, Valid: true},
+		Body:        sql.NullString{String: req.Body, Valid: true},
+		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	respondJSON(w, http.StatusOK, FlowStepResponse{
-		ID:          step.ID,
-		FlowID:      step.FlowID,
-		RequestID:   step.RequestID,
-		StepOrder:   step.StepOrder,
-		DelayMs:     step.DelayMs.Int64,
-		ExtractVars: step.ExtractVars.String,
-		Condition:   step.Condition.String,
-		CreatedAt:   formatTime(step.CreatedAt),
-		UpdatedAt:   formatTime(step.UpdatedAt),
-	})
+	respondJSON(w, http.StatusOK, toFlowStepResponse(step))
 }
 
 func (h *FlowHandler) DeleteStep(w http.ResponseWriter, r *http.Request) {

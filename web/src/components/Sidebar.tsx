@@ -51,18 +51,16 @@ function CollectionTree({
     <div className="space-y-1">
       {collections.map(collection => (
         <div key={collection.id}>
-          <div className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 rounded group">
-            <button onClick={() => toggleExpand(collection.id)} className="p-0.5">
-              <svg className={`w-4 h-4 transition-transform ${expanded.has(collection.id) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
+          <div onClick={() => toggleExpand(collection.id)} className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 rounded group cursor-pointer">
+            <svg className={`w-4 h-4 transition-transform ${expanded.has(collection.id) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
             <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
             </svg>
             <span className="flex-1 text-sm truncate">{collection.name}</span>
             <button
-              onClick={() => onCreateRequest(collection.id)}
+              onClick={(e) => { e.stopPropagation(); onCreateRequest(collection.id); }}
               className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
               title="Add Request"
             >
@@ -71,7 +69,7 @@ function CollectionTree({
               </svg>
             </button>
             <button
-              onClick={() => onDeleteCollection(collection.id)}
+              onClick={(e) => { e.stopPropagation(); onDeleteCollection(collection.id); }}
               className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
               title="Delete Collection"
             >

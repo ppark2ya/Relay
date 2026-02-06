@@ -196,11 +196,17 @@ CREATE TABLE IF NOT EXISTS flows (
 CREATE TABLE IF NOT EXISTS flow_steps (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     flow_id INTEGER NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
-    request_id INTEGER NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+    request_id INTEGER REFERENCES requests(id) ON DELETE SET NULL,
     step_order INTEGER NOT NULL,
     delay_ms INTEGER DEFAULT 0,
     extract_vars TEXT DEFAULT '{}',
     condition TEXT DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    method TEXT NOT NULL DEFAULT 'GET',
+    url TEXT NOT NULL DEFAULT '',
+    headers TEXT DEFAULT '{}',
+    body TEXT DEFAULT '',
+    body_type TEXT DEFAULT 'none',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -228,6 +234,97 @@ CREATE INDEX IF NOT EXISTS idx_flow_steps_order ON flow_steps(flow_id, step_orde
 CREATE INDEX IF NOT EXISTS idx_history_request ON request_history(request_id);
 CREATE INDEX IF NOT EXISTS idx_history_created ON request_history(created_at DESC);
 `
-	_, err := db.Exec(migration)
-	return err
+	if _, err := db.Exec(migration); err != nil {
+		return err
+	}
+
+	// Migrate existing flow_steps: add inline fields and make request_id nullable
+	if err := migrateFlowSteps(db); err != nil {
+		log.Printf("Flow steps migration: %v", err)
+	}
+
+	return nil
+}
+
+func migrateFlowSteps(db *sql.DB) error {
+	// Add new columns (ignore errors if they already exist)
+	alterStatements := []string{
+		"ALTER TABLE flow_steps ADD COLUMN name TEXT NOT NULL DEFAULT ''",
+		"ALTER TABLE flow_steps ADD COLUMN method TEXT NOT NULL DEFAULT 'GET'",
+		"ALTER TABLE flow_steps ADD COLUMN url TEXT NOT NULL DEFAULT ''",
+		"ALTER TABLE flow_steps ADD COLUMN headers TEXT DEFAULT '{}'",
+		"ALTER TABLE flow_steps ADD COLUMN body TEXT DEFAULT ''",
+		"ALTER TABLE flow_steps ADD COLUMN body_type TEXT DEFAULT 'none'",
+	}
+	for _, stmt := range alterStatements {
+		db.Exec(stmt) // Ignore "duplicate column" errors
+	}
+
+	// Backfill inline fields from linked requests
+	_, err := db.Exec(`
+		UPDATE flow_steps SET
+			name = COALESCE((SELECT r.name FROM requests r WHERE r.id = flow_steps.request_id), name),
+			method = COALESCE((SELECT r.method FROM requests r WHERE r.id = flow_steps.request_id), method),
+			url = COALESCE((SELECT r.url FROM requests r WHERE r.id = flow_steps.request_id), url),
+			headers = COALESCE((SELECT r.headers FROM requests r WHERE r.id = flow_steps.request_id), headers),
+			body = COALESCE((SELECT r.body FROM requests r WHERE r.id = flow_steps.request_id), body),
+			body_type = COALESCE((SELECT r.body_type FROM requests r WHERE r.id = flow_steps.request_id), body_type)
+		WHERE request_id IS NOT NULL AND url = ''
+	`)
+	if err != nil {
+		return err
+	}
+
+	// Recreate table to make request_id nullable (SQLite doesn't support ALTER COLUMN)
+	// Check if request_id is still NOT NULL by attempting to insert a NULL
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS flow_steps_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			flow_id INTEGER NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
+			request_id INTEGER REFERENCES requests(id) ON DELETE SET NULL,
+			step_order INTEGER NOT NULL,
+			delay_ms INTEGER DEFAULT 0,
+			extract_vars TEXT DEFAULT '{}',
+			condition TEXT DEFAULT '',
+			name TEXT NOT NULL DEFAULT '',
+			method TEXT NOT NULL DEFAULT 'GET',
+			url TEXT NOT NULL DEFAULT '',
+			headers TEXT DEFAULT '{}',
+			body TEXT DEFAULT '',
+			body_type TEXT DEFAULT 'none',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`
+		INSERT OR IGNORE INTO flow_steps_new
+			(id, flow_id, request_id, step_order, delay_ms, extract_vars, condition,
+			 name, method, url, headers, body, body_type, created_at, updated_at)
+		SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition,
+			   name, method, url, headers, body, body_type, created_at, updated_at
+		FROM flow_steps
+	`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec("DROP TABLE flow_steps")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec("ALTER TABLE flow_steps_new RENAME TO flow_steps")
+	if err != nil {
+		return err
+	}
+
+	// Recreate indexes
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_flow_steps_flow ON flow_steps(flow_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_flow_steps_order ON flow_steps(flow_id, step_order)")
+
+	return nil
 }

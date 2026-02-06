@@ -36,11 +36,17 @@ type Flow struct {
 type FlowStep struct {
 	ID          int64          `json:"id"`
 	FlowID      int64          `json:"flow_id"`
-	RequestID   int64          `json:"request_id"`
+	RequestID   sql.NullInt64  `json:"request_id"`
 	StepOrder   int64          `json:"step_order"`
 	DelayMs     sql.NullInt64  `json:"delay_ms"`
 	ExtractVars sql.NullString `json:"extract_vars"`
 	Condition   sql.NullString `json:"condition"`
+	Name        string         `json:"name"`
+	Method      string         `json:"method"`
+	Url         string         `json:"url"`
+	Headers     sql.NullString `json:"headers"`
+	Body        sql.NullString `json:"body"`
+	BodyType    sql.NullString `json:"body_type"`
 	CreatedAt   sql.NullTime   `json:"created_at"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
 }
