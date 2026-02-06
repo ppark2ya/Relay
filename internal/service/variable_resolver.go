@@ -50,14 +50,16 @@ func (vr *VariableResolver) ResolveWithVars(input string, vars map[string]string
 	})
 }
 
+// HeaderValue represents a header with enabled flag (new format)
+type HeaderValue struct {
+	Value   string `json:"value"`
+	Enabled bool   `json:"enabled"`
+}
+
 // ResolveHeaders resolves variables in header map
+// Supports both legacy format { "key": "value" } and new format { "key": { "value": "...", "enabled": true } }
 func (vr *VariableResolver) ResolveHeaders(ctx context.Context, headersJSON string, runtimeVars map[string]string) (map[string]string, error) {
 	resolved := make(map[string]string)
-
-	var headers map[string]string
-	if err := json.Unmarshal([]byte(headersJSON), &headers); err != nil {
-		return resolved, nil
-	}
 
 	envVars, err := vr.getActiveEnvironmentVars(ctx)
 	if err != nil {
@@ -72,7 +74,24 @@ func (vr *VariableResolver) ResolveHeaders(ctx context.Context, headersJSON stri
 		allVars[k] = v
 	}
 
-	for key, value := range headers {
+	// Try new format first: { "key": { "value": "...", "enabled": true } }
+	var headersNew map[string]HeaderValue
+	if err := json.Unmarshal([]byte(headersJSON), &headersNew); err == nil {
+		for key, hv := range headersNew {
+			if hv.Enabled {
+				resolved[vr.ResolveWithVars(key, allVars)] = vr.ResolveWithVars(hv.Value, allVars)
+			}
+		}
+		return resolved, nil
+	}
+
+	// Fall back to legacy format: { "key": "value" }
+	var headersLegacy map[string]string
+	if err := json.Unmarshal([]byte(headersJSON), &headersLegacy); err != nil {
+		return resolved, nil
+	}
+
+	for key, value := range headersLegacy {
 		resolved[vr.ResolveWithVars(key, allVars)] = vr.ResolveWithVars(value, allVars)
 	}
 
