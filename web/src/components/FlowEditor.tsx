@@ -30,6 +30,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [showRequestDropdown, setShowRequestDropdown] = useState(false);
   const [flowResult, setFlowResult] = useState<FlowResult | null>(null);
+  const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
 
   const { data: flowData } = useFlow(flow?.id || 0);
   const { data: steps = [] } = useFlowSteps(flow?.id || 0);
@@ -206,30 +207,102 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       </div>
 
                       {/* Step content */}
-                      <div className="flex-1 bg-white rounded-lg border border-gray-200 p-4 group">
-                        <div className="flex items-center gap-3">
-                          <span className={`text-xs font-mono font-semibold ${METHOD_COLORS[request?.method || ''] || 'text-gray-600'}`}>
-                            {request?.method || 'N/A'}
-                          </span>
-                          <span className="font-medium">{request?.name || 'Unknown Request'}</span>
-                          <span className="text-xs text-gray-400 truncate flex-1">{request?.url}</span>
-                          <button
-                            onClick={() => handleDeleteStep(step.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden group">
+                        <div
+                          onClick={() => setExpandedStepId(expandedStepId === step.id ? null : step.id)}
+                          className="p-4 cursor-pointer hover:bg-gray-50"
+                        >
+                          <div className="flex items-center gap-3">
+                            <svg
+                              className={`w-4 h-4 text-gray-400 transition-transform ${expandedStepId === step.id ? 'rotate-90' : ''}`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
-                          </button>
-                        </div>
-                        {step.delayMs > 0 && (
-                          <div className="mt-2 text-xs text-gray-500">
-                            Delay: {step.delayMs}ms
+                            <span className={`text-xs font-mono font-semibold ${METHOD_COLORS[request?.method || ''] || 'text-gray-600'}`}>
+                              {request?.method || 'N/A'}
+                            </span>
+                            <span className="font-medium">{request?.name || 'Unknown Request'}</span>
+                            <span className="text-xs text-gray-400 truncate flex-1">{request?.url}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteStep(step.id); }}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
                           </div>
-                        )}
-                        {step.extractVars && step.extractVars !== '{}' && (
-                          <div className="mt-2 text-xs text-gray-500">
-                            Extract: <code className="bg-gray-100 px-1 rounded">{step.extractVars}</code>
+                          {step.delayMs > 0 && (
+                            <div className="mt-2 text-xs text-gray-500 ml-7">
+                              Delay: {step.delayMs}ms
+                            </div>
+                          )}
+                          {step.extractVars && step.extractVars !== '{}' && (
+                            <div className="mt-2 text-xs text-gray-500 ml-7">
+                              Extract: <code className="bg-gray-100 px-1 rounded">{step.extractVars}</code>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Expanded Request Details */}
+                        {expandedStepId === step.id && request && (
+                          <div className="border-t border-gray-200 bg-gray-50 p-4">
+                            <div className="space-y-3 text-sm">
+                              {/* URL */}
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">URL</div>
+                                <div className="font-mono text-xs bg-white p-2 rounded border border-gray-200 break-all">
+                                  {request.url}
+                                </div>
+                              </div>
+
+                              {/* Headers */}
+                              {request.headers && request.headers !== '{}' && (
+                                <div>
+                                  <div className="text-xs font-medium text-gray-500 mb-1">Headers</div>
+                                  <pre className="font-mono text-xs bg-white p-2 rounded border border-gray-200 overflow-x-auto">
+                                    {(() => {
+                                      try {
+                                        return JSON.stringify(JSON.parse(request.headers), null, 2);
+                                      } catch {
+                                        return request.headers;
+                                      }
+                                    })()}
+                                  </pre>
+                                </div>
+                              )}
+
+                              {/* Body */}
+                              {request.body && request.bodyType !== 'none' && (
+                                <div>
+                                  <div className="text-xs font-medium text-gray-500 mb-1">
+                                    Body <span className="text-gray-400">({request.bodyType})</span>
+                                  </div>
+                                  <pre className="font-mono text-xs bg-white p-2 rounded border border-gray-200 overflow-x-auto max-h-40">
+                                    {(() => {
+                                      if (request.bodyType === 'json') {
+                                        try {
+                                          return JSON.stringify(JSON.parse(request.body), null, 2);
+                                        } catch {
+                                          return request.body;
+                                        }
+                                      }
+                                      return request.body;
+                                    })()}
+                                  </pre>
+                                </div>
+                              )}
+
+                              {/* No headers/body message */}
+                              {(!request.headers || request.headers === '{}') && (!request.body || request.bodyType === 'none') && (
+                                <div className="text-xs text-gray-400 italic">
+                                  No headers or body configured
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
