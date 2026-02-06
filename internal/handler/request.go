@@ -50,6 +50,14 @@ type ExecuteRequest struct {
 	BodyType string `json:"bodyType,omitempty"`
 }
 
+type AdhocExecuteRequest struct {
+	Method    string            `json:"method"`
+	URL       string            `json:"url"`
+	Headers   string            `json:"headers"`
+	Body      string            `json:"body"`
+	Variables map[string]string `json:"variables"`
+}
+
 func (h *RequestHandler) List(w http.ResponseWriter, r *http.Request) {
 	requests, err := h.queries.ListRequests(r.Context())
 	if err != nil {
@@ -254,6 +262,30 @@ func (h *RequestHandler) Execute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.executor.Execute(r.Context(), id, execReq.Variables, overrides)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, result)
+}
+
+func (h *RequestHandler) ExecuteAdhoc(w http.ResponseWriter, r *http.Request) {
+	var reqBody AdhocExecuteRequest
+	if err := decodeJSON(r, &reqBody); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if reqBody.URL == "" {
+		respondError(w, http.StatusBadRequest, "URL is required")
+		return
+	}
+	if reqBody.Method == "" {
+		reqBody.Method = "GET"
+	}
+
+	result, err := h.executor.ExecuteAdhoc(r.Context(), reqBody.Method, reqBody.URL, reqBody.Headers, reqBody.Body, reqBody.Variables)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

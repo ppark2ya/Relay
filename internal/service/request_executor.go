@@ -69,6 +69,16 @@ func (re *RequestExecutor) Execute(ctx context.Context, requestID int64, runtime
 	return re.ExecuteRequest(ctx, req, runtimeVars)
 }
 
+func (re *RequestExecutor) ExecuteAdhoc(ctx context.Context, method, urlStr, headers, body string, runtimeVars map[string]string) (*ExecuteResult, error) {
+	req := repository.Request{
+		Method:  method,
+		Url:     urlStr,
+		Headers: sql.NullString{String: headers, Valid: headers != ""},
+		Body:    sql.NullString{String: body, Valid: body != ""},
+	}
+	return re.ExecuteRequest(ctx, req, runtimeVars)
+}
+
 func (re *RequestExecutor) ExecuteRequest(ctx context.Context, req repository.Request, runtimeVars map[string]string) (*ExecuteResult, error) {
 	result := &ExecuteResult{}
 

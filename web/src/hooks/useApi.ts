@@ -229,6 +229,15 @@ export const useDeleteFlowStep = () => {
   });
 };
 
+// Ad-hoc execute
+export const useExecuteAdhoc = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.executeAdhoc,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['history'] }),
+  });
+};
+
 // History
 export const useHistory = () => useQuery({ queryKey: ['history'], queryFn: api.getHistory });
 

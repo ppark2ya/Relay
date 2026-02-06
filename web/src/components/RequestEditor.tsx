@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useUpdateRequest, useExecuteRequest, useEnvironments, useRequest } from '../hooks/useApi';
+import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useRequest } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult } from '../types';
 
@@ -49,7 +49,10 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
 
   const updateRequest = useUpdateRequest();
   const executeRequest = useExecuteRequest();
+  const executeAdhoc = useExecuteAdhoc();
   const { data: environments = [] } = useEnvironments();
+
+  const isFromHistory = request?.id === 0;
 
   // Fetch full request data (collection API only returns basic info)
   const { data: fullRequestData } = useRequest(request?.id || 0);
@@ -116,6 +119,35 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
       parseParamsFromUrl(fullRequestData.url);
     }
   }, [fullRequestData]);
+
+  // Sync form state from history-loaded synthetic request (id=0)
+  useEffect(() => {
+    if (request && request.id === 0) {
+      setName(request.name);
+      setMethod(request.method);
+      setUrl(request.url);
+      setBodyType(request.bodyType || 'none');
+      setBody(request.body || '');
+      setGraphqlVariables('');
+
+      // Parse headers (legacy format: {"key":"value"} → enabled=true)
+      try {
+        const parsed = JSON.parse(request.headers || '{}');
+        const items = Object.entries(parsed).map(([key, val]) => {
+          if (typeof val === 'object' && val !== null && 'value' in val) {
+            const obj = val as { value: string; enabled: boolean };
+            return { key, value: obj.value, enabled: obj.enabled ?? true };
+          }
+          return { key, value: String(val), enabled: true };
+        });
+        setHeaderItems(items);
+      } catch {
+        setHeaderItems([]);
+      }
+
+      parseParamsFromUrl(request.url);
+    }
+  }, [request]);
 
   // Parse query params from URL
   const parseParamsFromUrl = (urlString: string) => {
@@ -240,19 +272,31 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     // Build body - for graphql, wrap in proper format
     const bodyToSend = bodyType === 'graphql' ? buildGraphqlBody() : body;
 
-    // Execute with current form values (without needing to save)
-    executeRequest.mutate({
-      id: request.id,
-      overrides: {
+    if (isFromHistory) {
+      // Ad-hoc execution for history-loaded requests
+      executeAdhoc.mutate({
         method,
         url,
         headers: headersJson,
         body: bodyToSend,
-        bodyType: bodyType === 'graphql' ? 'json' : bodyType, // Send as json to backend
-      },
-    }, {
-      onSuccess: (result) => onExecute(result),
-    });
+      }, {
+        onSuccess: (result) => onExecute(result),
+      });
+    } else {
+      // Execute with current form values (without needing to save)
+      executeRequest.mutate({
+        id: request.id,
+        overrides: {
+          method,
+          url,
+          headers: headersJson,
+          body: bodyToSend,
+          bodyType: bodyType === 'graphql' ? 'json' : bodyType, // Send as json to backend
+        },
+      }, {
+        onSuccess: (result) => onExecute(result),
+      });
+    }
   };
 
   // Count enabled params with non-empty keys
@@ -280,8 +324,20 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     );
   }
 
+  const isExecuting = executeRequest.isPending || executeAdhoc.isPending;
+
   return (
     <div className="border-b border-gray-200 bg-white">
+      {/* History banner */}
+      {isFromHistory && (
+        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-sm text-amber-700 flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Loaded from history. Edit and re-send, or select a saved request.
+        </div>
+      )}
+
       {/* Request Name */}
       <div className="px-4 pt-3 pb-1">
         {isEditingName ? (
@@ -402,18 +458,20 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
         </div>
         <button
           onClick={handleExecute}
-          disabled={executeRequest.isPending}
+          disabled={isExecuting}
           className="px-6 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
         >
-          {executeRequest.isPending ? 'Sending...' : 'Send'}
+          {isExecuting ? 'Sending...' : 'Send'}
         </button>
-        <button
-          onClick={handleSave}
-          disabled={updateRequest.isPending}
-          className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-        >
-          Save
-        </button>
+        {!isFromHistory && (
+          <button
+            onClick={handleSave}
+            disabled={updateRequest.isPending}
+            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Save
+          </button>
+        )}
       </div>
 
       {/* Tabs */}

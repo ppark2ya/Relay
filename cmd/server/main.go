@@ -69,6 +69,9 @@ func main() {
 		r.Put("/collections/{id}", collectionHandler.Update)
 		r.Delete("/collections/{id}", collectionHandler.Delete)
 
+		// Ad-hoc execute (no saved request needed)
+		r.Post("/execute", requestHandler.ExecuteAdhoc)
+
 		// Requests
 		r.Get("/requests", requestHandler.List)
 		r.Post("/requests", requestHandler.Create)

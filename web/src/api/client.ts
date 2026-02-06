@@ -54,6 +54,10 @@ export const createFlowStep = (flowId: number, data: Partial<FlowStep>) => api.p
 export const updateFlowStep = (flowId: number, stepId: number, data: Partial<FlowStep>) => api.put<FlowStep>(`/flows/${flowId}/steps/${stepId}`, data).then(r => r.data);
 export const deleteFlowStep = (flowId: number, stepId: number) => api.delete(`/flows/${flowId}/steps/${stepId}`);
 
+// Ad-hoc execute
+export const executeAdhoc = (data: { method: string; url: string; headers: string; body: string; variables?: Record<string, string> }) =>
+  api.post<ExecuteResult>('/execute', data).then(r => r.data);
+
 // History
 export const getHistory = () => api.get<History[]>('/history').then(r => r.data);
 export const getHistoryItem = (id: number) => api.get<History>(`/history/${id}`).then(r => r.data);

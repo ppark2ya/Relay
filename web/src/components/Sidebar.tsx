@@ -1,13 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useCollections, useCreateCollection, useDeleteCollection, useCreateRequest, useDeleteRequest, useFlows, useCreateFlow, useDeleteFlow, useHistory, useDeleteHistory } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
-import type { Request, Collection, Flow } from '../types';
+import type { Request, Collection, Flow, History } from '../types';
 
 interface SidebarProps {
   view: 'requests' | 'flows' | 'history';
   onViewChange: (view: 'requests' | 'flows' | 'history') => void;
   onSelectRequest: (request: Request | null) => void;
   onSelectFlow: (flow: Flow | null) => void;
+  onSelectHistory: (history: History) => void;
   selectedRequestId?: number;
   selectedFlowId?: number;
 }
@@ -19,6 +20,41 @@ const METHOD_COLORS: Record<string, string> = {
   DELETE: 'text-red-600',
   PATCH: 'text-purple-600',
 };
+
+function groupHistoryByDate(history: History[]): { label: string; items: History[] }[] {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const groups = new Map<string, History[]>();
+
+  for (const item of history) {
+    const date = new Date(item.createdAt);
+    const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    let label: string;
+    if (itemDate.getTime() === today.getTime()) {
+      label = 'Today';
+    } else if (itemDate.getTime() === yesterday.getTime()) {
+      label = 'Yesterday';
+    } else {
+      label = itemDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    if (!groups.has(label)) {
+      groups.set(label, []);
+    }
+    groups.get(label)!.push(item);
+  }
+
+  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
+}
+
+function formatTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
 
 function CollectionTree({
   collections,
@@ -120,7 +156,7 @@ function CollectionTree({
   );
 }
 
-export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, selectedRequestId, selectedFlowId }: SidebarProps) {
+export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onSelectHistory, selectedRequestId, selectedFlowId }: SidebarProps) {
   const { data: collections = [] } = useCollections();
   const { data: flows = [] } = useFlows();
   const { data: history = [] } = useHistory();
@@ -136,6 +172,21 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, sel
   const [showNewCollection, setShowNewCollection] = useState(false);
   const [newFlowName, setNewFlowName] = useState('');
   const [showNewFlow, setShowNewFlow] = useState(false);
+  const [expandedDateGroups, setExpandedDateGroups] = useState<Set<string>>(new Set(['Today', 'Yesterday']));
+
+  const dateGroups = useMemo(() => groupHistoryByDate(history), [history]);
+
+  const toggleDateGroup = (label: string) => {
+    setExpandedDateGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+      return next;
+    });
+  };
 
   const closeNewFlow = useCallback(() => setShowNewFlow(false), []);
   const newFlowRef = useClickOutside<HTMLDivElement>(closeNewFlow, showNewFlow);
@@ -311,26 +362,48 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, sel
             {history.length === 0 ? (
               <p className="text-sm text-gray-500 p-2">No history yet</p>
             ) : (
-              history.map(item => (
-                <div key={item.id} className="px-2 py-1 hover:bg-gray-100 rounded group">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-mono font-semibold ${METHOD_COLORS[item.method] || 'text-gray-600'}`}>
-                      {item.method}
-                    </span>
-                    <span className={`text-xs ${item.statusCode && item.statusCode >= 400 ? 'text-red-500' : 'text-green-500'}`}>
-                      {item.statusCode || 'Error'}
-                    </span>
-                    <span className="text-xs text-gray-400">{item.durationMs}ms</span>
-                    <button
-                      onClick={() => deleteHistory.mutate(item.id)}
-                      className="ml-auto opacity-0 group-hover:opacity-100 p-0.5"
-                    >
-                      <svg className="w-3 h-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+              dateGroups.map(group => (
+                <div key={group.label}>
+                  <div
+                    onClick={() => toggleDateGroup(group.label)}
+                    className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 rounded cursor-pointer"
+                  >
+                    <svg className={`w-4 h-4 transition-transform ${expandedDateGroups.has(group.label) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span className="flex-1 text-sm font-medium text-gray-700">{group.label}</span>
+                    <span className="text-xs text-gray-400">{group.items.length}</span>
                   </div>
-                  <div className="text-xs text-gray-600 truncate">{item.url}</div>
+                  {expandedDateGroups.has(group.label) && (
+                    <div className="ml-2">
+                      {group.items.map(item => (
+                        <div
+                          key={item.id}
+                          onClick={() => onSelectHistory(item)}
+                          className="px-2 py-1 hover:bg-gray-100 rounded group cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-mono font-semibold ${METHOD_COLORS[item.method] || 'text-gray-600'}`}>
+                              {item.method}
+                            </span>
+                            <span className={`text-xs ${item.statusCode && item.statusCode >= 400 ? 'text-red-500' : 'text-green-500'}`}>
+                              {item.statusCode || 'Error'}
+                            </span>
+                            <span className="text-xs text-gray-400">{formatTime(item.createdAt)}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteHistory.mutate(item.id); }}
+                              className="ml-auto opacity-0 group-hover:opacity-100 p-0.5"
+                            >
+                              <svg className="w-3 h-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="text-xs text-gray-600 truncate">{item.url}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
             )}
