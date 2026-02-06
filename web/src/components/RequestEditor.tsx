@@ -33,8 +33,8 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   const [showMethodDropdown, setShowMethodDropdown] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
 
-  const [headerItems, setHeaderItems] = useState<Array<{ key: string; value: string }>>([]);
-  const [paramItems, setParamItems] = useState<Array<{ key: string; value: string }>>([]);
+  const [headerItems, setHeaderItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
+  const [paramItems, setParamItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
 
   const updateRequest = useUpdateRequest();
   const executeRequest = useExecuteRequest();
@@ -70,10 +70,19 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
       setBody(fullRequestData.body || '');
       setBodyType(fullRequestData.bodyType || 'none');
 
-      // Parse headers
+      // Parse headers (format: { key: { value, enabled } } or legacy { key: value })
       try {
         const parsed = JSON.parse(fullRequestData.headers || '{}');
-        setHeaderItems(Object.entries(parsed).map(([key, value]) => ({ key, value: String(value) })));
+        const items = Object.entries(parsed).map(([key, val]) => {
+          if (typeof val === 'object' && val !== null && 'value' in val) {
+            // New format with enabled flag
+            const obj = val as { value: string; enabled: boolean };
+            return { key, value: obj.value, enabled: obj.enabled ?? true };
+          }
+          // Legacy format
+          return { key, value: String(val), enabled: true };
+        });
+        setHeaderItems(items);
       } catch {
         setHeaderItems([]);
       }
@@ -87,9 +96,9 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   const parseParamsFromUrl = (urlString: string) => {
     try {
       const urlObj = new URL(urlString);
-      const params: Array<{ key: string; value: string }> = [];
+      const params: Array<{ key: string; value: string; enabled: boolean }> = [];
       urlObj.searchParams.forEach((value, key) => {
-        params.push({ key, value });
+        params.push({ key, value, enabled: true });
       });
       setParamItems(params);
     } catch {
@@ -97,27 +106,25 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     }
   };
 
-  // Build URL from base + params
-  const buildUrlWithParams = (baseUrl: string, params: Array<{ key: string; value: string }>) => {
+  // Build URL from base + enabled params only
+  const buildUrlWithParams = (baseUrl: string, params: Array<{ key: string; value: string; enabled: boolean }>) => {
+    const enabledParams = params.filter(p => p.enabled && p.key.trim());
     try {
       const urlObj = new URL(baseUrl.split('?')[0]);
-      params.forEach(({ key, value }) => {
-        if (key.trim()) {
-          urlObj.searchParams.set(key, value);
-        }
+      enabledParams.forEach(({ key, value }) => {
+        urlObj.searchParams.set(key, value);
       });
       return urlObj.toString();
     } catch {
       // If URL is invalid, just append params manually
-      const validParams = params.filter(p => p.key.trim());
-      if (validParams.length === 0) return baseUrl.split('?')[0];
-      const queryString = validParams.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
+      if (enabledParams.length === 0) return baseUrl.split('?')[0];
+      const queryString = enabledParams.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
       return `${baseUrl.split('?')[0]}?${queryString}`;
     }
   };
 
   // Update URL when params change
-  const handleParamChange = (newParams: Array<{ key: string; value: string }>) => {
+  const handleParamChange = (newParams: Array<{ key: string; value: string; enabled: boolean }>) => {
     setParamItems(newParams);
     const newUrl = buildUrlWithParams(url, newParams);
     setUrl(newUrl);
@@ -129,17 +136,27 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     parseParamsFromUrl(newUrl);
   };
 
-  const getHeadersJson = () => {
+  // Get headers JSON for saving (includes enabled state)
+  const getHeadersJsonForSave = () => {
+    const obj: Record<string, { value: string; enabled: boolean }> = {};
+    headerItems.forEach(({ key, value, enabled }) => {
+      if (key.trim()) obj[key] = { value, enabled };
+    });
+    return JSON.stringify(obj, null, 2);
+  };
+
+  // Get headers JSON for execution (only enabled headers, simple format)
+  const getHeadersJsonForExecute = () => {
     const obj: Record<string, string> = {};
-    headerItems.forEach(({ key, value }) => {
-      if (key.trim()) obj[key] = value;
+    headerItems.forEach(({ key, value, enabled }) => {
+      if (key.trim() && enabled) obj[key] = value;
     });
     return JSON.stringify(obj, null, 2);
   };
 
   const handleSave = () => {
     if (request) {
-      const headersJson = getHeadersJson();
+      const headersJson = getHeadersJsonForSave();
       const collectionId = fullRequestData?.collectionId ?? request.collectionId;
       updateRequest.mutate({
         id: request.id,
@@ -163,7 +180,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   const handleExecute = () => {
     if (!request) return;
 
-    const headersJson = getHeadersJson();
+    const headersJson = getHeadersJsonForExecute();
 
     // Execute with current form values (without needing to save)
     executeRequest.mutate({
@@ -180,10 +197,16 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     });
   };
 
-  // Count params with non-empty keys
+  // Count enabled params with non-empty keys
   const validParamsCount = useMemo(() =>
-    paramItems.filter(p => p.key.trim()).length,
+    paramItems.filter(p => p.key.trim() && p.enabled).length,
     [paramItems]
+  );
+
+  // Count enabled headers with non-empty keys
+  const validHeadersCount = useMemo(() =>
+    headerItems.filter(h => h.key.trim() && h.enabled).length,
+    [headerItems]
   );
 
   if (!request) {
@@ -351,8 +374,8 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
             {tab === 'params' && validParamsCount > 0 && (
               <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 rounded-full">{validParamsCount}</span>
             )}
-            {tab === 'headers' && headerItems.filter(h => h.key.trim()).length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 rounded-full">{headerItems.filter(h => h.key.trim()).length}</span>
+            {tab === 'headers' && validHeadersCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 rounded-full">{validHeadersCount}</span>
             )}
           </button>
         ))}
@@ -363,7 +386,17 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
         {activeTab === 'params' && (
           <div className="space-y-2">
             {paramItems.map((item, index) => (
-              <div key={index} className="flex gap-2">
+              <div key={index} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={item.enabled}
+                  onChange={e => {
+                    const newItems = [...paramItems];
+                    newItems[index] = { ...newItems[index], enabled: e.target.checked };
+                    handleParamChange(newItems);
+                  }}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
                 <input
                   type="text"
                   value={item.key}
@@ -373,7 +406,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                     handleParamChange(newItems);
                   }}
                   placeholder="Parameter name"
-                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                  className={`flex-1 px-2 py-1 border border-gray-300 rounded text-sm ${!item.enabled ? 'opacity-50' : ''}`}
                 />
                 <input
                   type="text"
@@ -384,7 +417,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                     handleParamChange(newItems);
                   }}
                   placeholder="Value"
-                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                  className={`flex-1 px-2 py-1 border border-gray-300 rounded text-sm ${!item.enabled ? 'opacity-50' : ''}`}
                 />
                 <button
                   onClick={() => {
@@ -399,7 +432,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
               </div>
             ))}
             <button
-              onClick={() => setParamItems([...paramItems, { key: '', value: '' }])}
+              onClick={() => setParamItems([...paramItems, { key: '', value: '', enabled: true }])}
               className="text-sm text-blue-600 hover:underline"
             >
               + Add Parameter
@@ -410,7 +443,17 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
         {activeTab === 'headers' && (
           <div className="space-y-2">
             {headerItems.map((item, index) => (
-              <div key={index} className="flex gap-2">
+              <div key={index} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={item.enabled}
+                  onChange={e => {
+                    const newItems = [...headerItems];
+                    newItems[index] = { ...newItems[index], enabled: e.target.checked };
+                    setHeaderItems(newItems);
+                  }}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
                 <input
                   type="text"
                   value={item.key}
@@ -420,7 +463,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                     setHeaderItems(newItems);
                   }}
                   placeholder="Header name"
-                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                  className={`flex-1 px-2 py-1 border border-gray-300 rounded text-sm ${!item.enabled ? 'opacity-50' : ''}`}
                 />
                 <input
                   type="text"
@@ -431,7 +474,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                     setHeaderItems(newItems);
                   }}
                   placeholder="Value"
-                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                  className={`flex-1 px-2 py-1 border border-gray-300 rounded text-sm ${!item.enabled ? 'opacity-50' : ''}`}
                 />
                 <button
                   onClick={() => {
@@ -446,7 +489,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
               </div>
             ))}
             <button
-              onClick={() => setHeaderItems([...headerItems, { key: '', value: '' }])}
+              onClick={() => setHeaderItems([...headerItems, { key: '', value: '', enabled: true }])}
               className="text-sm text-blue-600 hover:underline"
             >
               + Add Header
