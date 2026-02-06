@@ -153,6 +153,12 @@ export const useActivateProxy = () => {
   });
 };
 
+export const useTestProxy = () => {
+  return useMutation({
+    mutationFn: api.testProxy,
+  });
+};
+
 // Flows
 export const useFlows = () => useQuery({ queryKey: ['flows'], queryFn: api.getFlows });
 export const useFlow = (id: number) => useQuery({ queryKey: ['flows', id], queryFn: () => api.getFlow(id), enabled: !!id });

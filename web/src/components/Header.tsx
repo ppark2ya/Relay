@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useEnvironments, useActivateEnvironment, useProxies, useActivateProxy } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { EnvironmentEditor } from './EnvironmentEditor';
+import { ProxyEditor } from './ProxyEditor';
 
 export function Header() {
   const { data: environments = [] } = useEnvironments();
@@ -15,6 +16,7 @@ export function Header() {
   const [showEnvDropdown, setShowEnvDropdown] = useState(false);
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
   const [showEnvEditor, setShowEnvEditor] = useState(false);
+  const [showProxyEditor, setShowProxyEditor] = useState(false);
 
   const closeEnvDropdown = useCallback(() => setShowEnvDropdown(false), []);
   const closeProxyDropdown = useCallback(() => setShowProxyDropdown(false), []);
@@ -109,12 +111,26 @@ export function Header() {
                 ))
               )}
             </div>
+            <div className="border-t border-gray-200 py-1">
+              <button
+                onClick={() => { setShowProxyEditor(true); setShowProxyDropdown(false); }}
+                className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2 text-blue-600"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                </svg>
+                Manage Proxies
+              </button>
+            </div>
           </div>
         )}
       </div>
 
       {/* Environment Editor Modal */}
       <EnvironmentEditor isOpen={showEnvEditor} onClose={() => setShowEnvEditor(false)} />
+
+      {/* Proxy Editor Modal */}
+      <ProxyEditor isOpen={showProxyEditor} onClose={() => setShowProxyEditor(false)} />
     </header>
   );
 }
