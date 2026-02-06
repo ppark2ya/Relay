@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useUpdateRequest, useExecuteRequest } from '../hooks/useApi';
+import { useUpdateRequest, useExecuteRequest, useEnvironments, useRequest } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult } from '../types';
 
@@ -38,31 +38,50 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
 
   const updateRequest = useUpdateRequest();
   const executeRequest = useExecuteRequest();
+  const { data: environments = [] } = useEnvironments();
+
+  // Fetch full request data (collection API only returns basic info)
+  const { data: fullRequestData } = useRequest(request?.id || 0);
+
+  const activeEnv = environments.find(e => e.isActive);
+  const envVariables = useMemo(() => {
+    if (!activeEnv?.variables) return {};
+    try {
+      return JSON.parse(activeEnv.variables) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  }, [activeEnv?.variables]);
+
+  const [showEnvVars, setShowEnvVars] = useState(false);
 
   const closeMethodDropdown = useCallback(() => setShowMethodDropdown(false), []);
   const methodDropdownRef = useClickOutside<HTMLDivElement>(closeMethodDropdown, showMethodDropdown);
 
-  // Sync form state with request prop
+  const closeEnvVars = useCallback(() => setShowEnvVars(false), []);
+  const envVarsRef = useClickOutside<HTMLDivElement>(closeEnvVars, showEnvVars);
+
+  // Sync form state with full request data from API
   useEffect(() => {
-    if (request) {
-      setName(request.name);
-      setMethod(request.method);
-      setUrl(request.url);
-      setBody(request.body || '');
-      setBodyType(request.bodyType || 'none');
+    if (fullRequestData) {
+      setName(fullRequestData.name);
+      setMethod(fullRequestData.method);
+      setUrl(fullRequestData.url);
+      setBody(fullRequestData.body || '');
+      setBodyType(fullRequestData.bodyType || 'none');
 
       // Parse headers
       try {
-        const parsed = JSON.parse(request.headers || '{}');
+        const parsed = JSON.parse(fullRequestData.headers || '{}');
         setHeaderItems(Object.entries(parsed).map(([key, value]) => ({ key, value: String(value) })));
       } catch {
         setHeaderItems([]);
       }
 
       // Parse params from URL
-      parseParamsFromUrl(request.url);
+      parseParamsFromUrl(fullRequestData.url);
     }
-  }, [request?.id]);
+  }, [fullRequestData]);
 
   // Parse query params from URL
   const parseParamsFromUrl = (urlString: string) => {
@@ -121,17 +140,17 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   const handleSave = () => {
     if (request) {
       const headersJson = getHeadersJson();
+      const collectionId = fullRequestData?.collectionId ?? request.collectionId;
       updateRequest.mutate({
         id: request.id,
         data: {
-          ...request,
           name,
           method,
           url,
           headers: headersJson,
           body,
           bodyType,
-          collectionId: request.collectionId, // Preserve collectionId
+          collectionId, // Preserve collectionId
         },
       }, {
         onSuccess: (data) => {
@@ -241,9 +260,65 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
           type="text"
           value={url}
           onChange={e => handleUrlChange(e.target.value)}
-          placeholder="Enter URL or paste text"
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Enter URL or paste text (use {{variable}} for env vars)"
+          className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
         />
+        {/* Environment Variables Popup */}
+        <div className="relative" ref={envVarsRef}>
+          <button
+            onClick={() => setShowEnvVars(!showEnvVars)}
+            className={`px-3 py-2 border rounded-md flex items-center gap-1 ${
+              activeEnv ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+            }`}
+            title={activeEnv ? `Environment: ${activeEnv.name}` : 'No active environment'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+            </svg>
+            <span className="text-xs">{'{{}}'}</span>
+          </button>
+          {showEnvVars && (
+            <div className="absolute top-full right-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+              <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {activeEnv ? activeEnv.name : 'No Environment'}
+                  </span>
+                  {activeEnv && (
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      Active
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {Object.keys(envVariables).length > 0 ? (
+                  <div className="p-2">
+                    <p className="text-xs text-gray-500 mb-2 px-1">Click to copy variable syntax</p>
+                    {Object.entries(envVariables).map(([key, value]) => (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          navigator.clipboard.writeText(`{{${key}}}`);
+                          setShowEnvVars(false);
+                        }}
+                        className="w-full px-2 py-1.5 text-left hover:bg-gray-100 rounded flex items-center justify-between gap-2"
+                      >
+                        <code className="text-xs text-blue-600">{`{{${key}}}`}</code>
+                        <span className="text-xs text-gray-500 truncate max-w-32">{value}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-sm text-gray-500">
+                    {activeEnv ? 'No variables defined' : 'Select an environment to use variables'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         <button
           onClick={handleExecute}
           disabled={executeRequest.isPending}

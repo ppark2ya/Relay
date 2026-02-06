@@ -48,8 +48,9 @@ export const useUpdateRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Parameters<typeof api.updateRequest>[1] }) => api.updateRequest(id, data),
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['requests', id] });
       queryClient.invalidateQueries({ queryKey: ['collections'] });
     },
   });
