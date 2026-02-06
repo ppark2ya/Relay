@@ -35,6 +35,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
 
   const [headerItems, setHeaderItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [paramItems, setParamItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
+  const [graphqlVariables, setGraphqlVariables] = useState('');
 
   const updateRequest = useUpdateRequest();
   const executeRequest = useExecuteRequest();
@@ -67,8 +68,22 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
       setName(fullRequestData.name);
       setMethod(fullRequestData.method);
       setUrl(fullRequestData.url);
-      setBody(fullRequestData.body || '');
       setBodyType(fullRequestData.bodyType || 'none');
+
+      // Parse body - for graphql type, extract query and variables
+      if (fullRequestData.bodyType === 'graphql' && fullRequestData.body) {
+        try {
+          const parsed = JSON.parse(fullRequestData.body);
+          setBody(parsed.query || '');
+          setGraphqlVariables(parsed.variables ? JSON.stringify(parsed.variables, null, 2) : '');
+        } catch {
+          setBody(fullRequestData.body || '');
+          setGraphqlVariables('');
+        }
+      } else {
+        setBody(fullRequestData.body || '');
+        setGraphqlVariables('');
+      }
 
       // Parse headers (format: { key: { value, enabled } } or legacy { key: value })
       try {
@@ -154,10 +169,29 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     return JSON.stringify(obj, null, 2);
   };
 
+  // Build body for GraphQL type
+  const buildGraphqlBody = () => {
+    const graphqlPayload: { query: string; variables?: Record<string, unknown> } = {
+      query: body,
+    };
+    if (graphqlVariables.trim()) {
+      try {
+        graphqlPayload.variables = JSON.parse(graphqlVariables);
+      } catch {
+        // Invalid JSON, ignore variables
+      }
+    }
+    return JSON.stringify(graphqlPayload);
+  };
+
   const handleSave = () => {
     if (request) {
       const headersJson = getHeadersJsonForSave();
       const collectionId = fullRequestData?.collectionId ?? request.collectionId;
+
+      // For graphql type, store the combined JSON body
+      const bodyToSave = bodyType === 'graphql' ? buildGraphqlBody() : body;
+
       updateRequest.mutate({
         id: request.id,
         data: {
@@ -165,7 +199,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
           method,
           url,
           headers: headersJson,
-          body,
+          body: bodyToSave,
           bodyType,
           collectionId, // Preserve collectionId
         },
@@ -180,7 +214,21 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   const handleExecute = () => {
     if (!request) return;
 
-    const headersJson = getHeadersJsonForExecute();
+    // Build headers - for graphql, ensure Content-Type is set
+    const headersObj: Record<string, string> = {};
+    headerItems.forEach(({ key, value, enabled }) => {
+      if (key.trim() && enabled) headersObj[key] = value;
+    });
+
+    // For GraphQL, auto-add Content-Type if not present
+    if (bodyType === 'graphql' && !headersObj['Content-Type']) {
+      headersObj['Content-Type'] = 'application/json';
+    }
+
+    const headersJson = JSON.stringify(headersObj, null, 2);
+
+    // Build body - for graphql, wrap in proper format
+    const bodyToSend = bodyType === 'graphql' ? buildGraphqlBody() : body;
 
     // Execute with current form values (without needing to save)
     executeRequest.mutate({
@@ -189,8 +237,8 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
         method,
         url,
         headers: headersJson,
-        body,
-        bodyType,
+        body: bodyToSend,
+        bodyType: bodyType === 'graphql' ? 'json' : bodyType, // Send as json to backend
       },
     }, {
       onSuccess: (result) => onExecute(result),
@@ -500,7 +548,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
         {activeTab === 'body' && (
           <div className="space-y-2">
             <div className="flex gap-4 text-sm">
-              {['none', 'json', 'form', 'raw'].map(type => (
+              {['none', 'json', 'form', 'raw', 'graphql'].map(type => (
                 <label key={type} className="flex items-center gap-1">
                   <input
                     type="radio"
@@ -508,11 +556,33 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                     checked={bodyType === type}
                     onChange={() => setBodyType(type)}
                   />
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                  {type === 'graphql' ? 'GraphQL' : type.charAt(0).toUpperCase() + type.slice(1)}
                 </label>
               ))}
             </div>
-            {bodyType !== 'none' && (
+            {bodyType === 'graphql' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Query</label>
+                  <textarea
+                    value={body}
+                    onChange={e => setBody(e.target.value)}
+                    placeholder="{ health }"
+                    className="w-full h-24 px-3 py-2 border border-gray-300 rounded font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Variables (JSON)</label>
+                  <textarea
+                    value={graphqlVariables}
+                    onChange={e => setGraphqlVariables(e.target.value)}
+                    placeholder='{ "id": "123" }'
+                    className="w-full h-20 px-3 py-2 border border-gray-300 rounded font-mono text-sm"
+                  />
+                </div>
+              </div>
+            )}
+            {bodyType !== 'none' && bodyType !== 'graphql' && (
               <textarea
                 value={body}
                 onChange={e => setBody(e.target.value)}
