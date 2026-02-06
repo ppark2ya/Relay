@@ -1,4 +1,4 @@
-.PHONY: build dev clean test frontend backend all
+.PHONY: build dev clean test frontend backend all test-e2e
 
 # Variables
 BINARY=relay
@@ -38,6 +38,10 @@ test-backend:
 
 test-frontend:
 	cd $(FRONTEND_DIR) && pnpm run lint
+
+# E2E tests
+test-e2e:
+	cd e2e && pnpm install && pnpm exec playwright install chromium && pnpm test
 
 # Clean build artifacts
 clean:
