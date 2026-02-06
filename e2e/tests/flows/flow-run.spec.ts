@@ -35,7 +35,7 @@ test.describe('Flow Run', () => {
 
     // Verify result
     await expect(page.getByText('Success')).toBeVisible();
-    await expect(page.getByText('200')).toBeVisible();
+    await expect(page.getByText('200', { exact: true })).toBeVisible();
   });
 
   test('should run a POST step successfully', async ({ page }) => {
@@ -60,7 +60,7 @@ test.describe('Flow Run', () => {
 
     // Verify result
     await expect(page.getByText('Success')).toBeVisible();
-    await expect(page.getByText('201')).toBeVisible();
+    await expect(page.getByText('201', { exact: true })).toBeVisible();
   });
 
   test('should run multiple steps successfully', async ({ page }) => {
@@ -94,7 +94,7 @@ test.describe('Flow Run', () => {
     // Verify both steps succeeded
     await expect(page.getByText('Success')).toBeVisible();
     // Both step results should show 200
-    const statusCodes = page.getByText('200');
+    const statusCodes = page.getByText('200', { exact: true });
     await expect(statusCodes.first()).toBeVisible();
     await expect(statusCodes.nth(1)).toBeVisible();
   });

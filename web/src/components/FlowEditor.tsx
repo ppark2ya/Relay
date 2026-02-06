@@ -100,8 +100,19 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
 
   const handleRun = () => {
     if (flow) {
+      setFlowResult(null);
       runFlow.mutate(flow.id, {
         onSuccess: (result) => setFlowResult(result),
+        onError: (error) => {
+          setFlowResult({
+            flowId: flow.id,
+            flowName: flow.name,
+            steps: [],
+            totalTimeMs: 0,
+            success: false,
+            error: error instanceof Error ? error.message : 'Flow execution failed',
+          });
+        },
       });
     }
   };
@@ -312,12 +323,28 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                 .sort((a, b) => a.stepOrder - b.stepOrder)
                 .map((step, index) => {
                   const edit = editStates[step.id];
+                  const stepResult = flowResult?.steps.find(sr => sr.stepId === step.id);
+                  const isStepError = stepResult && !stepResult.skipped && (stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400);
+                  const isStepSuccess = stepResult && !stepResult.skipped && !isStepError;
+                  const isStepSkipped = stepResult?.skipped;
                   return (
                     <div key={step.id} className="flex items-stretch gap-3">
                       {/* Step number */}
                       <div className="flex flex-col items-center">
-                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium">
-                          {index + 1}
+                        <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-medium ${
+                          isStepError ? 'bg-red-500' : isStepSuccess ? 'bg-green-500' : isStepSkipped ? 'bg-gray-400' : 'bg-blue-600'
+                        }`}>
+                          {isStepError ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          ) : isStepSuccess ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            index + 1
+                          )}
                         </div>
                         {index < steps.length - 1 && (
                           <div className="w-0.5 flex-1 bg-gray-300 my-1" />
@@ -325,14 +352,28 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       </div>
 
                       {/* Step content */}
-                      <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden group">
+                      <div className={`flex-1 rounded-lg border overflow-hidden group ${
+                        isStepError
+                          ? 'bg-red-50 border-red-300'
+                          : isStepSuccess
+                          ? 'bg-green-50 border-green-300'
+                          : 'bg-white border-gray-200'
+                      }`}>
                         <div
                           onClick={() => handleExpandStep(step.id)}
-                          className="p-4 cursor-pointer hover:bg-gray-50"
+                          className={`p-4 cursor-pointer ${
+                            isStepError
+                              ? 'hover:bg-red-100'
+                              : isStepSuccess
+                              ? 'hover:bg-green-100'
+                              : 'hover:bg-gray-50'
+                          }`}
                         >
                           <div className="flex items-center gap-3">
                             <svg
-                              className={`w-4 h-4 text-gray-400 transition-transform ${expandedStepId === step.id ? 'rotate-90' : ''}`}
+                              className={`w-4 h-4 transition-transform ${
+                                isStepError ? 'text-red-400' : isStepSuccess ? 'text-green-400' : 'text-gray-400'
+                              } ${expandedStepId === step.id ? 'rotate-90' : ''}`}
                               fill="none"
                               viewBox="0 0 24 24"
                               stroke="currentColor"
@@ -344,6 +385,31 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                             </span>
                             <span className="font-medium">{step.name || 'Untitled Step'}</span>
                             <span className="text-xs text-gray-400 truncate flex-1">{step.url}</span>
+                            {isStepError && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {stepResult.executeResult.statusCode || 'ERR'}
+                                <span className="text-red-400">·</span>
+                                {stepResult.executeResult.durationMs}ms
+                              </span>
+                            )}
+                            {isStepSuccess && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                {stepResult.executeResult.statusCode}
+                                <span className="text-green-400">·</span>
+                                {stepResult.executeResult.durationMs}ms
+                              </span>
+                            )}
+                            {isStepSkipped && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                                Skipped
+                              </span>
+                            )}
                             <button
                               onClick={(e) => { e.stopPropagation(); handleDeleteStep(step.id); }}
                               className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded"
@@ -353,6 +419,14 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                               </svg>
                             </button>
                           </div>
+                          {isStepError && stepResult.executeResult.error && (
+                            <div className="mt-2 ml-7 flex items-start gap-1.5 text-xs text-red-700 bg-red-100 rounded px-2 py-1.5">
+                              <svg className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span className="break-all">{stepResult.executeResult.error}</span>
+                            </div>
+                          )}
                           {step.delayMs > 0 && (
                             <div className="mt-2 text-xs text-gray-500 ml-7">
                               Delay: {step.delayMs}ms
@@ -589,6 +663,11 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               </h3>
               <span className="text-sm text-gray-500">{flowResult.totalTimeMs}ms total</span>
             </div>
+            {flowResult.error && (
+              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {flowResult.error}
+              </div>
+            )}
             <div className="space-y-2">
               {flowResult.steps.map((stepResult, index) => (
                 <div
@@ -596,7 +675,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                   className={`p-3 rounded-lg border ${
                     stepResult.skipped
                       ? 'bg-gray-50 border-gray-200'
-                      : stepResult.executeResult.statusCode >= 400
+                      : stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400
                       ? 'bg-red-50 border-red-200'
                       : 'bg-green-50 border-green-200'
                   }`}
@@ -607,8 +686,8 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       <span className="text-xs text-gray-500">Skipped: {stepResult.skipReason}</span>
                     ) : (
                       <>
-                        <span className={`text-sm ${stepResult.executeResult.statusCode >= 400 ? 'text-red-600' : 'text-green-600'}`}>
-                          {stepResult.executeResult.statusCode}
+                        <span className={`text-sm ${stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400 ? 'text-red-600' : 'text-green-600'}`}>
+                          {stepResult.executeResult.statusCode || 'Error'}
                         </span>
                         <span className="text-xs text-gray-500">{stepResult.executeResult.durationMs}ms</span>
                       </>
