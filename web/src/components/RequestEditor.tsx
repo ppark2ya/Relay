@@ -382,7 +382,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
         <div className="relative" ref={envVarsRef}>
           <button
             onClick={() => setShowEnvVars(!showEnvVars)}
-            className={`px-3 py-2 border rounded-md flex items-center gap-1 ${
+            className={`h-full px-3 py-2 border rounded-md flex items-center gap-1 ${
               activeEnv ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
             }`}
             title={activeEnv ? `Environment: ${activeEnv.name}` : 'No active environment'}
