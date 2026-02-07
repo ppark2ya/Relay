@@ -1,21 +1,69 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/Sidebar';
 import { RequestEditor } from './components/RequestEditor';
 import { ResponseViewer } from './components/ResponseViewer';
 import { FlowEditor } from './components/FlowEditor';
 import { Header } from './components/Header';
+import { useNavigation } from './hooks/useNavigation';
+import { useRequest, useFlow } from './hooks/useApi';
 import type { Request, ExecuteResult, Flow, History } from './types';
 
 const queryClient = new QueryClient();
 
 function AppContent() {
-  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
-  const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null);
+  // Local state for selections made via sidebar/history clicks
+  const [localRequest, setLocalRequest] = useState<Request | null>(null);
+  const [localFlow, setLocalFlow] = useState<Flow | null>(null);
   const [response, setResponse] = useState<ExecuteResult | null>(null);
-  const [view, setView] = useState<'requests' | 'flows' | 'history'>('requests');
 
-  const handleSelectHistory = (item: History) => {
+  // Clear local overrides when browser back/forward changes the URL
+  const handleUrlChange = useCallback(() => {
+    setLocalRequest(null);
+    setLocalFlow(null);
+    setResponse(null);
+  }, []);
+
+  const { view, resourceId, navigateToRequest, navigateToFlow, navigateToView } = useNavigation(handleUrlChange);
+
+  // Fetch resource from URL for deep-link / direct navigation
+  const requestQueryId = view === 'requests' && resourceId ? resourceId : 0;
+  const flowQueryId = view === 'flows' && resourceId ? resourceId : 0;
+  const { data: urlRequest } = useRequest(requestQueryId);
+  const { data: urlFlow } = useFlow(flowQueryId);
+
+  // Derive selected items: local override takes priority (for history items with id=0),
+  // then URL-fetched data, then null
+  const selectedRequest = localRequest ?? (requestQueryId ? urlRequest ?? null : null);
+  const selectedFlow = localFlow ?? (flowQueryId ? urlFlow ?? null : null);
+
+  const handleSelectRequest = useCallback((request: Request | null) => {
+    setLocalRequest(request);
+    setResponse(null);
+    if (request && request.id > 0) {
+      navigateToRequest(request.id);
+    } else if (!request) {
+      navigateToView('requests');
+    }
+  }, [navigateToRequest, navigateToView]);
+
+  const handleSelectFlow = useCallback((flow: Flow | null) => {
+    setLocalFlow(flow);
+    if (flow) {
+      navigateToFlow(flow.id);
+    } else {
+      navigateToView('flows');
+    }
+  }, [navigateToFlow, navigateToView]);
+
+  const handleViewChange = useCallback((newView: 'requests' | 'flows' | 'history') => {
+    setLocalRequest(null);
+    setLocalFlow(null);
+    setResponse(null);
+    navigateToView(newView);
+  }, [navigateToView]);
+
+  const handleSelectHistory = useCallback((item: History) => {
     // Infer bodyType from Content-Type header
     let bodyType = 'none';
     try {
@@ -61,10 +109,11 @@ function AppContent() {
       resolvedHeaders: {},
     };
 
-    setSelectedRequest(syntheticRequest);
+    setLocalRequest(syntheticRequest);
     setResponse(historyResponse);
-    setView('requests');
-  };
+    // Navigate to requests view but don't put history item in URL
+    navigateToView('requests');
+  }, [navigateToView]);
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
@@ -72,9 +121,9 @@ function AppContent() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           view={view}
-          onViewChange={setView}
-          onSelectRequest={setSelectedRequest}
-          onSelectFlow={setSelectedFlow}
+          onViewChange={handleViewChange}
+          onSelectRequest={handleSelectRequest}
+          onSelectFlow={handleSelectFlow}
           onSelectHistory={handleSelectHistory}
           selectedRequestId={selectedRequest?.id}
           selectedFlowId={selectedFlow?.id}
@@ -85,7 +134,7 @@ function AppContent() {
               <RequestEditor
                 request={selectedRequest}
                 onExecute={setResponse}
-                onUpdate={setSelectedRequest}
+                onUpdate={setLocalRequest}
               />
               <ResponseViewer response={response} />
             </>
@@ -93,7 +142,7 @@ function AppContent() {
           {view === 'flows' && (
             <FlowEditor
               flow={selectedFlow}
-              onUpdate={setSelectedFlow}
+              onUpdate={setLocalFlow}
             />
           )}
           {view === 'history' && (
