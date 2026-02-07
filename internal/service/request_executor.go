@@ -42,6 +42,7 @@ type RequestOverrides struct {
 	Headers  string
 	Body     string
 	BodyType string
+	ProxyID  *int64
 }
 
 func (re *RequestExecutor) Execute(ctx context.Context, requestID int64, runtimeVars map[string]string, overrides *RequestOverrides) (*ExecuteResult, error) {
@@ -64,17 +65,34 @@ func (re *RequestExecutor) Execute(ctx context.Context, requestID int64, runtime
 		if overrides.Body != "" {
 			req.Body = sql.NullString{String: overrides.Body, Valid: true}
 		}
+		if overrides.ProxyID != nil {
+			v := *overrides.ProxyID
+			if v == -1 {
+				// -1 means reset to global (NULL)
+				req.ProxyID = sql.NullInt64{}
+			} else {
+				req.ProxyID = sql.NullInt64{Int64: v, Valid: true}
+			}
+		}
 	}
 
 	return re.ExecuteRequest(ctx, req, runtimeVars)
 }
 
-func (re *RequestExecutor) ExecuteAdhoc(ctx context.Context, method, urlStr, headers, body string, runtimeVars map[string]string) (*ExecuteResult, error) {
+func (re *RequestExecutor) ExecuteAdhoc(ctx context.Context, method, urlStr, headers, body string, runtimeVars map[string]string, proxyID *int64) (*ExecuteResult, error) {
 	req := repository.Request{
 		Method:  method,
 		Url:     urlStr,
 		Headers: sql.NullString{String: headers, Valid: headers != ""},
 		Body:    sql.NullString{String: body, Valid: body != ""},
+	}
+	if proxyID != nil {
+		v := *proxyID
+		if v == -1 {
+			req.ProxyID = sql.NullInt64{}
+		} else {
+			req.ProxyID = sql.NullInt64{Int64: v, Valid: true}
+		}
 	}
 	return re.ExecuteRequest(ctx, req, runtimeVars)
 }
@@ -109,7 +127,7 @@ func (re *RequestExecutor) ExecuteRequest(ctx context.Context, req repository.Re
 	}
 
 	// Create HTTP client with proxy if active
-	client, err := re.createHTTPClient(ctx)
+	client, err := re.createHTTPClient(ctx, req.ProxyID)
 	if err != nil {
 		result.Error = err.Error()
 		return result, nil
@@ -162,19 +180,31 @@ func (re *RequestExecutor) ExecuteRequest(ctx context.Context, req repository.Re
 	return result, nil
 }
 
-func (re *RequestExecutor) createHTTPClient(ctx context.Context) (*http.Client, error) {
+func (re *RequestExecutor) createHTTPClient(ctx context.Context, proxyID sql.NullInt64) (*http.Client, error) {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
-	// Check for active proxy
-	proxy, err := re.queries.GetActiveProxy(ctx)
-	if err == nil && proxy.Url != "" {
-		proxyURL, err := url.Parse(proxy.Url)
-		if err == nil {
-			transport.Proxy = http.ProxyURL(proxyURL)
+	if !proxyID.Valid {
+		// NULL → inherit global active proxy
+		proxy, err := re.queries.GetActiveProxy(ctx)
+		if err == nil && proxy.Url != "" {
+			proxyURL, err := url.Parse(proxy.Url)
+			if err == nil {
+				transport.Proxy = http.ProxyURL(proxyURL)
+			}
+		}
+	} else if proxyID.Int64 > 0 {
+		// > 0 → use specific proxy
+		proxy, err := re.queries.GetProxy(ctx, proxyID.Int64)
+		if err == nil && proxy.Url != "" {
+			proxyURL, err := url.Parse(proxy.Url)
+			if err == nil {
+				transport.Proxy = http.ProxyURL(proxyURL)
+			}
 		}
 	}
+	// proxyID.Int64 == 0 → no proxy (direct connection), transport.Proxy stays nil
 
 	return &http.Client{
 		Transport: transport,

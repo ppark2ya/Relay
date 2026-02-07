@@ -249,6 +249,9 @@ CREATE INDEX IF NOT EXISTS idx_history_created ON request_history(created_at DES
 		log.Printf("Flow steps migration: %v", err)
 	}
 
+	// Add proxy_id column to requests and flow_steps
+	migrateProxyOverrides(db)
+
 	return nil
 }
 
@@ -333,4 +336,14 @@ func migrateFlowSteps(db *sql.DB) error {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_flow_steps_order ON flow_steps(flow_id, step_order)")
 
 	return nil
+}
+
+func migrateProxyOverrides(db *sql.DB) {
+	stmts := []string{
+		"ALTER TABLE requests ADD COLUMN proxy_id INTEGER DEFAULT NULL",
+		"ALTER TABLE flow_steps ADD COLUMN proxy_id INTEGER DEFAULT NULL",
+	}
+	for _, s := range stmts {
+		db.Exec(s) // Ignore "duplicate column" errors
+	}
 }

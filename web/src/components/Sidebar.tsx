@@ -75,7 +75,7 @@ function CollectionTree({
   onDuplicateRequest: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const lastAutoExpandedRef = useRef<number | undefined>();
+  const lastAutoExpandedRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (selectedRequestId && selectedRequestId !== lastAutoExpandedRef.current) {

@@ -23,7 +23,7 @@ export const duplicateRequest = (id: number) => api.post<Request>(`/requests/${i
 export const executeRequest = (
   id: number,
   variables?: Record<string, string>,
-  overrides?: { method: string; url: string; headers: string; body: string; bodyType: string },
+  overrides?: { method: string; url: string; headers: string; body: string; bodyType: string; proxyId?: number },
   signal?: AbortSignal
 ) => api.post<ExecuteResult>(`/requests/${id}/execute`, { variables, ...overrides }, { signal }).then(r => r.data);
 
@@ -60,7 +60,7 @@ export const deleteFlowStep = (flowId: number, stepId: number) => api.delete(`/f
 
 // Ad-hoc execute
 export const executeAdhoc = (
-  data: { method: string; url: string; headers: string; body: string; variables?: Record<string, string> },
+  data: { method: string; url: string; headers: string; body: string; variables?: Record<string, string>; proxyId?: number },
   signal?: AbortSignal
 ) => api.post<ExecuteResult>('/execute', data, { signal }).then(r => r.data);
 

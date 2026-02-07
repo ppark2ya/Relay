@@ -8,6 +8,7 @@ import {
   useUpdateFlowStep,
   useDeleteFlowStep,
   useRequests,
+  useProxies,
 } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Flow, FlowStep, FlowResult } from '../types';
@@ -31,6 +32,7 @@ interface StepEditState {
   delayMs: number;
   extractVars: string;
   condition: string;
+  proxyId: number | null;
 }
 
 function stepToEditState(step: FlowStep): StepEditState {
@@ -44,6 +46,7 @@ function stepToEditState(step: FlowStep): StepEditState {
     delayMs: step.delayMs,
     extractVars: step.extractVars || '{}',
     condition: step.condition || '',
+    proxyId: step.proxyId ?? null,
   };
 }
 
@@ -60,6 +63,8 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const { data: flowData } = useFlow(flow?.id || 0);
   const { data: steps = [] } = useFlowSteps(flow?.id || 0);
   const { data: requests = [] } = useRequests();
+  const { data: proxies = [] } = useProxies();
+  const activeGlobalProxy = proxies.find(p => p.isActive);
 
   const updateFlow = useUpdateFlow();
   const runFlow = useRunFlow();
@@ -215,6 +220,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
         headers: edit.headers,
         body: edit.body,
         bodyType: edit.bodyType,
+        proxyId: edit.proxyId === null ? -1 : edit.proxyId,
       },
     });
   };
@@ -507,6 +513,26 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                     height="96px"
                                   />
                                 )}
+                              </FormField>
+
+                              {/* Proxy */}
+                              <FormField label="Proxy">
+                                <select
+                                  value={edit.proxyId === null ? '__global__' : edit.proxyId === 0 ? '__none__' : String(edit.proxyId)}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === '__global__') handleEditChange(step.id, 'proxyId', null as unknown as number);
+                                    else if (val === '__none__') handleEditChange(step.id, 'proxyId', 0);
+                                    else handleEditChange(step.id, 'proxyId', parseInt(val));
+                                  }}
+                                  className="px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                                >
+                                  <option value="__global__">Global (inherit){activeGlobalProxy ? ` — ${activeGlobalProxy.name}` : ''}</option>
+                                  <option value="__none__">No Proxy (direct)</option>
+                                  {proxies.map(p => (
+                                    <option key={p.id} value={String(p.id)}>{p.name} — {p.url}</option>
+                                  ))}
+                                </select>
                               </FormField>
 
                               {/* Delay */}

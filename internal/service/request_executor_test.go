@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"relay/internal/repository"
 	"relay/internal/testutil"
 )
 
@@ -24,15 +25,7 @@ func TestExecuteRequest_GET(t *testing.T) {
 	re := NewRequestExecutor(q, vr)
 
 	ctx := context.Background()
-	req, err := q.CreateRequest(ctx, struct {
-		CollectionID sql.NullInt64  `json:"collection_id"`
-		Name         string         `json:"name"`
-		Method       string         `json:"method"`
-		Url          string         `json:"url"`
-		Headers      sql.NullString `json:"headers"`
-		Body         sql.NullString `json:"body"`
-		BodyType     sql.NullString `json:"body_type"`
-	}{
+	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
 		Name:   "test-get",
 		Method: "GET",
 		Url:    ts.URL,
@@ -71,15 +64,7 @@ func TestExecuteRequest_POSTWithBody(t *testing.T) {
 	re := NewRequestExecutor(q, vr)
 
 	ctx := context.Background()
-	req, err := q.CreateRequest(ctx, struct {
-		CollectionID sql.NullInt64  `json:"collection_id"`
-		Name         string         `json:"name"`
-		Method       string         `json:"method"`
-		Url          string         `json:"url"`
-		Headers      sql.NullString `json:"headers"`
-		Body         sql.NullString `json:"body"`
-		BodyType     sql.NullString `json:"body_type"`
-	}{
+	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
 		Name:   "test-post",
 		Method: "POST",
 		Url:    ts.URL,
@@ -112,7 +97,7 @@ func TestExecuteAdhoc(t *testing.T) {
 	vr := NewVariableResolver(q)
 	re := NewRequestExecutor(q, vr)
 
-	result, err := re.ExecuteAdhoc(context.Background(), "GET", ts.URL, "", "", nil)
+	result, err := re.ExecuteAdhoc(context.Background(), "GET", ts.URL, "", "", nil, nil)
 	if err != nil {
 		t.Fatalf("execute adhoc: %v", err)
 	}
@@ -138,15 +123,7 @@ func TestExecute_WithOverrides(t *testing.T) {
 	re := NewRequestExecutor(q, vr)
 
 	ctx := context.Background()
-	req, err := q.CreateRequest(ctx, struct {
-		CollectionID sql.NullInt64  `json:"collection_id"`
-		Name         string         `json:"name"`
-		Method       string         `json:"method"`
-		Url          string         `json:"url"`
-		Headers      sql.NullString `json:"headers"`
-		Body         sql.NullString `json:"body"`
-		BodyType     sql.NullString `json:"body_type"`
-	}{
+	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
 		Name:   "test-override",
 		Method: "GET",
 		Url:    ts.URL,
@@ -179,15 +156,7 @@ func TestExecuteRequest_VarSubstitution(t *testing.T) {
 	re := NewRequestExecutor(q, vr)
 
 	ctx := context.Background()
-	req, err := q.CreateRequest(ctx, struct {
-		CollectionID sql.NullInt64  `json:"collection_id"`
-		Name         string         `json:"name"`
-		Method       string         `json:"method"`
-		Url          string         `json:"url"`
-		Headers      sql.NullString `json:"headers"`
-		Body         sql.NullString `json:"body"`
-		BodyType     sql.NullString `json:"body_type"`
-	}{
+	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
 		Name:   "test-var",
 		Method: "GET",
 		Url:    "{{base_url}}/api",
@@ -215,15 +184,7 @@ func TestExecuteRequest_InvalidURL(t *testing.T) {
 	re := NewRequestExecutor(q, vr)
 
 	ctx := context.Background()
-	req, err := q.CreateRequest(ctx, struct {
-		CollectionID sql.NullInt64  `json:"collection_id"`
-		Name         string         `json:"name"`
-		Method       string         `json:"method"`
-		Url          string         `json:"url"`
-		Headers      sql.NullString `json:"headers"`
-		Body         sql.NullString `json:"body"`
-		BodyType     sql.NullString `json:"body_type"`
-	}{
+	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
 		Name:   "test-bad-url",
 		Method: "GET",
 		Url:    "://invalid",
@@ -253,15 +214,7 @@ func TestExecuteRequest_HistorySaved(t *testing.T) {
 	re := NewRequestExecutor(q, vr)
 
 	ctx := context.Background()
-	req, err := q.CreateRequest(ctx, struct {
-		CollectionID sql.NullInt64  `json:"collection_id"`
-		Name         string         `json:"name"`
-		Method       string         `json:"method"`
-		Url          string         `json:"url"`
-		Headers      sql.NullString `json:"headers"`
-		Body         sql.NullString `json:"body"`
-		BodyType     sql.NullString `json:"body_type"`
-	}{
+	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
 		Name:   "test-history",
 		Method: "GET",
 		Url:    ts.URL,

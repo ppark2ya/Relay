@@ -97,7 +97,7 @@ export const useExecuteRequest = () => {
     }: {
       id: number;
       variables?: Record<string, string>;
-      overrides?: { method: string; url: string; headers: string; body: string; bodyType: string };
+      overrides?: { method: string; url: string; headers: string; body: string; bodyType: string; proxyId?: number };
       signal?: AbortSignal;
     }) => api.executeRequest(id, variables, overrides, signal),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['history'] }),

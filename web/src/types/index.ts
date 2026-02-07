@@ -17,6 +17,7 @@ export interface Request {
   headers?: string;
   body?: string;
   bodyType?: string;
+  proxyId?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -61,6 +62,7 @@ export interface FlowStep {
   headers: string;
   body: string;
   bodyType: string;
+  proxyId?: number | null;
   createdAt: string;
   updatedAt: string;
 }

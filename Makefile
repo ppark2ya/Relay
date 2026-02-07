@@ -34,7 +34,11 @@ dev-backend-simple:
 test: test-backend test-frontend
 
 test-backend:
+ifeq ($(shell uname -s),Darwin)
+	go test -ldflags="-linkmode=external" ./...
+else
 	go test ./...
+endif
 
 test-frontend:
 	cd $(FRONTEND_DIR) && pnpm run lint

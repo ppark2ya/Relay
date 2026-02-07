@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, type MutableRefObject } from 'react';
-import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useRequest } from '../hooks/useApi';
+import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useProxies, useRequest } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult } from '../types';
 import { TabNav, KeyValueEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
@@ -49,6 +49,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const [paramItems, setParamItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [formItems, setFormItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [graphqlVariables, setGraphqlVariables] = useState('');
+  const [proxyId, setProxyId] = useState<number | null>(null); // null = global inherit, 0 = no proxy, >0 = specific
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -56,6 +57,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const executeRequest = useExecuteRequest();
   const executeAdhoc = useExecuteAdhoc();
   const { data: environments = [] } = useEnvironments();
+  const { data: proxies = [] } = useProxies();
 
   const handleCancel = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -83,12 +85,18 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   }, [activeEnv?.variables]);
 
   const [showEnvVars, setShowEnvVars] = useState(false);
+  const [showProxySelector, setShowProxySelector] = useState(false);
 
   const closeMethodDropdown = useCallback(() => setShowMethodDropdown(false), []);
   const methodDropdownRef = useClickOutside<HTMLDivElement>(closeMethodDropdown, showMethodDropdown);
 
   const closeEnvVars = useCallback(() => setShowEnvVars(false), []);
   const envVarsRef = useClickOutside<HTMLDivElement>(closeEnvVars, showEnvVars);
+
+  const closeProxySelector = useCallback(() => setShowProxySelector(false), []);
+  const proxySelectorRef = useClickOutside<HTMLDivElement>(closeProxySelector, showProxySelector);
+
+  const activeGlobalProxy = proxies.find(p => p.isActive);
 
   // Parse query params from URL
   const parseParamsFromUrl = useCallback((urlString: string) => {
@@ -166,8 +174,9 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     }
 
     setFormItems(fullRequestData.bodyType === 'form' ? parseFormBody(fullRequestData.body || '') : []);
-    setHeaderItems(parseHeaders(fullRequestData.headers));
+    setHeaderItems(parseHeaders(fullRequestData.headers || '{}'));
     parseParamsFromUrl(fullRequestData.url);
+    setProxyId(fullRequestData.proxyId ?? null);
   }
 
   // Sync form state from history-loaded synthetic request (id=0)
@@ -183,8 +192,9 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setBody(request.body || '');
     setGraphqlVariables('');
     setFormItems(request.bodyType === 'form' ? parseFormBody(request.body || '') : []);
-    setHeaderItems(parseHeaders(request.headers));
+    setHeaderItems(parseHeaders(request.headers || '{}'));
     parseParamsFromUrl(request.url);
+    setProxyId(null);
   }
 
   // Build URL from base + enabled params only
@@ -259,6 +269,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           body: bodyToSave,
           bodyType,
           collectionId, // Preserve collectionId
+          proxyId: proxyId === null ? -1 : proxyId,
         },
       }, {
         onSuccess: (data) => {
@@ -302,10 +313,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       abortControllerRef.current = null;
     };
 
+    // Map proxyId: null→-1 (global inherit), 0→0 (no proxy), N→N (specific)
+    const proxyIdForExec = proxyId === null ? -1 : proxyId;
+
     if (isFromHistory) {
       // Ad-hoc execution for history-loaded requests
       executeAdhoc.mutate({
-        data: { method, url, headers: headersJson, body: bodyToSend },
+        data: { method, url, headers: headersJson, body: bodyToSend, proxyId: proxyIdForExec },
         signal: controller.signal,
       }, {
         onSuccess: (result) => onExecute(result),
@@ -321,6 +335,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           headers: headersJson,
           body: bodyToSend,
           bodyType: bodyType === 'graphql' ? 'json' : bodyType, // Send as json to backend
+          proxyId: proxyIdForExec,
         },
         signal: controller.signal,
       }, {
@@ -432,6 +447,101 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           placeholder="Enter URL or paste text (use {{variable}} for env vars)"
           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm dark:bg-gray-700 dark:text-gray-100"
         />
+        {/* Proxy Selector */}
+        <div className="relative" ref={proxySelectorRef}>
+          <button
+            onClick={() => setShowProxySelector(!showProxySelector)}
+            className={`h-full px-3 py-2 border rounded-md flex items-center gap-1.5 text-sm ${
+              proxyId === null
+                ? activeGlobalProxy
+                  ? 'border-green-300 text-green-700 hover:bg-green-50 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900/30'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                : proxyId === 0
+                ? 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-600 dark:text-yellow-400 dark:hover:bg-yellow-900/30'
+            }`}
+            title={
+              proxyId === null
+                ? activeGlobalProxy ? `Global: ${activeGlobalProxy.name}` : 'Global (no proxy active)'
+                : proxyId === 0
+                ? 'No Proxy (direct)'
+                : `Proxy: ${proxies.find(p => p.id === proxyId)?.name || 'Unknown'}`
+            }
+          >
+            <span className={`w-2 h-2 rounded-full ${
+              proxyId === null
+                ? activeGlobalProxy ? 'bg-green-500' : 'bg-gray-400'
+                : proxyId === 0
+                ? 'bg-gray-400'
+                : 'bg-yellow-500'
+            }`} />
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+            </svg>
+          </button>
+          {showProxySelector && (
+            <div className="absolute top-full right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-20">
+              <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-t-lg">
+                <span className="text-sm font-medium dark:text-gray-200">Proxy</span>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {/* Global (inherit) */}
+                <button
+                  onClick={() => { setProxyId(null); setShowProxySelector(false); }}
+                  className={`w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${proxyId === null ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium dark:text-gray-200">Global (inherit)</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {activeGlobalProxy ? activeGlobalProxy.name : 'No proxy active'}
+                    </div>
+                  </div>
+                  {proxyId === null && (
+                    <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+                {/* No Proxy (direct) */}
+                <button
+                  onClick={() => { setProxyId(0); setShowProxySelector(false); }}
+                  className={`w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${proxyId === 0 ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium dark:text-gray-200">No Proxy (direct)</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Bypass global proxy</div>
+                  </div>
+                  {proxyId === 0 && (
+                    <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+                {/* Proxy list */}
+                {proxies.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setProxyId(p.id); setShowProxySelector(false); }}
+                    className={`w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${proxyId === p.id ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium dark:text-gray-200">{p.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{p.url}</div>
+                    </div>
+                    {proxyId === p.id && (
+                      <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         {/* Environment Variables Popup */}
         <div className="relative" ref={envVarsRef}>
           <button

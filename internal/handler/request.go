@@ -25,6 +25,7 @@ type RequestRequest struct {
 	Headers      string `json:"headers"`
 	Body         string `json:"body"`
 	BodyType     string `json:"bodyType"`
+	ProxyID      *int64 `json:"proxyId"`
 }
 
 type RequestResponse struct {
@@ -36,6 +37,7 @@ type RequestResponse struct {
 	Headers      string `json:"headers,omitempty"`
 	Body         string `json:"body,omitempty"`
 	BodyType     string `json:"bodyType,omitempty"`
+	ProxyID      *int64 `json:"proxyId"`
 	CreatedAt    string `json:"createdAt,omitempty"`
 	UpdatedAt    string `json:"updatedAt,omitempty"`
 }
@@ -48,6 +50,7 @@ type ExecuteRequest struct {
 	Headers  string `json:"headers,omitempty"`
 	Body     string `json:"body,omitempty"`
 	BodyType string `json:"bodyType,omitempty"`
+	ProxyID  *int64 `json:"proxyId"`
 }
 
 type AdhocExecuteRequest struct {
@@ -56,6 +59,30 @@ type AdhocExecuteRequest struct {
 	Headers   string            `json:"headers"`
 	Body      string            `json:"body"`
 	Variables map[string]string `json:"variables"`
+	ProxyID   *int64            `json:"proxyId"`
+}
+
+func toRequestResponse(req repository.Request) RequestResponse {
+	resp := RequestResponse{
+		ID:        req.ID,
+		Name:      req.Name,
+		Method:    req.Method,
+		URL:       req.Url,
+		Headers:   req.Headers.String,
+		Body:      req.Body.String,
+		BodyType:  req.BodyType.String,
+		CreatedAt: formatTime(req.CreatedAt),
+		UpdatedAt: formatTime(req.UpdatedAt),
+	}
+	if req.CollectionID.Valid {
+		collID := req.CollectionID.Int64
+		resp.CollectionID = &collID
+	}
+	if req.ProxyID.Valid {
+		pid := req.ProxyID.Int64
+		resp.ProxyID = &pid
+	}
+	return resp
 }
 
 func (h *RequestHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -67,22 +94,7 @@ func (h *RequestHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]RequestResponse, 0, len(requests))
 	for _, req := range requests {
-		item := RequestResponse{
-			ID:        req.ID,
-			Name:      req.Name,
-			Method:    req.Method,
-			URL:       req.Url,
-			Headers:   req.Headers.String,
-			Body:      req.Body.String,
-			BodyType:  req.BodyType.String,
-			CreatedAt: formatTime(req.CreatedAt),
-			UpdatedAt: formatTime(req.UpdatedAt),
-		}
-		if req.CollectionID.Valid {
-			collID := req.CollectionID.Int64
-			item.CollectionID = &collID
-		}
-		resp = append(resp, item)
+		resp = append(resp, toRequestResponse(req))
 	}
 
 	respondJSON(w, http.StatusOK, resp)
@@ -101,23 +113,7 @@ func (h *RequestHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := RequestResponse{
-		ID:        req.ID,
-		Name:      req.Name,
-		Method:    req.Method,
-		URL:       req.Url,
-		Headers:   req.Headers.String,
-		Body:      req.Body.String,
-		BodyType:  req.BodyType.String,
-		CreatedAt: formatTime(req.CreatedAt),
-		UpdatedAt: formatTime(req.UpdatedAt),
-	}
-	if req.CollectionID.Valid {
-		collID := req.CollectionID.Int64
-		resp.CollectionID = &collID
-	}
-
-	respondJSON(w, http.StatusOK, resp)
+	respondJSON(w, http.StatusOK, toRequestResponse(req))
 }
 
 func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +135,16 @@ func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
 		reqBody.BodyType = "none"
 	}
 
+	var proxyID sql.NullInt64
+	if reqBody.ProxyID != nil {
+		v := *reqBody.ProxyID
+		if v == -1 {
+			proxyID = sql.NullInt64{} // NULL = global inherit
+		} else {
+			proxyID = sql.NullInt64{Int64: v, Valid: true}
+		}
+	}
+
 	req, err := h.queries.CreateRequest(r.Context(), repository.CreateRequestParams{
 		CollectionID: collectionID,
 		Name:         reqBody.Name,
@@ -147,29 +153,14 @@ func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Headers:      sql.NullString{String: reqBody.Headers, Valid: true},
 		Body:         sql.NullString{String: reqBody.Body, Valid: reqBody.Body != ""},
 		BodyType:     sql.NullString{String: reqBody.BodyType, Valid: true},
+		ProxyID:      proxyID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	resp := RequestResponse{
-		ID:        req.ID,
-		Name:      req.Name,
-		Method:    req.Method,
-		URL:       req.Url,
-		Headers:   req.Headers.String,
-		Body:      req.Body.String,
-		BodyType:  req.BodyType.String,
-		CreatedAt: formatTime(req.CreatedAt),
-		UpdatedAt: formatTime(req.UpdatedAt),
-	}
-	if req.CollectionID.Valid {
-		collID := req.CollectionID.Int64
-		resp.CollectionID = &collID
-	}
-
-	respondJSON(w, http.StatusCreated, resp)
+	respondJSON(w, http.StatusCreated, toRequestResponse(req))
 }
 
 func (h *RequestHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -190,6 +181,16 @@ func (h *RequestHandler) Update(w http.ResponseWriter, r *http.Request) {
 		collectionID = sql.NullInt64{Int64: *reqBody.CollectionID, Valid: true}
 	}
 
+	var proxyID sql.NullInt64
+	if reqBody.ProxyID != nil {
+		v := *reqBody.ProxyID
+		if v == -1 {
+			proxyID = sql.NullInt64{} // NULL = global inherit
+		} else {
+			proxyID = sql.NullInt64{Int64: v, Valid: true}
+		}
+	}
+
 	req, err := h.queries.UpdateRequest(r.Context(), repository.UpdateRequestParams{
 		ID:           id,
 		CollectionID: collectionID,
@@ -199,29 +200,14 @@ func (h *RequestHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Headers:      sql.NullString{String: reqBody.Headers, Valid: true},
 		Body:         sql.NullString{String: reqBody.Body, Valid: reqBody.Body != ""},
 		BodyType:     sql.NullString{String: reqBody.BodyType, Valid: true},
+		ProxyID:      proxyID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	resp := RequestResponse{
-		ID:        req.ID,
-		Name:      req.Name,
-		Method:    req.Method,
-		URL:       req.Url,
-		Headers:   req.Headers.String,
-		Body:      req.Body.String,
-		BodyType:  req.BodyType.String,
-		CreatedAt: formatTime(req.CreatedAt),
-		UpdatedAt: formatTime(req.UpdatedAt),
-	}
-	if req.CollectionID.Valid {
-		collID := req.CollectionID.Int64
-		resp.CollectionID = &collID
-	}
-
-	respondJSON(w, http.StatusOK, resp)
+	respondJSON(w, http.StatusOK, toRequestResponse(req))
 }
 
 func (h *RequestHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -251,13 +237,14 @@ func (h *RequestHandler) Execute(w http.ResponseWriter, r *http.Request) {
 
 	// Build inline overrides if provided
 	var overrides *service.RequestOverrides
-	if execReq.URL != "" {
+	if execReq.URL != "" || execReq.ProxyID != nil {
 		overrides = &service.RequestOverrides{
 			Method:   execReq.Method,
 			URL:      execReq.URL,
 			Headers:  execReq.Headers,
 			Body:     execReq.Body,
 			BodyType: execReq.BodyType,
+			ProxyID:  execReq.ProxyID,
 		}
 	}
 
@@ -291,29 +278,14 @@ func (h *RequestHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 		Headers:      source.Headers,
 		Body:         source.Body,
 		BodyType:     source.BodyType,
+		ProxyID:      source.ProxyID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	resp := RequestResponse{
-		ID:        req.ID,
-		Name:      req.Name,
-		Method:    req.Method,
-		URL:       req.Url,
-		Headers:   req.Headers.String,
-		Body:      req.Body.String,
-		BodyType:  req.BodyType.String,
-		CreatedAt: formatTime(req.CreatedAt),
-		UpdatedAt: formatTime(req.UpdatedAt),
-	}
-	if req.CollectionID.Valid {
-		collID := req.CollectionID.Int64
-		resp.CollectionID = &collID
-	}
-
-	respondJSON(w, http.StatusCreated, resp)
+	respondJSON(w, http.StatusCreated, toRequestResponse(req))
 }
 
 func (h *RequestHandler) ExecuteAdhoc(w http.ResponseWriter, r *http.Request) {
@@ -331,7 +303,7 @@ func (h *RequestHandler) ExecuteAdhoc(w http.ResponseWriter, r *http.Request) {
 		reqBody.Method = "GET"
 	}
 
-	result, err := h.executor.ExecuteAdhoc(r.Context(), reqBody.Method, reqBody.URL, reqBody.Headers, reqBody.Body, reqBody.Variables)
+	result, err := h.executor.ExecuteAdhoc(r.Context(), reqBody.Method, reqBody.URL, reqBody.Headers, reqBody.Body, reqBody.Variables, reqBody.ProxyID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -47,6 +47,7 @@ type FlowStep struct {
 	Headers     sql.NullString `json:"headers"`
 	Body        sql.NullString `json:"body"`
 	BodyType    sql.NullString `json:"body_type"`
+	ProxyID     sql.NullInt64  `json:"proxy_id"`
 	CreatedAt   sql.NullTime   `json:"created_at"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
 }
@@ -69,6 +70,7 @@ type Request struct {
 	Headers      sql.NullString `json:"headers"`
 	Body         sql.NullString `json:"body"`
 	BodyType     sql.NullString `json:"body_type"`
+	ProxyID      sql.NullInt64  `json:"proxy_id"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
 	UpdatedAt    sql.NullTime   `json:"updated_at"`
 }

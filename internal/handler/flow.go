@@ -43,6 +43,7 @@ type FlowStepRequest struct {
 	Headers     string `json:"headers"`
 	Body        string `json:"body"`
 	BodyType    string `json:"bodyType"`
+	ProxyID     *int64 `json:"proxyId"`
 }
 
 type FlowStepResponse struct {
@@ -59,6 +60,7 @@ type FlowStepResponse struct {
 	Headers     string `json:"headers"`
 	Body        string `json:"body"`
 	BodyType    string `json:"bodyType"`
+	ProxyID     *int64 `json:"proxyId"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
 }
@@ -67,6 +69,11 @@ func toFlowStepResponse(s repository.FlowStep) FlowStepResponse {
 	var reqID *int64
 	if s.RequestID.Valid {
 		reqID = &s.RequestID.Int64
+	}
+	var proxyID *int64
+	if s.ProxyID.Valid {
+		pid := s.ProxyID.Int64
+		proxyID = &pid
 	}
 	return FlowStepResponse{
 		ID:          s.ID,
@@ -82,6 +89,7 @@ func toFlowStepResponse(s repository.FlowStep) FlowStepResponse {
 		Headers:     s.Headers.String,
 		Body:        s.Body.String,
 		BodyType:    s.BodyType.String,
+		ProxyID:     proxyID,
 		CreatedAt:   formatTime(s.CreatedAt),
 		UpdatedAt:   formatTime(s.UpdatedAt),
 	}
@@ -269,6 +277,7 @@ func (h *FlowHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 			Headers:     s.Headers,
 			Body:        s.Body,
 			BodyType:    s.BodyType,
+			ProxyID:     s.ProxyID,
 		})
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
@@ -342,6 +351,16 @@ func (h *FlowHandler) CreateStep(w http.ResponseWriter, r *http.Request) {
 		reqID = sql.NullInt64{Int64: *req.RequestID, Valid: true}
 	}
 
+	var proxyID sql.NullInt64
+	if req.ProxyID != nil {
+		v := *req.ProxyID
+		if v == -1 {
+			proxyID = sql.NullInt64{}
+		} else {
+			proxyID = sql.NullInt64{Int64: v, Valid: true}
+		}
+	}
+
 	step, err := h.queries.CreateFlowStep(r.Context(), repository.CreateFlowStepParams{
 		FlowID:      flowID,
 		RequestID:   reqID,
@@ -355,6 +374,7 @@ func (h *FlowHandler) CreateStep(w http.ResponseWriter, r *http.Request) {
 		Headers:     sql.NullString{String: req.Headers, Valid: true},
 		Body:        sql.NullString{String: req.Body, Valid: true},
 		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
+		ProxyID:     proxyID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -382,6 +402,16 @@ func (h *FlowHandler) UpdateStep(w http.ResponseWriter, r *http.Request) {
 		reqID = sql.NullInt64{Int64: *req.RequestID, Valid: true}
 	}
 
+	var proxyID sql.NullInt64
+	if req.ProxyID != nil {
+		v := *req.ProxyID
+		if v == -1 {
+			proxyID = sql.NullInt64{}
+		} else {
+			proxyID = sql.NullInt64{Int64: v, Valid: true}
+		}
+	}
+
 	step, err := h.queries.UpdateFlowStep(r.Context(), repository.UpdateFlowStepParams{
 		ID:          stepID,
 		RequestID:   reqID,
@@ -395,6 +425,7 @@ func (h *FlowHandler) UpdateStep(w http.ResponseWriter, r *http.Request) {
 		Headers:     sql.NullString{String: req.Headers, Valid: true},
 		Body:        sql.NullString{String: req.Body, Valid: true},
 		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
+		ProxyID:     proxyID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
