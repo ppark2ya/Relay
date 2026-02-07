@@ -23,8 +23,9 @@ export const duplicateRequest = (id: number) => api.post<Request>(`/requests/${i
 export const executeRequest = (
   id: number,
   variables?: Record<string, string>,
-  overrides?: { method: string; url: string; headers: string; body: string; bodyType: string }
-) => api.post<ExecuteResult>(`/requests/${id}/execute`, { variables, ...overrides }).then(r => r.data);
+  overrides?: { method: string; url: string; headers: string; body: string; bodyType: string },
+  signal?: AbortSignal
+) => api.post<ExecuteResult>(`/requests/${id}/execute`, { variables, ...overrides }, { signal }).then(r => r.data);
 
 // Environments
 export const getEnvironments = () => api.get<Environment[]>('/environments').then(r => r.data);
@@ -58,8 +59,10 @@ export const updateFlowStep = (flowId: number, stepId: number, data: Partial<Flo
 export const deleteFlowStep = (flowId: number, stepId: number) => api.delete(`/flows/${flowId}/steps/${stepId}`);
 
 // Ad-hoc execute
-export const executeAdhoc = (data: { method: string; url: string; headers: string; body: string; variables?: Record<string, string> }) =>
-  api.post<ExecuteResult>('/execute', data).then(r => r.data);
+export const executeAdhoc = (
+  data: { method: string; url: string; headers: string; body: string; variables?: Record<string, string> },
+  signal?: AbortSignal
+) => api.post<ExecuteResult>('/execute', data, { signal }).then(r => r.data);
 
 // History
 export const getHistory = () => api.get<History[]>('/history').then(r => r.data);

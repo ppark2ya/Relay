@@ -93,11 +93,13 @@ export const useExecuteRequest = () => {
       id,
       variables,
       overrides,
+      signal,
     }: {
       id: number;
       variables?: Record<string, string>;
       overrides?: { method: string; url: string; headers: string; body: string; bodyType: string };
-    }) => api.executeRequest(id, variables, overrides),
+      signal?: AbortSignal;
+    }) => api.executeRequest(id, variables, overrides, signal),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['history'] }),
   });
 };
@@ -260,7 +262,8 @@ export const useDeleteFlowStep = () => {
 export const useExecuteAdhoc = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: api.executeAdhoc,
+    mutationFn: ({ data, signal }: { data: Parameters<typeof api.executeAdhoc>[0]; signal?: AbortSignal }) =>
+      api.executeAdhoc(data, signal),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['history'] }),
   });
 };
