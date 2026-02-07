@@ -6,6 +6,7 @@ export const METHOD_TEXT_COLORS: Record<string, string> = {
   PATCH: 'text-purple-600 dark:text-purple-400',
   HEAD: 'text-gray-600 dark:text-gray-400',
   OPTIONS: 'text-gray-600 dark:text-gray-400',
+  WS: 'text-fuchsia-600 dark:text-fuchsia-400',
 };
 
 export const METHOD_BG_COLORS: Record<string, string> = {
@@ -16,4 +17,5 @@ export const METHOD_BG_COLORS: Record<string, string> = {
   PATCH: 'bg-purple-500',
   HEAD: 'bg-gray-500',
   OPTIONS: 'bg-gray-500',
+  WS: 'bg-fuchsia-600',
 };

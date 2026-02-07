@@ -181,13 +181,19 @@ func (re *RequestExecutor) ExecuteRequest(ctx context.Context, req repository.Re
 }
 
 func (re *RequestExecutor) createHTTPClient(ctx context.Context, proxyID sql.NullInt64) (*http.Client, error) {
+	return CreateHTTPClient(ctx, re.queries, proxyID)
+}
+
+// CreateHTTPClient creates an HTTP client with optional proxy configuration.
+// Shared by RequestExecutor and WebSocketRelay.
+func CreateHTTPClient(ctx context.Context, queries *repository.Queries, proxyID sql.NullInt64) (*http.Client, error) {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
 	if !proxyID.Valid {
 		// NULL → inherit global active proxy
-		proxy, err := re.queries.GetActiveProxy(ctx)
+		proxy, err := queries.GetActiveProxy(ctx)
 		if err == nil && proxy.Url != "" {
 			proxyURL, err := url.Parse(proxy.Url)
 			if err == nil {
@@ -196,7 +202,7 @@ func (re *RequestExecutor) createHTTPClient(ctx context.Context, proxyID sql.Nul
 		}
 	} else if proxyID.Int64 > 0 {
 		// > 0 → use specific proxy
-		proxy, err := re.queries.GetProxy(ctx, proxyID.Int64)
+		proxy, err := queries.GetProxy(ctx, proxyID.Int64)
 		if err == nil && proxy.Url != "" {
 			proxyURL, err := url.Parse(proxy.Url)
 			if err == nil {

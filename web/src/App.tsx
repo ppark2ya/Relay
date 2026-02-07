@@ -4,9 +4,11 @@ import { Sidebar } from './components/Sidebar';
 import { RequestEditor } from './components/RequestEditor';
 import { ResponseViewer } from './components/ResponseViewer';
 import { FlowEditor } from './components/FlowEditor';
+import { WebSocketPanel } from './components/WebSocketPanel';
 import { Header } from './components/Header';
 import { useNavigation } from './hooks/useNavigation';
 import { useRequest, useFlow } from './hooks/useApi';
+import { useWebSocket } from './hooks/useWebSocket';
 import type { Request, ExecuteResult, Flow, History } from './types';
 
 const queryClient = new QueryClient();
@@ -17,7 +19,11 @@ function AppContent() {
   const [localFlow, setLocalFlow] = useState<Flow | null>(null);
   const [response, setResponse] = useState<ExecuteResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [currentMethod, setCurrentMethod] = useState('GET');
   const cancelRef = useRef<(() => void) | null>(null);
+
+  // WebSocket controls
+  const ws = useWebSocket();
 
   // Clear local overrides when browser back/forward changes the URL
   const handleUrlChange = useCallback(() => {
@@ -39,15 +45,27 @@ function AppContent() {
   const selectedRequest = localRequest ?? (requestQueryId ? urlRequest ?? null : null);
   const selectedFlow = localFlow ?? (flowQueryId ? urlFlow ?? null : null);
 
+  const handleMethodChange = useCallback((method: string) => {
+    setCurrentMethod(method);
+    // Disconnect WS when switching away from WS method
+    if (method !== 'WS' && ws.status !== 'disconnected') {
+      ws.disconnect();
+    }
+  }, [ws]);
+
   const handleSelectRequest = useCallback((request: Request | null) => {
     setLocalRequest(request);
     setResponse(null);
+    // Disconnect WS when switching requests
+    if (ws.status !== 'disconnected') {
+      ws.disconnect();
+    }
     if (request && request.id > 0) {
       navigateToRequest(request.id);
     } else if (!request) {
       navigateToView('requests');
     }
-  }, [navigateToRequest, navigateToView]);
+  }, [navigateToRequest, navigateToView, ws]);
 
   const handleSelectFlow = useCallback((flow: Flow | null) => {
     setLocalFlow(flow);
@@ -114,6 +132,8 @@ function AppContent() {
     navigateToView('requests');
   }, [navigateToView]);
 
+  const isWSMode = currentMethod === 'WS';
+
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <Header />
@@ -135,12 +155,23 @@ function AppContent() {
               onUpdate={setLocalRequest}
               onExecutingChange={setIsExecuting}
               cancelRef={cancelRef}
+              onMethodChange={handleMethodChange}
+              ws={ws}
             />
-            <ResponseViewer
-              response={response}
-              isLoading={isExecuting}
-              onCancel={() => cancelRef.current?.()}
-            />
+            {isWSMode ? (
+              <WebSocketPanel
+                messages={ws.messages}
+                isConnected={ws.status === 'connected'}
+                onSend={ws.send}
+                onClear={ws.clearMessages}
+              />
+            ) : (
+              <ResponseViewer
+                response={response}
+                isLoading={isExecuting}
+                onCancel={() => cancelRef.current?.()}
+              />
+            )}
           </div>
           <div className={`flex-1 flex flex-col overflow-hidden ${view === 'flows' ? '' : 'hidden'}`}>
             <FlowEditor

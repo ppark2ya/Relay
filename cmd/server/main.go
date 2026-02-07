@@ -46,6 +46,8 @@ func main() {
 	requestExecutor := service.NewRequestExecutor(queries, variableResolver)
 	flowRunner := service.NewFlowRunner(queries, requestExecutor, variableResolver)
 
+	wsRelay := service.NewWebSocketRelay(queries, variableResolver)
+
 	// Initialize handlers
 	collectionHandler := handler.NewCollectionHandler(queries, db)
 	requestHandler := handler.NewRequestHandler(queries, requestExecutor)
@@ -53,6 +55,7 @@ func main() {
 	proxyHandler := handler.NewProxyHandler(queries)
 	flowHandler := handler.NewFlowHandler(queries, flowRunner, db)
 	historyHandler := handler.NewHistoryHandler(queries)
+	wsHandler := handler.NewWebSocketHandler(wsRelay)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -112,6 +115,9 @@ func main() {
 		r.Post("/flows/{id}/steps", flowHandler.CreateStep)
 		r.Put("/flows/{id}/steps/{stepId}", flowHandler.UpdateStep)
 		r.Delete("/flows/{id}/steps/{stepId}", flowHandler.DeleteStep)
+
+		// WebSocket Relay
+		r.Get("/ws/relay", wsHandler.Relay)
 
 		// History
 		r.Get("/history", historyHandler.List)

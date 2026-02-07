@@ -28,4 +28,5 @@ require (
 	modernc.org/opt v0.1.3 // indirect
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.0.1 // indirect
+	nhooyr.io/websocket v1.8.17 // indirect
 )

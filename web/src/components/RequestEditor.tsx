@@ -1,8 +1,14 @@
 import { useState, useMemo, useCallback, useRef, type MutableRefObject } from 'react';
 import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useProxies, useRequest } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
-import type { Request, ExecuteResult } from '../types';
+import type { Request, ExecuteResult, WSConnectionStatus } from '../types';
 import { TabNav, KeyValueEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
+
+interface WSControls {
+  status: WSConnectionStatus;
+  connect: (url: string, headers: string, proxyId?: number | null, requestId?: number) => void;
+  disconnect: () => void;
+}
 
 interface RequestEditorProps {
   request: Request | null;
@@ -10,9 +16,11 @@ interface RequestEditorProps {
   onUpdate: (request: Request) => void;
   onExecutingChange?: (executing: boolean) => void;
   cancelRef?: MutableRefObject<(() => void) | null>;
+  onMethodChange?: (method: string) => void;
+  ws?: WSControls;
 }
 
-const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
+const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS', 'WS'];
 
 const COMMON_HEADERS = [
   'Accept',
@@ -35,7 +43,7 @@ const COMMON_HEADERS = [
 
 type Tab = 'params' | 'headers' | 'body';
 
-export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange, cancelRef }: RequestEditorProps) {
+export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange, cancelRef, onMethodChange, ws }: RequestEditorProps) {
   const [name, setName] = useState('');
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('');
@@ -156,6 +164,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setSyncedRequestId(fullRequestData.id);
     setName(fullRequestData.name);
     setMethod(fullRequestData.method);
+    onMethodChange?.(fullRequestData.method);
     setUrl(fullRequestData.url);
     setBodyType(fullRequestData.bodyType || 'none');
 
@@ -187,6 +196,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setSyncedRequestId(null);
     setName(request.name);
     setMethod(request.method);
+    onMethodChange?.(request.method);
     setUrl(request.url);
     setBodyType(request.bodyType || 'none');
     setBody(request.body || '');
@@ -431,7 +441,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
               {METHODS.map(m => (
                 <button
                   key={m}
-                  onClick={() => { setMethod(m); setShowMethodDropdown(false); }}
+                  onClick={() => { setMethod(m); onMethodChange?.(m); setShowMethodDropdown(false); }}
                   className={`block w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 font-medium ${METHOD_TEXT_COLORS[m]} ${method === m ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
                 >
                   {m}
@@ -598,7 +608,36 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
             </div>
           )}
         </div>
-        {isExecuting ? (
+        {method === 'WS' && ws ? (
+          <>
+            {/* WS Status */}
+            <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+              <span className={`w-2 h-2 rounded-full ${ws.status === 'connected' ? 'bg-green-500' : ws.status === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-gray-400'}`} />
+              {ws.status === 'connected' ? 'Connected' : ws.status === 'connecting' ? 'Connecting...' : 'Disconnected'}
+            </div>
+            {/* Connect/Disconnect */}
+            <button
+              onClick={() => {
+                if (ws.status === 'connected' || ws.status === 'connecting') {
+                  ws.disconnect();
+                } else {
+                  const headersObj: Record<string, string> = {};
+                  headerItems.forEach(({ key, value, enabled }) => {
+                    if (key.trim() && enabled) headersObj[key] = value;
+                  });
+                  ws.connect(url, JSON.stringify(headersObj), proxyId, request?.id);
+                }
+              }}
+              className={`px-4 py-2 font-medium rounded-md text-white ${
+                ws.status === 'connected' || ws.status === 'connecting'
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
+            >
+              {ws.status === 'connected' || ws.status === 'connecting' ? 'Disconnect' : 'Connect'}
+            </button>
+          </>
+        ) : isExecuting ? (
           <button
             onClick={handleCancel}
             className="px-6 py-2 bg-red-600 text-white font-medium rounded-md hover:bg-red-700"
@@ -626,19 +665,21 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
 
       {/* Tabs */}
       <TabNav
-        tabs={[
+        tabs={method === 'WS' ? [
+          { key: 'headers', label: 'Headers', badge: validHeadersCount },
+        ] : [
           { key: 'params', label: 'Params', badge: validParamsCount },
           { key: 'headers', label: 'Headers', badge: validHeadersCount },
           { key: 'body', label: 'Body' },
         ]}
-        activeTab={activeTab}
+        activeTab={method === 'WS' ? 'headers' : activeTab}
         onTabChange={key => setActiveTab(key as Tab)}
         className="px-4"
       />
 
       {/* Tab Content */}
       <div className="p-4 max-h-48 overflow-y-auto">
-        {activeTab === 'params' && (
+        {activeTab === 'params' && method !== 'WS' && (
           <KeyValueEditor
             items={paramItems}
             onChange={items => handleParamChange(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
@@ -649,7 +690,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           />
         )}
 
-        {activeTab === 'headers' && (
+        {(activeTab === 'headers' || method === 'WS') && (
           <KeyValueEditor
             items={headerItems}
             onChange={items => setHeaderItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
@@ -661,7 +702,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           />
         )}
 
-        {activeTab === 'body' && (
+        {activeTab === 'body' && method !== 'WS' && (
           <div className="space-y-2">
             <div className="flex gap-4 text-sm">
               {['none', 'json', 'form', 'raw', 'graphql'].map(type => (

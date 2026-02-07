@@ -96,6 +96,16 @@ export interface StepResult {
   skipReason?: string;
 }
 
+export interface WSMessage {
+  id: string;
+  type: 'sent' | 'received' | 'system';
+  payload: string;
+  format: 'text' | 'binary';
+  timestamp: string;
+}
+
+export type WSConnectionStatus = 'disconnected' | 'connecting' | 'connected';
+
 export interface History {
   id: number;
   requestId?: number;
