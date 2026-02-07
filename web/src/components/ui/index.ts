@@ -7,3 +7,4 @@ export { TabNav } from './TabNav';
 export { KeyValueEditor } from './KeyValueEditor';
 export { InlineCreateForm } from './InlineCreateForm';
 export { Modal } from './Modal';
+export { CodeEditor } from './CodeEditor';

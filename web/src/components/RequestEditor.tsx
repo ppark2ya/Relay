@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useRequest } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult } from '../types';
-import { TabNav, KeyValueEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS } from './ui';
+import { TabNav, KeyValueEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
 
 interface RequestEditorProps {
   request: Request | null;
@@ -11,6 +11,25 @@ interface RequestEditorProps {
 }
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
+
+const COMMON_HEADERS = [
+  'Accept',
+  'Accept-Encoding',
+  'Accept-Language',
+  'Authorization',
+  'Cache-Control',
+  'Content-Type',
+  'Cookie',
+  'Host',
+  'If-Modified-Since',
+  'If-None-Match',
+  'Origin',
+  'Referer',
+  'User-Agent',
+  'X-Requested-With',
+  'X-Forwarded-For',
+  'X-API-Key',
+];
 
 type Tab = 'params' | 'headers' | 'body';
 
@@ -466,6 +485,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
             keyPlaceholder="Header name"
             valuePlaceholder="Value"
             addLabel="+ Add Header"
+            suggestions={COMMON_HEADERS}
           />
         )}
 
@@ -488,30 +508,33 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Query</label>
-                  <textarea
+                  <CodeEditor
                     value={body}
-                    onChange={e => setBody(e.target.value)}
+                    onChange={setBody}
+                    language="graphql"
                     placeholder="{ health }"
-                    className="w-full h-24 px-3 py-2 border border-gray-300 rounded font-mono text-sm"
+                    height="96px"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Variables (JSON)</label>
-                  <textarea
+                  <CodeEditor
                     value={graphqlVariables}
-                    onChange={e => setGraphqlVariables(e.target.value)}
+                    onChange={setGraphqlVariables}
+                    language="json"
                     placeholder='{ "id": "123" }'
-                    className="w-full h-20 px-3 py-2 border border-gray-300 rounded font-mono text-sm"
+                    height="80px"
                   />
                 </div>
               </div>
             )}
             {bodyType !== 'none' && bodyType !== 'graphql' && (
-              <textarea
+              <CodeEditor
                 value={body}
-                onChange={e => setBody(e.target.value)}
+                onChange={setBody}
+                language={bodyType === 'json' ? 'json' : undefined}
                 placeholder={bodyType === 'json' ? '{\n  "key": "value"\n}' : 'Request body'}
-                className="w-full h-32 px-3 py-2 border border-gray-300 rounded font-mono text-sm"
+                height="128px"
               />
             )}
           </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ExecuteResult } from '../types';
-import { EmptyState, TabNav } from './ui';
+import { EmptyState, TabNav, CodeEditor } from './ui';
 
 interface ResponseViewerProps {
   response: ExecuteResult | null;
@@ -96,9 +96,18 @@ export function ResponseViewer({ response }: ResponseViewerProps) {
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
         {activeTab === 'body' && (
-          <pre className="text-sm font-mono whitespace-pre-wrap break-words">
-            {isJson ? formatJson(response.body) : response.body}
-          </pre>
+          isJson ? (
+            <CodeEditor
+              value={formatJson(response.body)}
+              language="json"
+              readOnly
+              height="100%"
+            />
+          ) : (
+            <pre className="text-sm font-mono whitespace-pre-wrap break-words">
+              {response.body}
+            </pre>
+          )
         )}
 
         {activeTab === 'headers' && (

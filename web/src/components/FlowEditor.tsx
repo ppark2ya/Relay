@@ -11,7 +11,7 @@ import {
 } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Flow, FlowStep, FlowResult } from '../types';
-import { MethodBadge, EmptyState, FormField, INPUT_CLASS } from './ui';
+import { MethodBadge, EmptyState, FormField, INPUT_CLASS, CodeEditor } from './ui';
 
 interface FlowEditorProps {
   flow: Flow | null;
@@ -499,12 +499,12 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                   ))}
                                 </div>
                                 {edit.bodyType !== 'none' && (
-                                  <textarea
+                                  <CodeEditor
                                     value={edit.body}
-                                    onChange={e => handleEditChange(step.id, 'body', e.target.value)}
+                                    onChange={val => handleEditChange(step.id, 'body', val)}
+                                    language={edit.bodyType === 'json' ? 'json' : edit.bodyType === 'graphql' ? 'graphql' : undefined}
                                     placeholder="Request body..."
-                                    rows={4}
-                                    className={`${INPUT_CLASS} font-mono resize-y`}
+                                    height="96px"
                                   />
                                 )}
                               </FormField>
