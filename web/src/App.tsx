@@ -59,9 +59,6 @@ function AppContent() {
   }, [navigateToFlow, navigateToView]);
 
   const handleViewChange = useCallback((newView: 'requests' | 'flows' | 'history') => {
-    setLocalRequest(null);
-    setLocalFlow(null);
-    setResponse(null);
     navigateToView(newView);
   }, [navigateToView]);
 
@@ -131,28 +128,26 @@ function AppContent() {
           selectedFlowId={selectedFlow?.id}
         />
         <main className="flex-1 flex flex-col overflow-hidden">
-          {view === 'requests' && (
-            <>
-              <RequestEditor
-                request={selectedRequest}
-                onExecute={setResponse}
-                onUpdate={setLocalRequest}
-                onExecutingChange={setIsExecuting}
-                cancelRef={cancelRef}
-              />
-              <ResponseViewer
-                response={response}
-                isLoading={isExecuting}
-                onCancel={() => cancelRef.current?.()}
-              />
-            </>
-          )}
-          {view === 'flows' && (
+          <div className={`flex-1 flex flex-col overflow-hidden ${view === 'requests' ? '' : 'hidden'}`}>
+            <RequestEditor
+              request={selectedRequest}
+              onExecute={setResponse}
+              onUpdate={setLocalRequest}
+              onExecutingChange={setIsExecuting}
+              cancelRef={cancelRef}
+            />
+            <ResponseViewer
+              response={response}
+              isLoading={isExecuting}
+              onCancel={() => cancelRef.current?.()}
+            />
+          </div>
+          <div className={`flex-1 flex flex-col overflow-hidden ${view === 'flows' ? '' : 'hidden'}`}>
             <FlowEditor
               flow={selectedFlow}
               onUpdate={setLocalFlow}
             />
-          )}
+          </div>
           {view === 'history' && (
             <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
               <div className="text-center text-gray-500 dark:text-gray-400">

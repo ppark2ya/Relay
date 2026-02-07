@@ -404,7 +404,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         <div className="relative" ref={methodDropdownRef}>
           <button
             onClick={() => setShowMethodDropdown(!showMethodDropdown)}
-            className={`px-3 py-2 rounded-l-md text-white font-medium ${METHOD_BG_COLORS[method]} flex items-center gap-1`}
+            className={`w-28 px-3 py-2 rounded-l-md text-white font-medium ${METHOD_BG_COLORS[method]} flex items-center justify-center gap-1`}
           >
             {method}
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
