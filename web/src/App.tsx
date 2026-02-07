@@ -7,7 +7,8 @@ import { FlowEditor } from './components/FlowEditor';
 import { WebSocketPanel } from './components/WebSocketPanel';
 import { Header } from './components/Header';
 import { useNavigation } from './hooks/useNavigation';
-import { useRequest, useFlow } from './hooks/useApi';
+import { useRequest } from './api/requests';
+import { useFlow } from './api/flows';
 import { useWebSocket } from './hooks/useWebSocket';
 import type { Request, ExecuteResult, Flow, History } from './types';
 

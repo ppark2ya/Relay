@@ -1,5 +1,8 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useCreateRequest, useDeleteRequest, useDuplicateRequest, useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useHistory, useDeleteHistory } from '../hooks/useApi';
+import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection } from '../api/collections';
+import { useCreateRequest, useDeleteRequest, useDuplicateRequest } from '../api/requests';
+import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow } from '../api/flows';
+import { useHistory, useDeleteHistory } from '../api/history';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, Collection, Flow, History } from '../types';
 import { MethodBadge, TabNav, InlineCreateForm } from './ui';

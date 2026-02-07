@@ -7,7 +7,7 @@ import {
   useActivateProxy,
   useDeactivateProxy,
   useTestProxy,
-} from '../hooks/useApi';
+} from '../api/proxies';
 import type { Proxy } from '../types';
 import { Modal, StatusDot, FormField, InlineCreateForm, EmptyState } from './ui';
 

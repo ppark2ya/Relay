@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useEnvironments, useActivateEnvironment, useProxies, useActivateProxy, useDeactivateProxy } from '../hooks/useApi';
+import { useEnvironments, useActivateEnvironment } from '../api/environments';
+import { useProxies, useActivateProxy, useDeactivateProxy } from '../api/proxies';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useTheme } from '../hooks/useTheme';
 import { EnvironmentEditor } from './EnvironmentEditor';

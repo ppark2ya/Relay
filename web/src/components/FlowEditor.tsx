@@ -7,9 +7,9 @@ import {
   useCreateFlowStep,
   useUpdateFlowStep,
   useDeleteFlowStep,
-  useRequests,
-  useProxies,
-} from '../hooks/useApi';
+} from '../api/flows';
+import { useRequests } from '../api/requests';
+import { useProxies } from '../api/proxies';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Flow, FlowStep, FlowResult } from '../types';
 import { MethodBadge, EmptyState, FormField, INPUT_CLASS, CodeEditor } from './ui';

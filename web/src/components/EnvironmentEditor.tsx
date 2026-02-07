@@ -5,7 +5,7 @@ import {
   useUpdateEnvironment,
   useDeleteEnvironment,
   useActivateEnvironment,
-} from '../hooks/useApi';
+} from '../api/environments';
 import type { Environment } from '../types';
 import { Modal, StatusDot, KeyValueEditor, InlineCreateForm, EmptyState } from './ui';
 

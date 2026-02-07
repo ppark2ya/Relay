@@ -1,5 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useProxies, useRequest } from '../hooks/useApi';
+import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useRequest } from '../api/requests';
+import { useEnvironments } from '../api/environments';
+import { useProxies } from '../api/proxies';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult, WSConnectionStatus } from '../types';
 import { TabNav, KeyValueEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
