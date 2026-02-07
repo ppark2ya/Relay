@@ -11,7 +11,7 @@ import (
 )
 
 const activateEnvironment = `-- name: ActivateEnvironment :one
-UPDATE environments SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, variables, is_active, created_at, updated_at
+UPDATE environments SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, variables, is_active, created_at, updated_at, workspace_id
 `
 
 func (q *Queries) ActivateEnvironment(ctx context.Context, id int64) (Environment, error) {
@@ -24,21 +24,23 @@ func (q *Queries) ActivateEnvironment(ctx context.Context, id int64) (Environmen
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const createEnvironment = `-- name: CreateEnvironment :one
-INSERT INTO environments (name, variables) VALUES (?, ?) RETURNING id, name, variables, is_active, created_at, updated_at
+INSERT INTO environments (name, variables, workspace_id) VALUES (?, ?, ?) RETURNING id, name, variables, is_active, created_at, updated_at, workspace_id
 `
 
 type CreateEnvironmentParams struct {
-	Name      string         `json:"name"`
-	Variables sql.NullString `json:"variables"`
+	Name        string         `json:"name"`
+	Variables   sql.NullString `json:"variables"`
+	WorkspaceID int64          `json:"workspace_id"`
 }
 
 func (q *Queries) CreateEnvironment(ctx context.Context, arg CreateEnvironmentParams) (Environment, error) {
-	row := q.db.QueryRowContext(ctx, createEnvironment, arg.Name, arg.Variables)
+	row := q.db.QueryRowContext(ctx, createEnvironment, arg.Name, arg.Variables, arg.WorkspaceID)
 	var i Environment
 	err := row.Scan(
 		&i.ID,
@@ -47,16 +49,17 @@ func (q *Queries) CreateEnvironment(ctx context.Context, arg CreateEnvironmentPa
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const deactivateAllEnvironments = `-- name: DeactivateAllEnvironments :exec
-UPDATE environments SET is_active = FALSE
+UPDATE environments SET is_active = FALSE WHERE workspace_id = ?
 `
 
-func (q *Queries) DeactivateAllEnvironments(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deactivateAllEnvironments)
+func (q *Queries) DeactivateAllEnvironments(ctx context.Context, workspaceID int64) error {
+	_, err := q.db.ExecContext(ctx, deactivateAllEnvironments, workspaceID)
 	return err
 }
 
@@ -70,11 +73,11 @@ func (q *Queries) DeleteEnvironment(ctx context.Context, id int64) error {
 }
 
 const getActiveEnvironment = `-- name: GetActiveEnvironment :one
-SELECT id, name, variables, is_active, created_at, updated_at FROM environments WHERE is_active = TRUE LIMIT 1
+SELECT id, name, variables, is_active, created_at, updated_at, workspace_id FROM environments WHERE is_active = TRUE AND workspace_id = ? LIMIT 1
 `
 
-func (q *Queries) GetActiveEnvironment(ctx context.Context) (Environment, error) {
-	row := q.db.QueryRowContext(ctx, getActiveEnvironment)
+func (q *Queries) GetActiveEnvironment(ctx context.Context, workspaceID int64) (Environment, error) {
+	row := q.db.QueryRowContext(ctx, getActiveEnvironment, workspaceID)
 	var i Environment
 	err := row.Scan(
 		&i.ID,
@@ -83,12 +86,13 @@ func (q *Queries) GetActiveEnvironment(ctx context.Context) (Environment, error)
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const getEnvironment = `-- name: GetEnvironment :one
-SELECT id, name, variables, is_active, created_at, updated_at FROM environments WHERE id = ? LIMIT 1
+SELECT id, name, variables, is_active, created_at, updated_at, workspace_id FROM environments WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetEnvironment(ctx context.Context, id int64) (Environment, error) {
@@ -101,16 +105,17 @@ func (q *Queries) GetEnvironment(ctx context.Context, id int64) (Environment, er
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const listEnvironments = `-- name: ListEnvironments :many
-SELECT id, name, variables, is_active, created_at, updated_at FROM environments ORDER BY name
+SELECT id, name, variables, is_active, created_at, updated_at, workspace_id FROM environments WHERE workspace_id = ? ORDER BY name
 `
 
-func (q *Queries) ListEnvironments(ctx context.Context) ([]Environment, error) {
-	rows, err := q.db.QueryContext(ctx, listEnvironments)
+func (q *Queries) ListEnvironments(ctx context.Context, workspaceID int64) ([]Environment, error) {
+	rows, err := q.db.QueryContext(ctx, listEnvironments, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +130,7 @@ func (q *Queries) ListEnvironments(ctx context.Context) ([]Environment, error) {
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -140,7 +146,7 @@ func (q *Queries) ListEnvironments(ctx context.Context) ([]Environment, error) {
 }
 
 const updateEnvironment = `-- name: UpdateEnvironment :one
-UPDATE environments SET name = ?, variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, variables, is_active, created_at, updated_at
+UPDATE environments SET name = ?, variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, variables, is_active, created_at, updated_at, workspace_id
 `
 
 type UpdateEnvironmentParams struct {
@@ -159,6 +165,7 @@ func (q *Queries) UpdateEnvironment(ctx context.Context, arg UpdateEnvironmentPa
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }

@@ -11,16 +11,17 @@ import (
 )
 
 const createCollection = `-- name: CreateCollection :one
-INSERT INTO collections (name, parent_id) VALUES (?, ?) RETURNING id, name, parent_id, created_at, updated_at
+INSERT INTO collections (name, parent_id, workspace_id) VALUES (?, ?, ?) RETURNING id, name, parent_id, created_at, updated_at, workspace_id
 `
 
 type CreateCollectionParams struct {
-	Name     string        `json:"name"`
-	ParentID sql.NullInt64 `json:"parent_id"`
+	Name        string        `json:"name"`
+	ParentID    sql.NullInt64 `json:"parent_id"`
+	WorkspaceID int64         `json:"workspace_id"`
 }
 
 func (q *Queries) CreateCollection(ctx context.Context, arg CreateCollectionParams) (Collection, error) {
-	row := q.db.QueryRowContext(ctx, createCollection, arg.Name, arg.ParentID)
+	row := q.db.QueryRowContext(ctx, createCollection, arg.Name, arg.ParentID, arg.WorkspaceID)
 	var i Collection
 	err := row.Scan(
 		&i.ID,
@@ -28,6 +29,7 @@ func (q *Queries) CreateCollection(ctx context.Context, arg CreateCollectionPara
 		&i.ParentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -42,7 +44,7 @@ func (q *Queries) DeleteCollection(ctx context.Context, id int64) error {
 }
 
 const getCollection = `-- name: GetCollection :one
-SELECT id, name, parent_id, created_at, updated_at FROM collections WHERE id = ? LIMIT 1
+SELECT id, name, parent_id, created_at, updated_at, workspace_id FROM collections WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetCollection(ctx context.Context, id int64) (Collection, error) {
@@ -54,12 +56,13 @@ func (q *Queries) GetCollection(ctx context.Context, id int64) (Collection, erro
 		&i.ParentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const listChildCollections = `-- name: ListChildCollections :many
-SELECT id, name, parent_id, created_at, updated_at FROM collections WHERE parent_id = ? ORDER BY name
+SELECT id, name, parent_id, created_at, updated_at, workspace_id FROM collections WHERE parent_id = ? ORDER BY name
 `
 
 func (q *Queries) ListChildCollections(ctx context.Context, parentID sql.NullInt64) ([]Collection, error) {
@@ -77,6 +80,7 @@ func (q *Queries) ListChildCollections(ctx context.Context, parentID sql.NullInt
 			&i.ParentID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -92,11 +96,11 @@ func (q *Queries) ListChildCollections(ctx context.Context, parentID sql.NullInt
 }
 
 const listCollections = `-- name: ListCollections :many
-SELECT id, name, parent_id, created_at, updated_at FROM collections ORDER BY name
+SELECT id, name, parent_id, created_at, updated_at, workspace_id FROM collections WHERE workspace_id = ? ORDER BY name
 `
 
-func (q *Queries) ListCollections(ctx context.Context) ([]Collection, error) {
-	rows, err := q.db.QueryContext(ctx, listCollections)
+func (q *Queries) ListCollections(ctx context.Context, workspaceID int64) ([]Collection, error) {
+	rows, err := q.db.QueryContext(ctx, listCollections, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +114,7 @@ func (q *Queries) ListCollections(ctx context.Context) ([]Collection, error) {
 			&i.ParentID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -125,11 +130,11 @@ func (q *Queries) ListCollections(ctx context.Context) ([]Collection, error) {
 }
 
 const listRootCollections = `-- name: ListRootCollections :many
-SELECT id, name, parent_id, created_at, updated_at FROM collections WHERE parent_id IS NULL ORDER BY name
+SELECT id, name, parent_id, created_at, updated_at, workspace_id FROM collections WHERE parent_id IS NULL AND workspace_id = ? ORDER BY name
 `
 
-func (q *Queries) ListRootCollections(ctx context.Context) ([]Collection, error) {
-	rows, err := q.db.QueryContext(ctx, listRootCollections)
+func (q *Queries) ListRootCollections(ctx context.Context, workspaceID int64) ([]Collection, error) {
+	rows, err := q.db.QueryContext(ctx, listRootCollections, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +148,7 @@ func (q *Queries) ListRootCollections(ctx context.Context) ([]Collection, error)
 			&i.ParentID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -158,7 +164,7 @@ func (q *Queries) ListRootCollections(ctx context.Context) ([]Collection, error)
 }
 
 const updateCollection = `-- name: UpdateCollection :one
-UPDATE collections SET name = ?, parent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, parent_id, created_at, updated_at
+UPDATE collections SET name = ?, parent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, parent_id, created_at, updated_at, workspace_id
 `
 
 type UpdateCollectionParams struct {
@@ -176,6 +182,7 @@ func (q *Queries) UpdateCollection(ctx context.Context, arg UpdateCollectionPara
 		&i.ParentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }

@@ -10,6 +10,7 @@ import { useNavigation } from './hooks/useNavigation';
 import { useRequest } from './api/requests';
 import { useFlow } from './api/flows';
 import { useWebSocket } from './hooks/useWebSocket';
+import { WorkspaceContext, useWorkspaceProvider } from './hooks/useWorkspace';
 import type { Request, ExecuteResult, Flow, History } from './types';
 
 const queryClient = new QueryClient();
@@ -200,10 +201,21 @@ function AppContent() {
   );
 }
 
+function WorkspaceProvider({ children }: { children: React.ReactNode }) {
+  const workspace = useWorkspaceProvider();
+  return (
+    <WorkspaceContext.Provider value={workspace}>
+      {children}
+    </WorkspaceContext.Provider>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <WorkspaceProvider>
+        <AppContent />
+      </WorkspaceProvider>
     </QueryClientProvider>
   );
 }

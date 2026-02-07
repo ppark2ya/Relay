@@ -1,4 +1,5 @@
 // Barrel re-exports for backwards compatibility with ../types imports
+export type { Workspace } from '../api/workspaces';
 export type { Collection } from '../api/collections';
 export type { Request } from '../api/requests';
 export type { Environment } from '../api/environments';

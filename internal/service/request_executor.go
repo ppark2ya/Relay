@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"time"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 )
 
@@ -193,7 +194,8 @@ func CreateHTTPClient(ctx context.Context, queries *repository.Queries, proxyID 
 
 	if !proxyID.Valid {
 		// NULL → inherit global active proxy
-		proxy, err := queries.GetActiveProxy(ctx)
+		wsID := middleware.GetWorkspaceID(ctx)
+		proxy, err := queries.GetActiveProxy(ctx, wsID)
 		if err == nil && proxy.Url != "" {
 			proxyURL, err := url.Parse(proxy.Url)
 			if err == nil {
@@ -232,6 +234,7 @@ func (re *RequestExecutor) saveHistory(ctx context.Context, req repository.Reque
 		body = req.Body.String
 	}
 
+	wsID := middleware.GetWorkspaceID(ctx)
 	re.queries.CreateHistory(ctx, repository.CreateHistoryParams{
 		RequestID:       sql.NullInt64{Int64: req.ID, Valid: req.ID != 0},
 		FlowID:          fid,
@@ -244,5 +247,6 @@ func (re *RequestExecutor) saveHistory(ctx context.Context, req repository.Reque
 		ResponseBody:    sql.NullString{String: result.Body, Valid: true},
 		DurationMs:      sql.NullInt64{Int64: result.DurationMs, Valid: true},
 		Error:           sql.NullString{String: result.Error, Valid: result.Error != ""},
+		WorkspaceID:     wsID,
 	})
 }

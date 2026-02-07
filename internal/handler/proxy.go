@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 )
 
@@ -33,7 +34,8 @@ type ProxyResponse struct {
 }
 
 func (h *ProxyHandler) List(w http.ResponseWriter, r *http.Request) {
-	proxies, err := h.queries.ListProxies(r.Context())
+	wsID := middleware.GetWorkspaceID(r.Context())
+	proxies, err := h.queries.ListProxies(r.Context(), wsID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -84,9 +86,11 @@ func (h *ProxyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	wsID := middleware.GetWorkspaceID(r.Context())
 	proxy, err := h.queries.CreateProxy(r.Context(), repository.CreateProxyParams{
-		Name: req.Name,
-		Url:  req.URL,
+		Name:        req.Name,
+		Url:         req.URL,
+		WorkspaceID: wsID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -159,7 +163,8 @@ func (h *ProxyHandler) Activate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Deactivate all first
-	h.queries.DeactivateAllProxies(r.Context())
+	wsID := middleware.GetWorkspaceID(r.Context())
+	h.queries.DeactivateAllProxies(r.Context(), wsID)
 
 	proxy, err := h.queries.ActivateProxy(r.Context(), id)
 	if err != nil {
@@ -178,7 +183,8 @@ func (h *ProxyHandler) Activate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProxyHandler) Deactivate(w http.ResponseWriter, r *http.Request) {
-	if err := h.queries.DeactivateAllProxies(r.Context()); err != nil {
+	wsID := middleware.GetWorkspaceID(r.Context())
+	if err := h.queries.DeactivateAllProxies(r.Context(), wsID); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

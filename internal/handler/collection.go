@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 )
 
@@ -33,14 +34,15 @@ type CollectionResponse struct {
 }
 
 func (h *CollectionHandler) List(w http.ResponseWriter, r *http.Request) {
-	collections, err := h.queries.ListCollections(r.Context())
+	wsID := middleware.GetWorkspaceID(r.Context())
+	collections, err := h.queries.ListCollections(r.Context(), wsID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// Get all requests
-	requests, _ := h.queries.ListRequests(r.Context())
+	requests, _ := h.queries.ListRequests(r.Context(), wsID)
 
 	// Build request map by collection ID
 	requestsByCollection := make(map[int64][]RequestResponse)
@@ -157,9 +159,11 @@ func (h *CollectionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		parentID = sql.NullInt64{Int64: *req.ParentID, Valid: true}
 	}
 
+	wsID := middleware.GetWorkspaceID(r.Context())
 	collection, err := h.queries.CreateCollection(r.Context(), repository.CreateCollectionParams{
-		Name:     req.Name,
-		ParentID: parentID,
+		Name:        req.Name,
+		ParentID:    parentID,
+		WorkspaceID: wsID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -246,8 +250,9 @@ func (h *CollectionHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 
 	// Create the top-level copy with " (Copy)" suffix, same parent
 	newColl, err := txQueries.CreateCollection(r.Context(), repository.CreateCollectionParams{
-		Name:     source.Name + " (Copy)",
-		ParentID: source.ParentID,
+		Name:        source.Name + " (Copy)",
+		ParentID:    source.ParentID,
+		WorkspaceID: source.WorkspaceID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -294,6 +299,7 @@ func duplicateCollectionRecursive(ctx context.Context, q *repository.Queries, so
 			Headers:      req.Headers,
 			Body:         req.Body,
 			BodyType:     req.BodyType,
+			WorkspaceID:  req.WorkspaceID,
 		})
 		if err != nil {
 			return err
@@ -307,8 +313,9 @@ func duplicateCollectionRecursive(ctx context.Context, q *repository.Queries, so
 	}
 	for _, child := range children {
 		newChild, err := q.CreateCollection(ctx, repository.CreateCollectionParams{
-			Name:     child.Name,
-			ParentID: sql.NullInt64{Int64: newParentID, Valid: true},
+			Name:        child.Name,
+			ParentID:    sql.NullInt64{Int64: newParentID, Valid: true},
+			WorkspaceID: child.WorkspaceID,
 		})
 		if err != nil {
 			return err

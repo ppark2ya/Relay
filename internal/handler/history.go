@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 )
 
@@ -31,7 +32,11 @@ type HistoryResponse struct {
 }
 
 func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
-	history, err := h.queries.ListHistory(r.Context(), 100)
+	wsID := middleware.GetWorkspaceID(r.Context())
+	history, err := h.queries.ListHistory(r.Context(), repository.ListHistoryParams{
+		WorkspaceID: wsID,
+		Limit:       100,
+	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return

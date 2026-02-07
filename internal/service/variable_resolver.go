@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 )
 
@@ -101,7 +102,8 @@ func (vr *VariableResolver) ResolveHeaders(ctx context.Context, headersJSON stri
 func (vr *VariableResolver) getActiveEnvironmentVars(ctx context.Context) (map[string]string, error) {
 	vars := make(map[string]string)
 
-	env, err := vr.queries.GetActiveEnvironment(ctx)
+	wsID := middleware.GetWorkspaceID(ctx)
+	env, err := vr.queries.GetActiveEnvironment(ctx, wsID)
 	if err != nil {
 		return vars, nil // No active environment is OK
 	}

@@ -1,4 +1,5 @@
 export const queryKeys = {
+  workspaces: ['workspaces'] as const,
   collections: ['collections'] as const,
   requests: ['requests'] as const,
   request: (id: number) => ['requests', id] as const,

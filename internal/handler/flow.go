@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 	"relay/internal/service"
 )
@@ -96,7 +97,8 @@ func toFlowStepResponse(s repository.FlowStep) FlowStepResponse {
 }
 
 func (h *FlowHandler) List(w http.ResponseWriter, r *http.Request) {
-	flows, err := h.queries.ListFlows(r.Context())
+	wsID := middleware.GetWorkspaceID(r.Context())
+	flows, err := h.queries.ListFlows(r.Context(), wsID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -145,9 +147,11 @@ func (h *FlowHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	wsID := middleware.GetWorkspaceID(r.Context())
 	flow, err := h.queries.CreateFlow(r.Context(), repository.CreateFlowParams{
 		Name:        req.Name,
 		Description: sql.NullString{String: req.Description, Valid: req.Description != ""},
+		WorkspaceID: wsID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -257,6 +261,7 @@ func (h *FlowHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 	newFlow, err := txQueries.CreateFlow(r.Context(), repository.CreateFlowParams{
 		Name:        source.Name + " (Copy)",
 		Description: source.Description,
+		WorkspaceID: source.WorkspaceID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())

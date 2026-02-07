@@ -9,20 +9,22 @@ import (
 )
 
 type Collection struct {
-	ID        int64         `json:"id"`
-	Name      string        `json:"name"`
-	ParentID  sql.NullInt64 `json:"parent_id"`
-	CreatedAt sql.NullTime  `json:"created_at"`
-	UpdatedAt sql.NullTime  `json:"updated_at"`
+	ID          int64         `json:"id"`
+	Name        string        `json:"name"`
+	ParentID    sql.NullInt64 `json:"parent_id"`
+	CreatedAt   sql.NullTime  `json:"created_at"`
+	UpdatedAt   sql.NullTime  `json:"updated_at"`
+	WorkspaceID int64         `json:"workspace_id"`
 }
 
 type Environment struct {
-	ID        int64          `json:"id"`
-	Name      string         `json:"name"`
-	Variables sql.NullString `json:"variables"`
-	IsActive  sql.NullBool   `json:"is_active"`
-	CreatedAt sql.NullTime   `json:"created_at"`
-	UpdatedAt sql.NullTime   `json:"updated_at"`
+	ID          int64          `json:"id"`
+	Name        string         `json:"name"`
+	Variables   sql.NullString `json:"variables"`
+	IsActive    sql.NullBool   `json:"is_active"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	WorkspaceID int64          `json:"workspace_id"`
 }
 
 type Flow struct {
@@ -31,6 +33,7 @@ type Flow struct {
 	Description sql.NullString `json:"description"`
 	CreatedAt   sql.NullTime   `json:"created_at"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	WorkspaceID int64          `json:"workspace_id"`
 }
 
 type FlowStep struct {
@@ -50,15 +53,17 @@ type FlowStep struct {
 	ProxyID     sql.NullInt64  `json:"proxy_id"`
 	CreatedAt   sql.NullTime   `json:"created_at"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	WorkspaceID int64          `json:"workspace_id"`
 }
 
 type Proxy struct {
-	ID        int64        `json:"id"`
-	Name      string       `json:"name"`
-	Url       string       `json:"url"`
-	IsActive  sql.NullBool `json:"is_active"`
-	CreatedAt sql.NullTime `json:"created_at"`
-	UpdatedAt sql.NullTime `json:"updated_at"`
+	ID          int64        `json:"id"`
+	Name        string       `json:"name"`
+	Url         string       `json:"url"`
+	IsActive    sql.NullBool `json:"is_active"`
+	CreatedAt   sql.NullTime `json:"created_at"`
+	UpdatedAt   sql.NullTime `json:"updated_at"`
+	WorkspaceID int64        `json:"workspace_id"`
 }
 
 type Request struct {
@@ -73,6 +78,7 @@ type Request struct {
 	ProxyID      sql.NullInt64  `json:"proxy_id"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
 	UpdatedAt    sql.NullTime   `json:"updated_at"`
+	WorkspaceID  int64          `json:"workspace_id"`
 }
 
 type RequestHistory struct {
@@ -89,4 +95,12 @@ type RequestHistory struct {
 	DurationMs      sql.NullInt64  `json:"duration_ms"`
 	Error           sql.NullString `json:"error"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
+	WorkspaceID     int64          `json:"workspace_id"`
+}
+
+type Workspace struct {
+	ID        int64        `json:"id"`
+	Name      string       `json:"name"`
+	CreatedAt sql.NullTime `json:"created_at"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
 }

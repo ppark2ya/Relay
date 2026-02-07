@@ -11,16 +11,17 @@ import (
 )
 
 const createFlow = `-- name: CreateFlow :one
-INSERT INTO flows (name, description) VALUES (?, ?) RETURNING id, name, description, created_at, updated_at
+INSERT INTO flows (name, description, workspace_id) VALUES (?, ?, ?) RETURNING id, name, description, created_at, updated_at, workspace_id
 `
 
 type CreateFlowParams struct {
 	Name        string         `json:"name"`
 	Description sql.NullString `json:"description"`
+	WorkspaceID int64          `json:"workspace_id"`
 }
 
 func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, error) {
-	row := q.db.QueryRowContext(ctx, createFlow, arg.Name, arg.Description)
+	row := q.db.QueryRowContext(ctx, createFlow, arg.Name, arg.Description, arg.WorkspaceID)
 	var i Flow
 	err := row.Scan(
 		&i.ID,
@@ -28,6 +29,7 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, e
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -35,7 +37,7 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, e
 const createFlowStep = `-- name: CreateFlowStep :one
 INSERT INTO flow_steps (flow_id, request_id, step_order, delay_ms, extract_vars, condition,
                         name, method, url, headers, body, body_type, proxy_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id
 `
 
 type CreateFlowStepParams struct {
@@ -88,6 +90,7 @@ func (q *Queries) CreateFlowStep(ctx context.Context, arg CreateFlowStepParams) 
 		&i.ProxyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -120,7 +123,7 @@ func (q *Queries) DeleteFlowStepsByFlow(ctx context.Context, flowID int64) error
 }
 
 const getFlow = `-- name: GetFlow :one
-SELECT id, name, description, created_at, updated_at FROM flows WHERE id = ? LIMIT 1
+SELECT id, name, description, created_at, updated_at, workspace_id FROM flows WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetFlow(ctx context.Context, id int64) (Flow, error) {
@@ -132,12 +135,13 @@ func (q *Queries) GetFlow(ctx context.Context, id int64) (Flow, error) {
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const getFlowStep = `-- name: GetFlowStep :one
-SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at FROM flow_steps WHERE id = ? LIMIT 1
+SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id FROM flow_steps WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
@@ -160,12 +164,13 @@ func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
 		&i.ProxyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const listFlowSteps = `-- name: ListFlowSteps :many
-SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at FROM flow_steps WHERE flow_id = ? ORDER BY step_order
+SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id FROM flow_steps WHERE flow_id = ? ORDER BY step_order
 `
 
 func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, error) {
@@ -194,6 +199,7 @@ func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, 
 			&i.ProxyID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -209,11 +215,11 @@ func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, 
 }
 
 const listFlows = `-- name: ListFlows :many
-SELECT id, name, description, created_at, updated_at FROM flows ORDER BY name
+SELECT id, name, description, created_at, updated_at, workspace_id FROM flows WHERE workspace_id = ? ORDER BY name
 `
 
-func (q *Queries) ListFlows(ctx context.Context) ([]Flow, error) {
-	rows, err := q.db.QueryContext(ctx, listFlows)
+func (q *Queries) ListFlows(ctx context.Context, workspaceID int64) ([]Flow, error) {
+	rows, err := q.db.QueryContext(ctx, listFlows, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -227,6 +233,7 @@ func (q *Queries) ListFlows(ctx context.Context) ([]Flow, error) {
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -242,7 +249,7 @@ func (q *Queries) ListFlows(ctx context.Context) ([]Flow, error) {
 }
 
 const updateFlow = `-- name: UpdateFlow :one
-UPDATE flows SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, description, created_at, updated_at
+UPDATE flows SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, description, created_at, updated_at, workspace_id
 `
 
 type UpdateFlowParams struct {
@@ -260,6 +267,7 @@ func (q *Queries) UpdateFlow(ctx context.Context, arg UpdateFlowParams) (Flow, e
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -279,7 +287,7 @@ UPDATE flow_steps SET
     body_type = ?,
     proxy_id = ?,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = ? RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at
+WHERE id = ? RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id
 `
 
 type UpdateFlowStepParams struct {
@@ -332,6 +340,7 @@ func (q *Queries) UpdateFlowStep(ctx context.Context, arg UpdateFlowStepParams) 
 		&i.ProxyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }

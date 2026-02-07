@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"embed"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -49,6 +50,7 @@ func main() {
 	wsRelay := service.NewWebSocketRelay(queries, variableResolver)
 
 	// Initialize handlers
+	workspaceHandler := handler.NewWorkspaceHandler(queries)
 	collectionHandler := handler.NewCollectionHandler(queries, db)
 	requestHandler := handler.NewRequestHandler(queries, requestExecutor)
 	environmentHandler := handler.NewEnvironmentHandler(queries)
@@ -65,6 +67,15 @@ func main() {
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
+		r.Use(middleware.WorkspaceID)
+
+		// Workspaces
+		r.Get("/workspaces", workspaceHandler.List)
+		r.Post("/workspaces", workspaceHandler.Create)
+		r.Get("/workspaces/{id}", workspaceHandler.Get)
+		r.Put("/workspaces/{id}", workspaceHandler.Update)
+		r.Delete("/workspaces/{id}", workspaceHandler.Delete)
+
 		// Collections
 		r.Get("/collections", collectionHandler.List)
 		r.Post("/collections", collectionHandler.Create)
@@ -258,6 +269,9 @@ CREATE INDEX IF NOT EXISTS idx_history_created ON request_history(created_at DES
 	// Add proxy_id column to requests and flow_steps
 	migrateProxyOverrides(db)
 
+	// Add workspaces table and workspace_id columns
+	migrateWorkspaces(db)
+
 	return nil
 }
 
@@ -351,5 +365,24 @@ func migrateProxyOverrides(db *sql.DB) {
 	}
 	for _, s := range stmts {
 		db.Exec(s) // Ignore "duplicate column" errors
+	}
+}
+
+func migrateWorkspaces(db *sql.DB) {
+	// 1. Create workspaces table
+	db.Exec(`CREATE TABLE IF NOT EXISTS workspaces (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`)
+
+	// 2. Create default workspace (id=1)
+	db.Exec(`INSERT OR IGNORE INTO workspaces (id, name) VALUES (1, 'Default')`)
+
+	// 3. Add workspace_id column to all tables (idempotent — ignore errors if already exists)
+	tables := []string{"collections", "requests", "environments", "proxies", "flows", "flow_steps", "request_history"}
+	for _, t := range tables {
+		db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1 REFERENCES workspaces(id) ON DELETE CASCADE", t))
 	}
 }

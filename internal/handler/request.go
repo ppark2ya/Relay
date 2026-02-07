@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 	"relay/internal/service"
 )
@@ -86,7 +87,8 @@ func toRequestResponse(req repository.Request) RequestResponse {
 }
 
 func (h *RequestHandler) List(w http.ResponseWriter, r *http.Request) {
-	requests, err := h.queries.ListRequests(r.Context())
+	wsID := middleware.GetWorkspaceID(r.Context())
+	requests, err := h.queries.ListRequests(r.Context(), wsID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -145,6 +147,7 @@ func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	wsID := middleware.GetWorkspaceID(r.Context())
 	req, err := h.queries.CreateRequest(r.Context(), repository.CreateRequestParams{
 		CollectionID: collectionID,
 		Name:         reqBody.Name,
@@ -154,6 +157,7 @@ func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Body:         sql.NullString{String: reqBody.Body, Valid: reqBody.Body != ""},
 		BodyType:     sql.NullString{String: reqBody.BodyType, Valid: true},
 		ProxyID:      proxyID,
+		WorkspaceID:  wsID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -279,6 +283,7 @@ func (h *RequestHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 		Body:         source.Body,
 		BodyType:     source.BodyType,
 		ProxyID:      source.ProxyID,
+		WorkspaceID:  source.WorkspaceID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())

@@ -3,6 +3,7 @@ const BG_COLORS = {
   yellow: 'bg-yellow-500',
   gray: 'bg-gray-300 dark:bg-gray-500',
   red: 'bg-red-500',
+  blue: 'bg-blue-500',
 };
 
 interface StatusDotProps {

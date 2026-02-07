@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 )
 
@@ -30,7 +31,8 @@ type EnvironmentResponse struct {
 }
 
 func (h *EnvironmentHandler) List(w http.ResponseWriter, r *http.Request) {
-	envs, err := h.queries.ListEnvironments(r.Context())
+	wsID := middleware.GetWorkspaceID(r.Context())
+	envs, err := h.queries.ListEnvironments(r.Context(), wsID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -85,9 +87,11 @@ func (h *EnvironmentHandler) Create(w http.ResponseWriter, r *http.Request) {
 		req.Variables = "{}"
 	}
 
+	wsID := middleware.GetWorkspaceID(r.Context())
 	env, err := h.queries.CreateEnvironment(r.Context(), repository.CreateEnvironmentParams{
-		Name:      req.Name,
-		Variables: sql.NullString{String: req.Variables, Valid: true},
+		Name:        req.Name,
+		Variables:   sql.NullString{String: req.Variables, Valid: true},
+		WorkspaceID: wsID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -160,7 +164,8 @@ func (h *EnvironmentHandler) Activate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Deactivate all first
-	h.queries.DeactivateAllEnvironments(r.Context())
+	wsID := middleware.GetWorkspaceID(r.Context())
+	h.queries.DeactivateAllEnvironments(r.Context(), wsID)
 
 	env, err := h.queries.ActivateEnvironment(r.Context(), id)
 	if err != nil {

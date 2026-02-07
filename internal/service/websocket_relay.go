@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 type WebSocketRelay struct {
@@ -202,7 +203,8 @@ func (wr *WebSocketRelay) HandleRelay(w http.ResponseWriter, r *http.Request) {
 
 	// Save history
 	duration := time.Since(startTime).Milliseconds()
-	wr.saveWSHistory(context.Background(), connectMsg, resolvedURL, resolvedHeaders, messageLog, duration)
+	wsID := middleware.GetWorkspaceID(r.Context())
+	wr.saveWSHistory(context.Background(), connectMsg, resolvedURL, resolvedHeaders, messageLog, duration, wsID)
 }
 
 func sendError(ctx context.Context, conn *websocket.Conn, message string) {
@@ -213,7 +215,7 @@ func sendError(ctx context.Context, conn *websocket.Conn, message string) {
 	})
 }
 
-func (wr *WebSocketRelay) saveWSHistory(ctx context.Context, connectMsg wsEnvelope, resolvedURL string, resolvedHeaders map[string]string, messages []wsEnvelope, durationMs int64) {
+func (wr *WebSocketRelay) saveWSHistory(ctx context.Context, connectMsg wsEnvelope, resolvedURL string, resolvedHeaders map[string]string, messages []wsEnvelope, durationMs int64, workspaceID int64) {
 	reqHeaders, _ := json.Marshal(resolvedHeaders)
 	respBody, _ := json.Marshal(messages)
 
@@ -233,5 +235,6 @@ func (wr *WebSocketRelay) saveWSHistory(ctx context.Context, connectMsg wsEnvelo
 		ResponseBody:    sql.NullString{String: string(respBody), Valid: true},
 		DurationMs:      sql.NullInt64{Int64: durationMs, Valid: true},
 		Error:           sql.NullString{},
+		WorkspaceID:     workspaceID,
 	})
 }

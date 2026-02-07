@@ -10,7 +10,7 @@ import (
 )
 
 const activateProxy = `-- name: ActivateProxy :one
-UPDATE proxies SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, url, is_active, created_at, updated_at
+UPDATE proxies SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, url, is_active, created_at, updated_at, workspace_id
 `
 
 func (q *Queries) ActivateProxy(ctx context.Context, id int64) (Proxy, error) {
@@ -23,21 +23,23 @@ func (q *Queries) ActivateProxy(ctx context.Context, id int64) (Proxy, error) {
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const createProxy = `-- name: CreateProxy :one
-INSERT INTO proxies (name, url) VALUES (?, ?) RETURNING id, name, url, is_active, created_at, updated_at
+INSERT INTO proxies (name, url, workspace_id) VALUES (?, ?, ?) RETURNING id, name, url, is_active, created_at, updated_at, workspace_id
 `
 
 type CreateProxyParams struct {
-	Name string `json:"name"`
-	Url  string `json:"url"`
+	Name        string `json:"name"`
+	Url         string `json:"url"`
+	WorkspaceID int64  `json:"workspace_id"`
 }
 
 func (q *Queries) CreateProxy(ctx context.Context, arg CreateProxyParams) (Proxy, error) {
-	row := q.db.QueryRowContext(ctx, createProxy, arg.Name, arg.Url)
+	row := q.db.QueryRowContext(ctx, createProxy, arg.Name, arg.Url, arg.WorkspaceID)
 	var i Proxy
 	err := row.Scan(
 		&i.ID,
@@ -46,16 +48,17 @@ func (q *Queries) CreateProxy(ctx context.Context, arg CreateProxyParams) (Proxy
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const deactivateAllProxies = `-- name: DeactivateAllProxies :exec
-UPDATE proxies SET is_active = FALSE
+UPDATE proxies SET is_active = FALSE WHERE workspace_id = ?
 `
 
-func (q *Queries) DeactivateAllProxies(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deactivateAllProxies)
+func (q *Queries) DeactivateAllProxies(ctx context.Context, workspaceID int64) error {
+	_, err := q.db.ExecContext(ctx, deactivateAllProxies, workspaceID)
 	return err
 }
 
@@ -69,11 +72,11 @@ func (q *Queries) DeleteProxy(ctx context.Context, id int64) error {
 }
 
 const getActiveProxy = `-- name: GetActiveProxy :one
-SELECT id, name, url, is_active, created_at, updated_at FROM proxies WHERE is_active = TRUE LIMIT 1
+SELECT id, name, url, is_active, created_at, updated_at, workspace_id FROM proxies WHERE is_active = TRUE AND workspace_id = ? LIMIT 1
 `
 
-func (q *Queries) GetActiveProxy(ctx context.Context) (Proxy, error) {
-	row := q.db.QueryRowContext(ctx, getActiveProxy)
+func (q *Queries) GetActiveProxy(ctx context.Context, workspaceID int64) (Proxy, error) {
+	row := q.db.QueryRowContext(ctx, getActiveProxy, workspaceID)
 	var i Proxy
 	err := row.Scan(
 		&i.ID,
@@ -82,12 +85,13 @@ func (q *Queries) GetActiveProxy(ctx context.Context) (Proxy, error) {
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const getProxy = `-- name: GetProxy :one
-SELECT id, name, url, is_active, created_at, updated_at FROM proxies WHERE id = ? LIMIT 1
+SELECT id, name, url, is_active, created_at, updated_at, workspace_id FROM proxies WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetProxy(ctx context.Context, id int64) (Proxy, error) {
@@ -100,16 +104,17 @@ func (q *Queries) GetProxy(ctx context.Context, id int64) (Proxy, error) {
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
 
 const listProxies = `-- name: ListProxies :many
-SELECT id, name, url, is_active, created_at, updated_at FROM proxies ORDER BY name
+SELECT id, name, url, is_active, created_at, updated_at, workspace_id FROM proxies WHERE workspace_id = ? ORDER BY name
 `
 
-func (q *Queries) ListProxies(ctx context.Context) ([]Proxy, error) {
-	rows, err := q.db.QueryContext(ctx, listProxies)
+func (q *Queries) ListProxies(ctx context.Context, workspaceID int64) ([]Proxy, error) {
+	rows, err := q.db.QueryContext(ctx, listProxies, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +129,7 @@ func (q *Queries) ListProxies(ctx context.Context) ([]Proxy, error) {
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -139,7 +145,7 @@ func (q *Queries) ListProxies(ctx context.Context) ([]Proxy, error) {
 }
 
 const updateProxy = `-- name: UpdateProxy :one
-UPDATE proxies SET name = ?, url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, url, is_active, created_at, updated_at
+UPDATE proxies SET name = ?, url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, url, is_active, created_at, updated_at, workspace_id
 `
 
 type UpdateProxyParams struct {
@@ -158,6 +164,7 @@ func (q *Queries) UpdateProxy(ctx context.Context, arg UpdateProxyParams) (Proxy
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 	)
 	return i, err
 }

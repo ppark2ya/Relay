@@ -2,10 +2,10 @@
 SELECT * FROM flows WHERE id = ? LIMIT 1;
 
 -- name: ListFlows :many
-SELECT * FROM flows ORDER BY name;
+SELECT * FROM flows WHERE workspace_id = ? ORDER BY name;
 
 -- name: CreateFlow :one
-INSERT INTO flows (name, description) VALUES (?, ?) RETURNING *;
+INSERT INTO flows (name, description, workspace_id) VALUES (?, ?, ?) RETURNING *;
 
 -- name: UpdateFlow :one
 UPDATE flows SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *;
