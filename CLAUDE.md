@@ -4,7 +4,7 @@
 
 ## 기술 스택
 
-- **Backend**: Go 1.18+, Chi router, SQLite (modernc.org/sqlite)
+- **Backend**: Go 1.18+, Chi router, SQLite (modernc.org/sqlite), nhooyr.io/websocket
 - **Frontend**: React 18, TypeScript, Vite, TailwindCSS v4, TanStack Query, pnpm
 - **Build**: 단일 바이너리 (Go embed로 프론트엔드 포함)
 
@@ -15,10 +15,12 @@ relay/
 ├── cmd/server/main.go           # 진입점, embed 설정
 ├── internal/
 │   ├── handler/                 # HTTP 핸들러
+│   │   └── websocket.go         # WebSocket 릴레이 핸들러
 │   ├── service/                 # 비즈니스 로직
-│   │   ├── request_executor.go  # HTTP 요청 실행
+│   │   ├── request_executor.go  # HTTP 요청 실행 + CreateHTTPClient 공용 함수
 │   │   ├── variable_resolver.go # {{변수}} 치환
-│   │   └── flow_runner.go       # Flow 순차 실행
+│   │   ├── flow_runner.go       # Flow 순차 실행
+│   │   └── websocket_relay.go   # WS 릴레이 (브라우저 ↔ Go ↔ 대상 서버)
 │   ├── repository/              # SQLC 생성 코드
 │   └── middleware/cors.go
 ├── db/
@@ -28,13 +30,16 @@ relay/
 ├── web/                         # React 프론트엔드
 │   └── src/
 │       ├── components/          # UI 컴포넌트
+│       │   └── WebSocketPanel.tsx # WS 메시지 송수신 패널
 │       ├── hooks/               # React Query 훅, 커스텀 훅
+│       │   └── useWebSocket.ts  # WS 릴레이 연결 관리 훅
 │       ├── types/               # TypeScript 타입 정의
 │       └── api/client.ts        # API 클라이언트
 ├── .claude/skills/              # Claude 개발 가이드
 │   └── react-best-practices/    # React 성능 최적화 규칙
 ├── Dockerfile                   # 개발용 (golang 베이스)
 ├── Dockerfile_alpine            # 프로덕션용 (alpine 베이스)
+├── Dockerfile.airgap            # 폐쇄망용 (Nexus 프록시 지원)
 └── Makefile
 ```
 
@@ -65,21 +70,23 @@ docker build -f Dockerfile_alpine -t relay:alpine .  # 프로덕션용
 ## API 엔드포인트
 
 ```
-Collections: GET/POST /api/collections, GET/PUT/DELETE /api/collections/:id
-Requests:    CRUD + POST /api/requests/:id/execute
+Collections:  GET/POST /api/collections, GET/PUT/DELETE /api/collections/:id
+Requests:     CRUD + POST /api/requests/:id/execute, POST /api/requests/execute-adhoc
 Environments: CRUD + POST /api/environments/:id/activate
-Proxies:     CRUD + POST /api/proxies/:id/activate, POST /api/proxies/:id/test
-Flows:       CRUD + POST /api/flows/:id/run
-             GET/POST /api/flows/:id/steps, PUT/DELETE /api/flows/:id/steps/:stepId
-History:     GET /api/history, GET/DELETE /api/history/:id
+Proxies:      CRUD + POST /api/proxies/:id/activate, POST /api/proxies/:id/test
+Flows:        CRUD + POST /api/flows/:id/run
+              GET/POST /api/flows/:id/steps, PUT/DELETE /api/flows/:id/steps/:stepId
+WebSocket:    GET /api/ws/relay (WebSocket 업그레이드)
+History:      GET /api/history, GET/DELETE /api/history/:id
 ```
 
 ## 주요 기능
 
 - **Collections**: 폴더 구조로 요청 관리 (중첩 지원)
-- **Requests**: HTTP 요청 정의 및 실행
+- **Requests**: HTTP 요청 정의 및 실행 (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)
+- **WebSocket**: WS/WSS 서버 테스트 (Method 드롭다운에서 WS 선택, Go 릴레이 방식)
 - **Environments**: 변수 집합 관리, `{{변수}}` 치환
-- **Proxies**: 프록시 설정
+- **Proxies**: 프록시 설정 (글로벌/요청별/Flow 단계별 오버라이드)
 - **Flows**: 요청 체이닝 (순차 실행, JSONPath 변수 추출)
 - **History**: 실행 기록
 
@@ -88,14 +95,25 @@ History:     GET /api/history, GET/DELETE /api/history/:id
 - `DB_PATH`: SQLite DB 경로 (기본값: `./relay.db`)
 - `PORT`: 서버 포트 (기본값: `8080`)
 
+## WebSocket 아키텍처
+
+프록시 릴레이 방식: `Browser ↔ Go Backend ↔ Target WS Server`
+
+- 브라우저가 `/api/ws/relay`로 WS 업그레이드
+- JSON 엔벨로프 프로토콜: `connect`, `send`, `close` (→ Go) / `connected`, `received`, `error`, `closed` (← Go)
+- Go가 변수 치환(`{{var}}`), 프록시 적용 후 대상 서버에 연결
+- `CreateHTTPClient` 함수를 `RequestExecutor`와 `WebSocketRelay`가 공유
+- 연결 종료 시 히스토리에 `method='WS'`로 기록
+
 ## Frontend 개발 가이드
 
 ### 컴포넌트 구조
 
-- `components/`: UI 컴포넌트 (Header, Sidebar, RequestEditor, FlowEditor 등)
+- `components/`: UI 컴포넌트 (Header, Sidebar, RequestEditor, FlowEditor, WebSocketPanel 등)
 - `hooks/useApi.ts`: TanStack Query 기반 API 훅 (useCollections, useRequests, useFlows 등)
+- `hooks/useWebSocket.ts`: WS 릴레이 연결/메시지 관리 훅
 - `hooks/useClickOutside.ts`: 드롭다운 외부 클릭 감지 훅
-- `types/index.ts`: 공유 TypeScript 타입 정의
+- `types/index.ts`: 공유 TypeScript 타입 정의 (WSMessage, WSConnectionStatus 포함)
 
 ### 주요 패턴
 
