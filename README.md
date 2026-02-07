@@ -17,10 +17,10 @@
 
 ## 기술 스택
 
-- **Backend**: Go + Chi router + SQLite ([modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite))
-- **Frontend**: React + TypeScript + Vite + TailwindCSS v4 + TanStack Query
+- **Backend**: Go 1.23 + Chi router + SQLite ([modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite))
+- **Frontend**: React 19 + TypeScript + Vite + TailwindCSS v4 + TanStack Query + ky
 - **WebSocket**: [nhooyr.io/websocket](https://pkg.go.dev/nhooyr.io/websocket) (pure Go, CGO 불필요)
-- **Build**: 프론트엔드를 Go embed로 포함한 단일 바이너리
+- **Build**: 프론트엔드를 Go embed로 포함한 단일 바이너리 (13MB, gzip 6MB)
 
 ## 빠른 시작
 
@@ -35,7 +35,7 @@
 ### 소스 빌드
 
 ```bash
-# 사전 요구: Go 1.18+, Node.js 20+, pnpm
+# 사전 요구: Go 1.23+, Node.js 22+, Bun
 make build
 ./relay
 ```
@@ -81,21 +81,24 @@ docker build -f Dockerfile.airgap \
 
 ### Environments
 
-1. 사이드바 Environments 메뉴에서 환경 생성
+1. 헤더 우측 Environment 드롭다운에서 환경 생성/관리
 2. 변수 정의 (예: `base_url` = `https://api.example.com`)
 3. URL이나 헤더에 `{{base_url}}/users` 형태로 사용
 4. 환경 활성화 시 자동 치환
 
 ### Flows (요청 체이닝)
 
-1. Flow 생성 후 Step 추가 (저장된 Request 선택)
+1. Flow 생성 후 Step 추가 (저장된 Request 선택 또는 빈 Step)
 2. 각 Step에서 JSONPath로 응답 값 추출 (예: `$.token`)
 3. 다음 Step에서 `{{extracted_var}}` 로 참조
-4. **Run** 클릭 → 순차 실행 결과 확인
+4. **Run Flow** 클릭 → 순차 실행 결과 확인
 
 ## 개발
 
 ```bash
+# 버전 관리 (mise)
+mise install
+
 # 프론트엔드 개발 서버 (Hot Reload)
 make dev-frontend   # localhost:5173
 
@@ -125,9 +128,9 @@ relay/
 │   └── queries/                # SQLC 쿼리 정의
 ├── web/src/                    # React 프론트엔드
 │   ├── components/             # UI 컴포넌트
-│   ├── hooks/                  # TanStack Query 훅, WebSocket 훅
-│   ├── api/                    # API 클라이언트
-│   └── types/                  # TypeScript 타입
+│   ├── api/                    # 도메인별 API 모듈 (ky + TanStack Query)
+│   ├── hooks/                  # WebSocket, 클릭 외부 감지 등 커스텀 훅
+│   └── types/                  # TypeScript 타입 (barrel re-export)
 ├── Dockerfile                  # 개발용
 ├── Dockerfile_alpine           # 프로덕션용
 ├── Dockerfile.airgap           # 폐쇄망용 (Nexus 프록시)
@@ -139,11 +142,13 @@ relay/
 ```
 Collections   GET/POST /api/collections
               GET/PUT/DELETE /api/collections/:id
+              POST /api/collections/:id/duplicate
 
 Requests      GET/POST /api/requests
               GET/PUT/DELETE /api/requests/:id
               POST /api/requests/:id/execute
-              POST /api/requests/execute-adhoc
+              POST /api/requests/:id/duplicate
+              POST /api/execute (ad-hoc)
 
 Environments  GET/POST /api/environments
               GET/PUT/DELETE /api/environments/:id
@@ -152,10 +157,13 @@ Environments  GET/POST /api/environments
 Proxies       GET/POST /api/proxies
               GET/PUT/DELETE /api/proxies/:id
               POST /api/proxies/:id/activate
+              POST /api/proxies/:id/test
+              POST /api/proxies/deactivate
 
 Flows         GET/POST /api/flows
               GET/PUT/DELETE /api/flows/:id
               POST /api/flows/:id/run
+              POST /api/flows/:id/duplicate
               GET/POST /api/flows/:id/steps
               PUT/DELETE /api/flows/:id/steps/:stepId
 
@@ -171,7 +179,7 @@ History       GET /api/history
 
 ```bash
 make build
-# relay 바이너리 하나로 배포 완료
+# relay 바이너리 하나로 배포 완료 (13MB)
 # 프론트엔드가 바이너리에 embed 되어 있음
 ```
 

@@ -31,10 +31,20 @@ relay/
 │   └── src/
 │       ├── components/          # UI 컴포넌트
 │       │   └── WebSocketPanel.tsx # WS 메시지 송수신 패널
-│       ├── hooks/               # React Query 훅, 커스텀 훅
-│       │   └── useWebSocket.ts  # WS 릴레이 연결 관리 훅
-│       ├── types/               # TypeScript 타입 정의
-│       └── api/                  # 도메인별 API 모듈 (ky 기반)
+│       ├── api/                 # 도메인별 API 모듈 (ky 기반)
+│       │   ├── client.ts        # 공유 ky 인스턴스
+│       │   ├── shared/          # queryKeys, ExecuteResult
+│       │   ├── collections/     # client, types, hooks, index
+│       │   ├── requests/        # client, types, hooks, index
+│       │   ├── environments/    # client, types, hooks, index
+│       │   ├── proxies/         # client, types, hooks, index
+│       │   ├── flows/           # client, types, hooks, index
+│       │   └── history/         # client, types, hooks, index
+│       ├── hooks/               # 커스텀 훅
+│       │   ├── useWebSocket.ts  # WS 릴레이 연결 관리
+│       │   ├── useClickOutside.ts
+│       │   └── useNavigation.ts
+│       └── types/               # barrel re-export + WS 타입
 ├── .claude/skills/              # Claude 개발 가이드
 │   └── react-best-practices/    # React 성능 최적화 규칙
 ├── Dockerfile                   # 개발용 (golang 베이스)
@@ -71,10 +81,13 @@ docker build -f Dockerfile_alpine -t relay:alpine .  # 프로덕션용
 
 ```
 Collections:  GET/POST /api/collections, GET/PUT/DELETE /api/collections/:id
-Requests:     CRUD + POST /api/requests/:id/execute, POST /api/requests/execute-adhoc
+              POST /api/collections/:id/duplicate
+Requests:     CRUD + POST /api/requests/:id/execute, POST /api/execute
+              POST /api/requests/:id/duplicate
 Environments: CRUD + POST /api/environments/:id/activate
 Proxies:      CRUD + POST /api/proxies/:id/activate, POST /api/proxies/:id/test
-Flows:        CRUD + POST /api/flows/:id/run
+              POST /api/proxies/deactivate
+Flows:        CRUD + POST /api/flows/:id/run, POST /api/flows/:id/duplicate
               GET/POST /api/flows/:id/steps, PUT/DELETE /api/flows/:id/steps/:stepId
 WebSocket:    GET /api/ws/relay (WebSocket 업그레이드)
 History:      GET /api/history, GET/DELETE /api/history/:id
@@ -82,7 +95,7 @@ History:      GET /api/history, GET/DELETE /api/history/:id
 
 ## 주요 기능
 
-- **Collections**: 폴더 구조로 요청 관리 (중첩 지원)
+- **Collections**: 폴더 구조로 요청 관리 (중첩 지원, 복제)
 - **Requests**: HTTP 요청 정의 및 실행 (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)
 - **WebSocket**: WS/WSS 서버 테스트 (Method 드롭다운에서 WS 선택, Go 릴레이 방식)
 - **Environments**: 변수 집합 관리, `{{변수}}` 치환
@@ -107,13 +120,25 @@ History:      GET /api/history, GET/DELETE /api/history/:id
 
 ## Frontend 개발 가이드
 
+### API 레이어 구조
+
+도메인별 분리된 모듈 구조 (`api/<domain>/`):
+- `client.ts`: ky 기반 API 호출 함수
+- `types.ts`: 도메인 타입 정의
+- `hooks.ts`: TanStack Query 훅 (useQuery, useMutation)
+- `index.ts`: hooks + types re-export
+
+공유 모듈:
+- `api/client.ts`: ky 인스턴스 (`prefixUrl: '/api'`)
+- `api/shared/queryKeys.ts`: 중앙 query key 상수 (교차 도메인 캐시 무효화)
+- `api/shared/types.ts`: `ExecuteResult` (requests, flows에서 공유)
+
 ### 컴포넌트 구조
 
 - `components/`: UI 컴포넌트 (Header, Sidebar, RequestEditor, FlowEditor, WebSocketPanel 등)
-- `api/<domain>/hooks.ts`: 도메인별 TanStack Query 훅 (collections, requests, flows 등)
 - `hooks/useWebSocket.ts`: WS 릴레이 연결/메시지 관리 훅
 - `hooks/useClickOutside.ts`: 드롭다운 외부 클릭 감지 훅
-- `types/index.ts`: 공유 TypeScript 타입 정의 (WSMessage, WSConnectionStatus 포함)
+- `types/index.ts`: barrel re-export (기존 `../types` import 경로 호환) + WS 타입
 
 ### 주요 패턴
 
