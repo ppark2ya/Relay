@@ -47,23 +47,37 @@ jobs:
 
       - name: Build Linux amd64
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o relay-linux-amd64 ./cmd/server
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o relay ./cmd/server
+          chmod +x relay
+          tar -czvf relay-linux-amd64.tar.gz relay
+          rm relay
 
       - name: Build Linux arm64
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o relay-linux-arm64 ./cmd/server
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o relay ./cmd/server
+          chmod +x relay
+          tar -czvf relay-linux-arm64.tar.gz relay
+          rm relay
 
       - name: Build macOS amd64
         run: |
-          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o relay-darwin-amd64 ./cmd/server
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o relay ./cmd/server
+          chmod +x relay
+          tar -czvf relay-darwin-amd64.tar.gz relay
+          rm relay
 
       - name: Build macOS arm64
         run: |
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o relay-darwin-arm64 ./cmd/server
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o relay ./cmd/server
+          chmod +x relay
+          tar -czvf relay-darwin-arm64.tar.gz relay
+          rm relay
 
       - name: Build Windows amd64
         run: |
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o relay-windows-amd64.exe ./cmd/server
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o relay.exe ./cmd/server
+          zip relay-windows-amd64.zip relay.exe
+          rm relay.exe
 
       - name: Get version
         id: version
@@ -78,10 +92,11 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            relay-linux-amd64
-            relay-linux-arm64
-            relay-darwin-amd64
-            relay-darwin-arm64
-            relay-windows-amd64.exe
+            relay-linux-amd64.tar.gz
+            relay-linux-arm64.tar.gz
+            relay-darwin-amd64.tar.gz
+            relay-darwin-arm64.tar.gz
+            relay-windows-amd64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
