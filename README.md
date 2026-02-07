@@ -6,6 +6,7 @@
 
 | 기능 | 설명 |
 |------|------|
+| **Workspaces** | 팀/부서별 데이터 완전 격리, 헤더 드롭다운으로 즉시 전환 |
 | **HTTP 요청** | GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS 지원. JSON/Form/Raw/GraphQL 본문 |
 | **WebSocket** | Method 드롭다운에서 WS 선택 후 ws:// wss:// 서버에 연결, 메시지 송수신 |
 | **Collections** | 폴더 구조로 요청 관리 (중첩 지원, 복제) |
@@ -61,6 +62,15 @@ docker build -f Dockerfile.airgap \
 | `PORT` | `8080` | 서버 포트 |
 
 ## 사용법
+
+### Workspaces (데이터 격리)
+
+1. 헤더 우측 Workspace 드롭다운에서 현재 워크스페이스 확인
+2. 다른 워크스페이스 선택 시 즉시 전환 (모든 데이터 재조회)
+3. **Manage Workspaces** 클릭 → 워크스페이스 생성/이름 변경/삭제
+4. "Default" 워크스페이스(id=1)는 삭제 불가
+
+> 워크스페이스 전환 시 Collections, Requests, Environments, Proxies, Flows, History 모든 데이터가 격리됩니다.
 
 ### HTTP 요청
 
@@ -122,7 +132,7 @@ relay/
 │   ├── handler/                # HTTP/WS 핸들러
 │   ├── service/                # 비즈니스 로직 (요청 실행, WS 릴레이, Flow 실행)
 │   ├── repository/             # SQLC 자동 생성 코드
-│   └── middleware/             # CORS 미들웨어
+│   └── middleware/             # CORS, Workspace ID 미들웨어
 ├── db/
 │   ├── migrations/             # SQL 스키마
 │   └── queries/                # SQLC 쿼리 정의
@@ -139,7 +149,12 @@ relay/
 
 ## API
 
+모든 API 요청은 `X-Workspace-ID` 헤더로 워크스페이스를 지정합니다 (미지정 시 기본값 `1`).
+
 ```
+Workspaces    GET/POST /api/workspaces
+              GET/PUT/DELETE /api/workspaces/:id
+
 Collections   GET/POST /api/collections
               GET/PUT/DELETE /api/collections/:id
               POST /api/collections/:id/duplicate
