@@ -11,19 +11,12 @@ import {
 } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Flow, FlowStep, FlowResult } from '../types';
+import { MethodBadge, EmptyState, FormField, INPUT_CLASS } from './ui';
 
 interface FlowEditorProps {
   flow: Flow | null;
   onUpdate: (flow: Flow) => void;
 }
-
-const METHOD_COLORS: Record<string, string> = {
-  GET: 'text-green-600',
-  POST: 'text-yellow-600',
-  PUT: 'text-blue-600',
-  DELETE: 'text-red-600',
-  PATCH: 'text-purple-600',
-};
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 const BODY_TYPES = ['none', 'json', 'text', 'xml', 'form-urlencoded', 'graphql'];
@@ -228,14 +221,15 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
 
   if (!flow) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
-        <div className="text-center text-gray-500">
+      <EmptyState
+        className="bg-gray-50"
+        icon={
           <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
           </svg>
-          <p>Select a flow from the sidebar or create a new one</p>
-        </div>
-      </div>
+        }
+        message="Select a flow from the sidebar or create a new one"
+      />
     );
   }
 
@@ -382,9 +376,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                             >
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
-                            <span className={`text-xs font-mono font-semibold ${METHOD_COLORS[step.method] || 'text-gray-600'}`}>
-                              {step.method}
-                            </span>
+                            <MethodBadge method={step.method} />
                             <span className="font-medium">{step.name || 'Untitled Step'}</span>
                             <span className="text-xs text-gray-400 truncate flex-1">{step.url}</span>
                             {isStepError && (
@@ -446,20 +438,18 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                           <div className="border-t border-gray-200 bg-gray-50 p-4">
                             <div className="space-y-3 text-sm">
                               {/* Name */}
-                              <div>
-                                <label className="text-xs font-medium text-gray-500 mb-1 block">Name</label>
+                              <FormField label="Name">
                                 <input
                                   type="text"
                                   value={edit.name}
                                   onChange={e => handleEditChange(step.id, 'name', e.target.value)}
                                   placeholder="Step name"
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500"
+                                  className={INPUT_CLASS}
                                 />
-                              </div>
+                              </FormField>
 
                               {/* Method + URL */}
-                              <div>
-                                <label className="text-xs font-medium text-gray-500 mb-1 block">Request</label>
+                              <FormField label="Request">
                                 <div className="flex gap-2">
                                   <select
                                     value={edit.method}
@@ -475,26 +465,24 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                     value={edit.url}
                                     onChange={e => handleEditChange(step.id, 'url', e.target.value)}
                                     placeholder="https://api.example.com/endpoint"
-                                    className="flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500"
+                                    className={`flex-1 ${INPUT_CLASS} font-mono`}
                                   />
                                 </div>
-                              </div>
+                              </FormField>
 
                               {/* Headers */}
-                              <div>
-                                <label className="text-xs font-medium text-gray-500 mb-1 block">Headers (JSON)</label>
+                              <FormField label="Headers (JSON)">
                                 <textarea
                                   value={edit.headers}
                                   onChange={e => handleEditChange(step.id, 'headers', e.target.value)}
                                   placeholder='{"Content-Type": "application/json"}'
                                   rows={3}
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500 resize-y"
+                                  className={`${INPUT_CLASS} font-mono resize-y`}
                                 />
-                              </div>
+                              </FormField>
 
                               {/* Body Type + Body */}
-                              <div>
-                                <label className="text-xs font-medium text-gray-500 mb-1 block">Body</label>
+                              <FormField label="Body">
                                 <div className="flex gap-2 mb-2">
                                   {BODY_TYPES.map(bt => (
                                     <button
@@ -516,14 +504,13 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                     onChange={e => handleEditChange(step.id, 'body', e.target.value)}
                                     placeholder="Request body..."
                                     rows={4}
-                                    className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500 resize-y"
+                                    className={`${INPUT_CLASS} font-mono resize-y`}
                                   />
                                 )}
-                              </div>
+                              </FormField>
 
                               {/* Delay */}
-                              <div>
-                                <label className="text-xs font-medium text-gray-500 mb-1 block">Delay (ms)</label>
+                              <FormField label="Delay (ms)">
                                 <input
                                   type="number"
                                   value={edit.delayMs}
@@ -531,31 +518,29 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                   min={0}
                                   className="w-32 px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500"
                                 />
-                              </div>
+                              </FormField>
 
                               {/* Extract Variables */}
-                              <div>
-                                <label className="text-xs font-medium text-gray-500 mb-1 block">Extract Variables (JSON: varName → JSONPath)</label>
+                              <FormField label="Extract Variables (JSON: varName → JSONPath)">
                                 <textarea
                                   value={edit.extractVars}
                                   onChange={e => handleEditChange(step.id, 'extractVars', e.target.value)}
                                   placeholder='{"token": "$.data.accessToken"}'
                                   rows={2}
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500 resize-y"
+                                  className={`${INPUT_CLASS} font-mono resize-y`}
                                 />
-                              </div>
+                              </FormField>
 
                               {/* Condition */}
-                              <div>
-                                <label className="text-xs font-medium text-gray-500 mb-1 block">Condition</label>
+                              <FormField label="Condition">
                                 <input
                                   type="text"
                                   value={edit.condition}
                                   onChange={e => handleEditChange(step.id, 'condition', e.target.value)}
                                   placeholder='{{token}}'
-                                  className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500"
+                                  className={`${INPUT_CLASS} font-mono`}
                                 />
-                              </div>
+                              </FormField>
 
                               {/* Save Button */}
                               <div className="flex justify-end pt-2">
@@ -638,9 +623,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       onClick={() => handleCopyFromRequest(req.id)}
                       className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-3"
                     >
-                      <span className={`text-xs font-mono font-semibold ${METHOD_COLORS[req.method] || 'text-gray-600'}`}>
-                        {req.method}
-                      </span>
+                      <MethodBadge method={req.method} />
                       <span className="font-medium">{req.name}</span>
                       <span className="text-xs text-gray-400 truncate">{req.url}</span>
                     </button>

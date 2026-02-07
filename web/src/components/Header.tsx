@@ -3,6 +3,7 @@ import { useEnvironments, useActivateEnvironment, useProxies, useActivateProxy, 
 import { useClickOutside } from '../hooks/useClickOutside';
 import { EnvironmentEditor } from './EnvironmentEditor';
 import { ProxyEditor } from './ProxyEditor';
+import { StatusDot } from './ui';
 
 export function Header() {
   const { data: environments = [] } = useEnvironments();
@@ -42,7 +43,7 @@ export function Header() {
           onClick={() => { setShowEnvDropdown(!showEnvDropdown); setShowProxyDropdown(false); }}
           className="px-3 py-1.5 border border-gray-300 rounded-md text-sm flex items-center gap-2 hover:bg-gray-50"
         >
-          <span className="w-2 h-2 rounded-full bg-green-500" />
+          <StatusDot color="green" />
           {activeEnv?.name || 'No Environment'}
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -60,7 +61,7 @@ export function Header() {
                     onClick={() => { activateEnv.mutate(env.id); setShowEnvDropdown(false); }}
                     className={`w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2 ${env.isActive ? 'bg-blue-50' : ''}`}
                   >
-                    {env.isActive && <span className="w-2 h-2 rounded-full bg-green-500" />}
+                    {env.isActive && <StatusDot color="green" />}
                     {env.name}
                   </button>
                 ))
@@ -88,7 +89,7 @@ export function Header() {
           onClick={() => { setShowProxyDropdown(!showProxyDropdown); setShowEnvDropdown(false); }}
           className="px-3 py-1.5 border border-gray-300 rounded-md text-sm flex items-center gap-2 hover:bg-gray-50"
         >
-          <span className={`w-2 h-2 rounded-full ${activeProxy ? 'bg-yellow-500' : 'bg-gray-300'}`} />
+          <StatusDot color={activeProxy ? 'yellow' : 'gray'} />
           {activeProxy?.name || 'No Proxy'}
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -101,7 +102,7 @@ export function Header() {
                 onClick={() => { deactivateProxy.mutate(undefined); setShowProxyDropdown(false); }}
                 className={`w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2 ${!activeProxy ? 'bg-blue-50' : ''}`}
               >
-                {!activeProxy && <span className="w-2 h-2 rounded-full bg-gray-400" />}
+                {!activeProxy && <StatusDot color="gray" />}
                 <span className="text-gray-500">No Proxy</span>
               </button>
               {proxies.map(proxy => (
@@ -110,7 +111,7 @@ export function Header() {
                   onClick={() => { activateProxy.mutate(proxy.id); setShowProxyDropdown(false); }}
                   className={`w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2 ${proxy.isActive ? 'bg-blue-50' : ''}`}
                 >
-                  {proxy.isActive && <span className="w-2 h-2 rounded-full bg-yellow-500" />}
+                  {proxy.isActive && <StatusDot color="yellow" />}
                   {proxy.name}
                 </button>
               ))}

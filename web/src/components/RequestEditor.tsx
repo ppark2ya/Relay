@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useRequest } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult } from '../types';
+import { TabNav, KeyValueEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS } from './ui';
 
 interface RequestEditorProps {
   request: Request | null;
@@ -10,26 +11,6 @@ interface RequestEditorProps {
 }
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
-
-const METHOD_COLORS: Record<string, string> = {
-  GET: 'bg-green-500',
-  POST: 'bg-yellow-500',
-  PUT: 'bg-blue-500',
-  DELETE: 'bg-red-500',
-  PATCH: 'bg-purple-500',
-  HEAD: 'bg-gray-500',
-  OPTIONS: 'bg-gray-500',
-};
-
-const METHOD_TEXT_COLORS: Record<string, string> = {
-  GET: 'text-green-600',
-  POST: 'text-yellow-600',
-  PUT: 'text-blue-600',
-  DELETE: 'text-red-600',
-  PATCH: 'text-purple-600',
-  HEAD: 'text-gray-600',
-  OPTIONS: 'text-gray-600',
-};
 
 type Tab = 'params' | 'headers' | 'body';
 
@@ -290,14 +271,15 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
 
   if (!request) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50">
-        <div className="text-center text-gray-500">
+      <EmptyState
+        className="bg-gray-50"
+        icon={
           <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <p>Select a request from the sidebar or create a new one</p>
-        </div>
-      </div>
+        }
+        message="Select a request from the sidebar or create a new one"
+      />
     );
   }
 
@@ -349,7 +331,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
         <div className="relative" ref={methodDropdownRef}>
           <button
             onClick={() => setShowMethodDropdown(!showMethodDropdown)}
-            className={`px-3 py-2 rounded-l-md text-white font-medium ${METHOD_COLORS[method]} flex items-center gap-1`}
+            className={`px-3 py-2 rounded-l-md text-white font-medium ${METHOD_BG_COLORS[method]} flex items-center gap-1`}
           >
             {method}
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -452,142 +434,39 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 px-4">
-        {(['params', 'headers', 'body'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-              activeTab === tab
-                ? 'text-blue-600 border-blue-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700'
-            }`}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            {tab === 'params' && validParamsCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 rounded-full">{validParamsCount}</span>
-            )}
-            {tab === 'headers' && validHeadersCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 rounded-full">{validHeadersCount}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <TabNav
+        tabs={[
+          { key: 'params', label: 'Params', badge: validParamsCount },
+          { key: 'headers', label: 'Headers', badge: validHeadersCount },
+          { key: 'body', label: 'Body' },
+        ]}
+        activeTab={activeTab}
+        onTabChange={key => setActiveTab(key as Tab)}
+        className="px-4"
+      />
 
       {/* Tab Content */}
       <div className="p-4 max-h-48 overflow-y-auto">
         {activeTab === 'params' && (
-          <div className="space-y-2">
-            {paramItems.map((item, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={item.enabled}
-                  onChange={e => {
-                    const newItems = [...paramItems];
-                    newItems[index] = { ...newItems[index], enabled: e.target.checked };
-                    handleParamChange(newItems);
-                  }}
-                  className="w-4 h-4 rounded border-gray-300"
-                />
-                <input
-                  type="text"
-                  value={item.key}
-                  onChange={e => {
-                    const newItems = [...paramItems];
-                    newItems[index] = { ...newItems[index], key: e.target.value };
-                    handleParamChange(newItems);
-                  }}
-                  placeholder="Parameter name"
-                  className={`flex-1 px-2 py-1 border border-gray-300 rounded text-sm ${!item.enabled ? 'opacity-50' : ''}`}
-                />
-                <input
-                  type="text"
-                  value={item.value}
-                  onChange={e => {
-                    const newItems = [...paramItems];
-                    newItems[index] = { ...newItems[index], value: e.target.value };
-                    handleParamChange(newItems);
-                  }}
-                  placeholder="Value"
-                  className={`flex-1 px-2 py-1 border border-gray-300 rounded text-sm ${!item.enabled ? 'opacity-50' : ''}`}
-                />
-                <button
-                  onClick={() => {
-                    handleParamChange(paramItems.filter((_, i) => i !== index));
-                  }}
-                  className="p-1 text-red-500 hover:bg-red-50 rounded"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-            <button
-              onClick={() => setParamItems([...paramItems, { key: '', value: '', enabled: true }])}
-              className="text-sm text-blue-600 hover:underline"
-            >
-              + Add Parameter
-            </button>
-          </div>
+          <KeyValueEditor
+            items={paramItems}
+            onChange={items => handleParamChange(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
+            showEnabled
+            keyPlaceholder="Parameter name"
+            valuePlaceholder="Value"
+            addLabel="+ Add Parameter"
+          />
         )}
 
         {activeTab === 'headers' && (
-          <div className="space-y-2">
-            {headerItems.map((item, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={item.enabled}
-                  onChange={e => {
-                    const newItems = [...headerItems];
-                    newItems[index] = { ...newItems[index], enabled: e.target.checked };
-                    setHeaderItems(newItems);
-                  }}
-                  className="w-4 h-4 rounded border-gray-300"
-                />
-                <input
-                  type="text"
-                  value={item.key}
-                  onChange={e => {
-                    const newItems = [...headerItems];
-                    newItems[index] = { ...newItems[index], key: e.target.value };
-                    setHeaderItems(newItems);
-                  }}
-                  placeholder="Header name"
-                  className={`flex-1 px-2 py-1 border border-gray-300 rounded text-sm ${!item.enabled ? 'opacity-50' : ''}`}
-                />
-                <input
-                  type="text"
-                  value={item.value}
-                  onChange={e => {
-                    const newItems = [...headerItems];
-                    newItems[index] = { ...newItems[index], value: e.target.value };
-                    setHeaderItems(newItems);
-                  }}
-                  placeholder="Value"
-                  className={`flex-1 px-2 py-1 border border-gray-300 rounded text-sm ${!item.enabled ? 'opacity-50' : ''}`}
-                />
-                <button
-                  onClick={() => {
-                    setHeaderItems(headerItems.filter((_, i) => i !== index));
-                  }}
-                  className="p-1 text-red-500 hover:bg-red-50 rounded"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-            <button
-              onClick={() => setHeaderItems([...headerItems, { key: '', value: '', enabled: true }])}
-              className="text-sm text-blue-600 hover:underline"
-            >
-              + Add Header
-            </button>
-          </div>
+          <KeyValueEditor
+            items={headerItems}
+            onChange={items => setHeaderItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
+            showEnabled
+            keyPlaceholder="Header name"
+            valuePlaceholder="Value"
+            addLabel="+ Add Header"
+          />
         )}
 
         {activeTab === 'body' && (
