@@ -45,6 +45,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
 
   const [headerItems, setHeaderItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [paramItems, setParamItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
+  const [formItems, setFormItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [graphqlVariables, setGraphqlVariables] = useState('');
 
   const updateRequest = useUpdateRequest();
@@ -89,6 +90,27 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     }
   }, []);
 
+  // Parse form-urlencoded body string into key-value items
+  const parseFormBody = useCallback((bodyStr: string) => {
+    if (!bodyStr.trim()) return [];
+    return bodyStr.split('&').map(pair => {
+      const [k, ...rest] = pair.split('=');
+      return {
+        key: decodeURIComponent(k || ''),
+        value: decodeURIComponent(rest.join('=')),
+        enabled: true,
+      };
+    });
+  }, []);
+
+  // Serialize form items to URL-encoded string
+  const buildFormBody = useCallback((items: Array<{ key: string; value: string; enabled: boolean }>) => {
+    return items
+      .filter(i => i.enabled && i.key.trim())
+      .map(i => `${encodeURIComponent(i.key)}=${encodeURIComponent(i.value)}`)
+      .join('&');
+  }, []);
+
   // Parse headers from JSON string
   const parseHeaders = useCallback((headersJson: string) => {
     try {
@@ -129,6 +151,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
       setGraphqlVariables('');
     }
 
+    setFormItems(fullRequestData.bodyType === 'form' ? parseFormBody(fullRequestData.body || '') : []);
     setHeaderItems(parseHeaders(fullRequestData.headers));
     parseParamsFromUrl(fullRequestData.url);
   }
@@ -145,6 +168,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     setBodyType(request.bodyType || 'none');
     setBody(request.body || '');
     setGraphqlVariables('');
+    setFormItems(request.bodyType === 'form' ? parseFormBody(request.body || '') : []);
     setHeaderItems(parseHeaders(request.headers));
     parseParamsFromUrl(request.url);
   }
@@ -208,8 +232,8 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
       const headersJson = getHeadersJsonForSave();
       const collectionId = fullRequestData?.collectionId ?? request.collectionId;
 
-      // For graphql type, store the combined JSON body
-      const bodyToSave = bodyType === 'graphql' ? buildGraphqlBody() : body;
+      // Build body based on type
+      const bodyToSave = bodyType === 'graphql' ? buildGraphqlBody() : bodyType === 'form' ? buildFormBody(formItems) : body;
 
       updateRequest.mutate({
         id: request.id,
@@ -239,15 +263,18 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
       if (key.trim() && enabled) headersObj[key] = value;
     });
 
-    // For GraphQL, auto-add Content-Type if not present
+    // Auto-add Content-Type if not present
     if (bodyType === 'graphql' && !headersObj['Content-Type']) {
       headersObj['Content-Type'] = 'application/json';
+    }
+    if (bodyType === 'form' && !headersObj['Content-Type']) {
+      headersObj['Content-Type'] = 'application/x-www-form-urlencoded';
     }
 
     const headersJson = JSON.stringify(headersObj, null, 2);
 
-    // Build body - for graphql, wrap in proper format
-    const bodyToSend = bodyType === 'graphql' ? buildGraphqlBody() : body;
+    // Build body based on type
+    const bodyToSend = bodyType === 'graphql' ? buildGraphqlBody() : bodyType === 'form' ? buildFormBody(formItems) : body;
 
     if (isFromHistory) {
       // Ad-hoc execution for history-loaded requests
@@ -528,7 +555,17 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                 </div>
               </div>
             )}
-            {bodyType !== 'none' && bodyType !== 'graphql' && (
+            {bodyType === 'form' && (
+              <KeyValueEditor
+                items={formItems}
+                onChange={items => setFormItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
+                showEnabled
+                keyPlaceholder="Field name"
+                valuePlaceholder="Value"
+                addLabel="+ Add Field"
+              />
+            )}
+            {bodyType !== 'none' && bodyType !== 'graphql' && bodyType !== 'form' && (
               <CodeEditor
                 value={body}
                 onChange={setBody}
