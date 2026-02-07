@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useRequest } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult } from '../types';
@@ -75,82 +75,8 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   const closeEnvVars = useCallback(() => setShowEnvVars(false), []);
   const envVarsRef = useClickOutside<HTMLDivElement>(closeEnvVars, showEnvVars);
 
-  // Sync form state with full request data from API
-  useEffect(() => {
-    if (fullRequestData) {
-      setName(fullRequestData.name);
-      setMethod(fullRequestData.method);
-      setUrl(fullRequestData.url);
-      setBodyType(fullRequestData.bodyType || 'none');
-
-      // Parse body - for graphql type, extract query and variables
-      if (fullRequestData.bodyType === 'graphql' && fullRequestData.body) {
-        try {
-          const parsed = JSON.parse(fullRequestData.body);
-          setBody(parsed.query || '');
-          setGraphqlVariables(parsed.variables ? JSON.stringify(parsed.variables, null, 2) : '');
-        } catch {
-          setBody(fullRequestData.body || '');
-          setGraphqlVariables('');
-        }
-      } else {
-        setBody(fullRequestData.body || '');
-        setGraphqlVariables('');
-      }
-
-      // Parse headers (format: { key: { value, enabled } } or legacy { key: value })
-      try {
-        const parsed = JSON.parse(fullRequestData.headers || '{}');
-        const items = Object.entries(parsed).map(([key, val]) => {
-          if (typeof val === 'object' && val !== null && 'value' in val) {
-            // New format with enabled flag
-            const obj = val as { value: string; enabled: boolean };
-            return { key, value: obj.value, enabled: obj.enabled ?? true };
-          }
-          // Legacy format
-          return { key, value: String(val), enabled: true };
-        });
-        setHeaderItems(items);
-      } catch {
-        setHeaderItems([]);
-      }
-
-      // Parse params from URL
-      parseParamsFromUrl(fullRequestData.url);
-    }
-  }, [fullRequestData]);
-
-  // Sync form state from history-loaded synthetic request (id=0)
-  useEffect(() => {
-    if (request && request.id === 0) {
-      setName(request.name);
-      setMethod(request.method);
-      setUrl(request.url);
-      setBodyType(request.bodyType || 'none');
-      setBody(request.body || '');
-      setGraphqlVariables('');
-
-      // Parse headers (legacy format: {"key":"value"} → enabled=true)
-      try {
-        const parsed = JSON.parse(request.headers || '{}');
-        const items = Object.entries(parsed).map(([key, val]) => {
-          if (typeof val === 'object' && val !== null && 'value' in val) {
-            const obj = val as { value: string; enabled: boolean };
-            return { key, value: obj.value, enabled: obj.enabled ?? true };
-          }
-          return { key, value: String(val), enabled: true };
-        });
-        setHeaderItems(items);
-      } catch {
-        setHeaderItems([]);
-      }
-
-      parseParamsFromUrl(request.url);
-    }
-  }, [request]);
-
   // Parse query params from URL
-  const parseParamsFromUrl = (urlString: string) => {
+  const parseParamsFromUrl = useCallback((urlString: string) => {
     try {
       const urlObj = new URL(urlString);
       const params: Array<{ key: string; value: string; enabled: boolean }> = [];
@@ -161,7 +87,67 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     } catch {
       setParamItems([]);
     }
-  };
+  }, []);
+
+  // Parse headers from JSON string
+  const parseHeaders = useCallback((headersJson: string) => {
+    try {
+      const parsed = JSON.parse(headersJson || '{}');
+      return Object.entries(parsed).map(([key, val]) => {
+        if (typeof val === 'object' && val !== null && 'value' in val) {
+          const obj = val as { value: string; enabled: boolean };
+          return { key, value: obj.value, enabled: obj.enabled ?? true };
+        }
+        return { key, value: String(val), enabled: true };
+      });
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Sync form state with full request data (React recommended render-time pattern)
+  const [syncedRequestId, setSyncedRequestId] = useState<number | null>(null);
+
+  if (fullRequestData && fullRequestData.id !== syncedRequestId && fullRequestData.id !== 0) {
+    setSyncedRequestId(fullRequestData.id);
+    setName(fullRequestData.name);
+    setMethod(fullRequestData.method);
+    setUrl(fullRequestData.url);
+    setBodyType(fullRequestData.bodyType || 'none');
+
+    if (fullRequestData.bodyType === 'graphql' && fullRequestData.body) {
+      try {
+        const parsed = JSON.parse(fullRequestData.body);
+        setBody(parsed.query || '');
+        setGraphqlVariables(parsed.variables ? JSON.stringify(parsed.variables, null, 2) : '');
+      } catch {
+        setBody(fullRequestData.body || '');
+        setGraphqlVariables('');
+      }
+    } else {
+      setBody(fullRequestData.body || '');
+      setGraphqlVariables('');
+    }
+
+    setHeaderItems(parseHeaders(fullRequestData.headers));
+    parseParamsFromUrl(fullRequestData.url);
+  }
+
+  // Sync form state from history-loaded synthetic request (id=0)
+  const [syncedHistoryUrl, setSyncedHistoryUrl] = useState<string | null>(null);
+
+  if (request && request.id === 0 && request.url !== syncedHistoryUrl) {
+    setSyncedHistoryUrl(request.url);
+    setSyncedRequestId(null);
+    setName(request.name);
+    setMethod(request.method);
+    setUrl(request.url);
+    setBodyType(request.bodyType || 'none');
+    setBody(request.body || '');
+    setGraphqlVariables('');
+    setHeaderItems(parseHeaders(request.headers));
+    parseParamsFromUrl(request.url);
+  }
 
   // Build URL from base + enabled params only
   const buildUrlWithParams = (baseUrl: string, params: Array<{ key: string; value: string; enabled: boolean }>) => {
@@ -198,15 +184,6 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     const obj: Record<string, { value: string; enabled: boolean }> = {};
     headerItems.forEach(({ key, value, enabled }) => {
       if (key.trim()) obj[key] = { value, enabled };
-    });
-    return JSON.stringify(obj, null, 2);
-  };
-
-  // Get headers JSON for execution (only enabled headers, simple format)
-  const getHeadersJsonForExecute = () => {
-    const obj: Record<string, string> = {};
-    headerItems.forEach(({ key, value, enabled }) => {
-      if (key.trim() && enabled) obj[key] = value;
     });
     return JSON.stringify(obj, null, 2);
   };

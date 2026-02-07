@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   useFlow,
   useFlowSteps,
@@ -74,18 +74,20 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const updateStep = useUpdateFlowStep();
   const deleteStep = useDeleteFlowStep();
 
+  const [syncedFlowId, setSyncedFlowId] = useState<number | null>(null);
+
   const closeAddMenu = useCallback(() => {
     setShowAddMenu(false);
     setShowRequestDropdown(false);
   }, []);
   const addMenuRef = useClickOutside<HTMLDivElement>(closeAddMenu, showAddMenu || showRequestDropdown);
 
-  useEffect(() => {
-    if (flowData) {
-      setName(flowData.name);
-      setDescription(flowData.description || '');
-    }
-  }, [flowData]);
+  // Sync form fields when flow data changes (React recommended pattern)
+  if (flowData && flowData.id !== syncedFlowId) {
+    setSyncedFlowId(flowData.id);
+    setName(flowData.name);
+    setDescription(flowData.description || '');
+  }
 
   const handleSave = () => {
     if (flow) {

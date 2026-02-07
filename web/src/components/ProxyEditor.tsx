@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   useProxies,
   useCreateProxy,
@@ -25,39 +25,53 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
   const deactivateProxy = useDeactivateProxy();
   const testProxy = useTestProxy();
 
-  const [selectedProxy, setSelectedProxy] = useState<Proxy | null>(null);
+  const [selectedProxyId, setSelectedProxyId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [showNewProxyInput, setShowNewProxyInput] = useState(false);
   const [newProxyName, setNewProxyName] = useState('');
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [syncedProxyId, setSyncedProxyId] = useState<number | null>(null);
+
+  // Auto-select first proxy or active one
+  const effectiveProxyId = useMemo(() => {
+    if (selectedProxyId !== null && proxies.some(p => p.id === selectedProxyId)) {
+      return selectedProxyId;
+    }
+    if (isOpen && proxies.length > 0) {
+      const active = proxies.find(p => p.isActive);
+      return (active || proxies[0]).id;
+    }
+    return null;
+  }, [isOpen, proxies, selectedProxyId]);
+
+  const selectedProxy = useMemo(() =>
+    proxies.find(p => p.id === effectiveProxyId) || null,
+    [proxies, effectiveProxyId]
+  );
+
+  // Sync form fields when selected proxy changes (React recommended pattern)
+  if (selectedProxy && selectedProxy.id !== syncedProxyId) {
+    setSyncedProxyId(selectedProxy.id);
+    setName(selectedProxy.name);
+    setUrl(selectedProxy.url);
+    setTestResult(null);
+  }
+
+  const setSelectedProxy = useCallback((proxy: Proxy | null) => {
+    setSelectedProxyId(proxy?.id || null);
+  }, []);
 
   const closeModal = useCallback(() => {
     onClose();
-    setSelectedProxy(null);
+    setSelectedProxyId(null);
+    setSyncedProxyId(null);
     setShowNewProxyInput(false);
     setNewProxyName('');
     setTestResult(null);
   }, [onClose]);
 
   const modalRef = useClickOutside<HTMLDivElement>(closeModal, isOpen);
-
-  // Load selected proxy data
-  useEffect(() => {
-    if (selectedProxy) {
-      setName(selectedProxy.name);
-      setUrl(selectedProxy.url);
-      setTestResult(null);
-    }
-  }, [selectedProxy]);
-
-  // Auto-select first proxy or active one
-  useEffect(() => {
-    if (isOpen && proxies.length > 0 && !selectedProxy) {
-      const active = proxies.find(p => p.isActive);
-      setSelectedProxy(active || proxies[0]);
-    }
-  }, [isOpen, proxies, selectedProxy]);
 
   const handleCreateProxy = () => {
     if (newProxyName.trim()) {

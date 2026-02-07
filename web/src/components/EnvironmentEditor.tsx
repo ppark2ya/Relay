@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   useEnvironments,
   useCreateEnvironment,
@@ -26,45 +26,59 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
   const deleteEnv = useDeleteEnvironment();
   const activateEnv = useActivateEnvironment();
 
-  const [selectedEnv, setSelectedEnv] = useState<Environment | null>(null);
+  const [selectedEnvId, setSelectedEnvId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [variables, setVariables] = useState<VariableItem[]>([]);
   const [showNewEnvInput, setShowNewEnvInput] = useState(false);
   const [newEnvName, setNewEnvName] = useState('');
+  const [syncedEnvId, setSyncedEnvId] = useState<number | null>(null);
+
+  // Auto-select first environment or active one
+  const effectiveEnvId = useMemo(() => {
+    if (selectedEnvId !== null && environments.some(e => e.id === selectedEnvId)) {
+      return selectedEnvId;
+    }
+    if (isOpen && environments.length > 0) {
+      const active = environments.find(e => e.isActive);
+      return (active || environments[0]).id;
+    }
+    return null;
+  }, [isOpen, environments, selectedEnvId]);
+
+  const selectedEnv = useMemo(() =>
+    environments.find(e => e.id === effectiveEnvId) || null,
+    [environments, effectiveEnvId]
+  );
+
+  // Sync form fields when selected env changes (React recommended pattern)
+  if (selectedEnv && selectedEnv.id !== syncedEnvId) {
+    setSyncedEnvId(selectedEnv.id);
+    setName(selectedEnv.name);
+    try {
+      const parsed = JSON.parse(selectedEnv.variables || '{}');
+      const items = Object.entries(parsed).map(([key, value]) => ({
+        key,
+        value: String(value),
+      }));
+      setVariables(items.length > 0 ? items : [{ key: '', value: '' }]);
+    } catch {
+      setVariables([{ key: '', value: '' }]);
+    }
+  }
+
+  const setSelectedEnv = useCallback((env: Environment | null) => {
+    setSelectedEnvId(env?.id || null);
+  }, []);
 
   const closeModal = useCallback(() => {
     onClose();
-    setSelectedEnv(null);
+    setSelectedEnvId(null);
+    setSyncedEnvId(null);
     setShowNewEnvInput(false);
     setNewEnvName('');
   }, [onClose]);
 
   const modalRef = useClickOutside<HTMLDivElement>(closeModal, isOpen);
-
-  // Load selected environment data
-  useEffect(() => {
-    if (selectedEnv) {
-      setName(selectedEnv.name);
-      try {
-        const parsed = JSON.parse(selectedEnv.variables || '{}');
-        const items = Object.entries(parsed).map(([key, value]) => ({
-          key,
-          value: String(value),
-        }));
-        setVariables(items.length > 0 ? items : [{ key: '', value: '' }]);
-      } catch {
-        setVariables([{ key: '', value: '' }]);
-      }
-    }
-  }, [selectedEnv]);
-
-  // Auto-select first environment or active one
-  useEffect(() => {
-    if (isOpen && environments.length > 0 && !selectedEnv) {
-      const active = environments.find(e => e.isActive);
-      setSelectedEnv(active || environments[0]);
-    }
-  }, [isOpen, environments, selectedEnv]);
 
   const handleCreateEnv = () => {
     if (newEnvName.trim()) {

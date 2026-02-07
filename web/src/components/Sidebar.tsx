@@ -229,7 +229,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+    <aside className="w-64 min-w-64 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
       {/* View Tabs */}
       <div className="flex border-b border-gray-200">
         {(['requests', 'flows', 'history'] as const).map(v => (
@@ -251,22 +251,30 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
           <>
             <div className="mb-2">
               {showNewCollection ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     value={newCollectionName}
                     onChange={e => setNewCollectionName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleCreateCollection()}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleCreateCollection();
+                      if (e.key === 'Escape') {
+                        setShowNewCollection(false);
+                        setNewCollectionName('');
+                      }
+                    }}
                     placeholder="Collection name"
-                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
                     autoFocus
                   />
-                  <button onClick={handleCreateCollection} className="px-2 py-1 bg-blue-600 text-white text-sm rounded">
-                    Add
-                  </button>
-                  <button onClick={() => setShowNewCollection(false)} className="px-2 py-1 text-sm text-gray-500">
-                    Cancel
-                  </button>
+                  <div className="flex gap-1">
+                    <button onClick={() => { setShowNewCollection(false); setNewCollectionName(''); }} className="flex-1 px-2 py-1 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50">
+                      Cancel
+                    </button>
+                    <button onClick={handleCreateCollection} className="flex-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                      Add
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button
@@ -295,22 +303,30 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
           <>
             <div className="mb-2" ref={newFlowRef}>
               {showNewFlow ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     value={newFlowName}
                     onChange={e => setNewFlowName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleCreateFlow()}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleCreateFlow();
+                      if (e.key === 'Escape') {
+                        setShowNewFlow(false);
+                        setNewFlowName('');
+                      }
+                    }}
                     placeholder="Flow name"
-                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
                     autoFocus
                   />
-                  <button onClick={handleCreateFlow} className="px-2 py-1 bg-blue-600 text-white text-sm rounded">
-                    Add
-                  </button>
-                  <button onClick={() => setShowNewFlow(false)} className="px-2 py-1 text-sm text-gray-500">
-                    Cancel
-                  </button>
+                  <div className="flex gap-1">
+                    <button onClick={() => { setShowNewFlow(false); setNewFlowName(''); }} className="flex-1 px-2 py-1 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50">
+                      Cancel
+                    </button>
+                    <button onClick={handleCreateFlow} className="flex-1 px-2 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                      Add
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button
