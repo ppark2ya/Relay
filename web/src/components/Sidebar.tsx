@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useCreateRequest, useDeleteRequest, useDuplicateRequest, useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useHistory, useDeleteHistory } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, Collection, Flow, History } from '../types';
@@ -75,26 +75,25 @@ function CollectionTree({
   onDuplicateRequest: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const lastAutoExpandedRef = useRef<number | undefined>(undefined);
+  const [lastAutoExpanded, setLastAutoExpanded] = useState<number | undefined>(undefined);
 
-  useEffect(() => {
-    if (selectedRequestId && selectedRequestId !== lastAutoExpandedRef.current) {
-      lastAutoExpandedRef.current = selectedRequestId;
-      const toExpand: number[] = [];
-      for (const c of collections) {
-        if (containsRequest(c, selectedRequestId)) {
-          toExpand.push(c.id);
-        }
-      }
-      if (toExpand.length > 0) {
-        setExpanded(prev => {
-          const next = new Set(prev);
-          toExpand.forEach(id => next.add(id));
-          return next;
-        });
+  // Render-time state adjustment (React recommended pattern)
+  if (selectedRequestId && selectedRequestId !== lastAutoExpanded) {
+    setLastAutoExpanded(selectedRequestId);
+    const toExpand: number[] = [];
+    for (const c of collections) {
+      if (containsRequest(c, selectedRequestId)) {
+        toExpand.push(c.id);
       }
     }
-  }, [selectedRequestId, collections]);
+    if (toExpand.length > 0) {
+      setExpanded(prev => {
+        const next = new Set(prev);
+        toExpand.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  }
 
   const toggleExpand = (id: number) => {
     const newExpanded = new Set(expanded);

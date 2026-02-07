@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, type MutableRefObject } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useProxies, useRequest } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult, WSConnectionStatus } from '../types';
@@ -15,7 +15,7 @@ interface RequestEditorProps {
   onExecute: (result: ExecuteResult) => void;
   onUpdate: (request: Request) => void;
   onExecutingChange?: (executing: boolean) => void;
-  cancelRef?: MutableRefObject<(() => void) | null>;
+  onCancelReady?: (fn: (() => void) | null) => void;
   onMethodChange?: (method: string) => void;
   ws?: WSControls;
 }
@@ -43,7 +43,7 @@ const COMMON_HEADERS = [
 
 type Tab = 'params' | 'headers' | 'body';
 
-export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange, cancelRef, onMethodChange, ws }: RequestEditorProps) {
+export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange, onCancelReady, onMethodChange, ws }: RequestEditorProps) {
   const [name, setName] = useState('');
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('');
@@ -72,10 +72,16 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     abortControllerRef.current = null;
   }, []);
 
-  // Expose cancel function via ref for parent components
-  if (cancelRef) {
-    cancelRef.current = handleCancel;
-  }
+  // Expose cancel function to parent
+  useEffect(() => {
+    onCancelReady?.(handleCancel);
+    return () => onCancelReady?.(null);
+  }, [onCancelReady, handleCancel]);
+
+  // Notify parent when method changes
+  useEffect(() => {
+    onMethodChange?.(method);
+  }, [method, onMethodChange]);
 
   const isFromHistory = request?.id === 0;
 
@@ -175,7 +181,6 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setSyncedRequestId(fullRequestData.id);
     setName(fullRequestData.name);
     setMethod(fullRequestData.method);
-    onMethodChange?.(fullRequestData.method);
     setUrl(fullRequestData.url);
     setBodyType(fullRequestData.bodyType || 'none');
 
@@ -207,7 +212,6 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setSyncedRequestId(null);
     setName(request.name);
     setMethod(request.method);
-    onMethodChange?.(request.method);
     setUrl(request.url);
     setBodyType(request.bodyType || 'none');
     setBody(request.body || '');
@@ -444,7 +448,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
               {METHODS.map(m => (
                 <button
                   key={m}
-                  onClick={() => { setMethod(m); onMethodChange?.(m); setShowMethodDropdown(false); }}
+                  onClick={() => { setMethod(m); setShowMethodDropdown(false); }}
                   className={`block w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 font-medium ${METHOD_TEXT_COLORS[m]} ${method === m ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
                 >
                   {m}

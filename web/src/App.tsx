@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/Sidebar';
 import { RequestEditor } from './components/RequestEditor';
@@ -21,6 +21,10 @@ function AppContent() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [currentMethod, setCurrentMethod] = useState('GET');
   const cancelRef = useRef<(() => void) | null>(null);
+  const cancelCallbacks = useMemo(() => ({
+    onCancelReady: (fn: (() => void) | null) => { cancelRef.current = fn; },
+    cancel: () => cancelRef.current?.(),
+  }), []);
 
   // WebSocket controls
   const ws = useWebSocket();
@@ -154,7 +158,7 @@ function AppContent() {
               onExecute={setResponse}
               onUpdate={setLocalRequest}
               onExecutingChange={setIsExecuting}
-              cancelRef={cancelRef}
+              onCancelReady={cancelCallbacks.onCancelReady}
               onMethodChange={handleMethodChange}
               ws={ws}
             />
@@ -169,7 +173,7 @@ function AppContent() {
               <ResponseViewer
                 response={response}
                 isLoading={isExecuting}
-                onCancel={() => cancelRef.current?.()}
+                onCancel={cancelCallbacks.cancel}
               />
             )}
           </div>

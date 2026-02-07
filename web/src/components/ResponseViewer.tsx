@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { ExecuteResult } from '../types';
 import { EmptyState, TabNav, CodeEditor } from './ui';
 
@@ -27,14 +27,14 @@ function getStatusColor(code: number): string {
 
 function ElapsedTimer() {
   const [elapsed, setElapsed] = useState(0);
-  const startRef = useRef(Date.now());
+  const [start] = useState(() => Date.now());
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setElapsed((Date.now() - startRef.current) / 1000);
+      setElapsed((Date.now() - start) / 1000);
     }, 100);
     return () => clearInterval(interval);
-  }, []);
+  }, [start]);
 
   return <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums">{elapsed.toFixed(1)}s</span>;
 }
