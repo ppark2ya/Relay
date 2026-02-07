@@ -106,18 +106,29 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
 
   const activeGlobalProxy = proxies.find(p => p.isActive);
 
-  // Parse query params from URL
+  // Parse query params from URL (supports {{variable}} in base URL)
   const parseParamsFromUrl = useCallback((urlString: string) => {
-    try {
-      const urlObj = new URL(urlString);
-      const params: Array<{ key: string; value: string; enabled: boolean }> = [];
-      urlObj.searchParams.forEach((value, key) => {
-        params.push({ key, value, enabled: true });
-      });
-      setParamItems(params);
-    } catch {
+    const qIndex = urlString.indexOf('?');
+    if (qIndex === -1 || qIndex === urlString.length - 1) {
       setParamItems([]);
+      return;
     }
+    const queryString = urlString.slice(qIndex + 1);
+    const params: Array<{ key: string; value: string; enabled: boolean }> = [];
+    queryString.split('&').forEach(pair => {
+      if (!pair) return;
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex === -1) {
+        params.push({ key: decodeURIComponent(pair), value: '', enabled: true });
+      } else {
+        params.push({
+          key: decodeURIComponent(pair.slice(0, eqIndex)),
+          value: decodeURIComponent(pair.slice(eqIndex + 1)),
+          enabled: true,
+        });
+      }
+    });
+    setParamItems(params);
   }, []);
 
   // Parse form-urlencoded body string into key-value items
@@ -207,21 +218,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setProxyId(null);
   }
 
-  // Build URL from base + enabled params only
+  // Build URL from base + enabled params only (supports {{variable}} in base URL)
   const buildUrlWithParams = (baseUrl: string, params: Array<{ key: string; value: string; enabled: boolean }>) => {
+    const base = baseUrl.split('?')[0];
     const enabledParams = params.filter(p => p.enabled && p.key.trim());
-    try {
-      const urlObj = new URL(baseUrl.split('?')[0]);
-      enabledParams.forEach(({ key, value }) => {
-        urlObj.searchParams.set(key, value);
-      });
-      return urlObj.toString();
-    } catch {
-      // If URL is invalid, just append params manually
-      if (enabledParams.length === 0) return baseUrl.split('?')[0];
-      const queryString = enabledParams.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
-      return `${baseUrl.split('?')[0]}?${queryString}`;
-    }
+    if (enabledParams.length === 0) return base;
+    const queryString = enabledParams.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
+    return `${base}?${queryString}`;
   };
 
   // Update URL when params change
