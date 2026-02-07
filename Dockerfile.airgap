@@ -1,0 +1,50 @@
+# 폐쇄망용 Dockerfile - Nexus 프록시 레지스트리 사용
+# Usage: docker build --build-arg REGISTRY=nexus.example.com:8082 -f Dockerfile.airgap -t relay .
+ARG REGISTRY=nexus.example.com:8082
+
+# Stage 1: Build frontend
+FROM ${REGISTRY}/node:20-alpine AS frontend-builder
+# npm/pnpm 프록시 설정 (Nexus npm-proxy 저장소 사용)
+ARG REGISTRY
+ENV NPM_CONFIG_REGISTRY=http://${REGISTRY}/repository/npm-proxy/
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+RUN pnpm config set registry http://${REGISTRY}/repository/npm-proxy/
+WORKDIR /app/web
+COPY web/package.json web/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY web/ ./
+RUN pnpm run build
+
+# Stage 2: Build backend
+FROM ${REGISTRY}/golang:1.18-alpine AS backend-builder
+# Go 모듈 프록시 설정 (Nexus go-proxy 저장소 사용)
+ARG REGISTRY
+ENV GOPROXY=http://${REGISTRY}/repository/go-proxy/,direct
+ENV GONOSUMDB=*
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+COPY --from=frontend-builder /app/web/dist ./cmd/server/dist
+RUN CGO_ENABLED=0 go build -o relay ./cmd/server
+
+# Stage 3: Final image (minimal)
+FROM ${REGISTRY}/alpine:3.19
+RUN apk add --no-cache ca-certificates tzdata wget
+WORKDIR /app
+COPY --from=backend-builder /app/relay .
+
+RUN mkdir -p /data
+
+ENV DB_PATH=/data/relay.db
+ENV PORT=8080
+
+EXPOSE 8080
+
+VOLUME ["/data"]
+
+# Health check for Docker Swarm
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD wget -q --spider http://localhost:8080/health || exit 1
+
+CMD ["./relay"]

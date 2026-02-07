@@ -1,0 +1,57 @@
+version: "3.8"
+
+# Docker Swarm 로컬 테스트용 Compose 파일
+# 용도: docker stack deploy -c docker-stack.local.yml relay-test
+
+services:
+  relay:
+    image: relay:${TAG:-latest}
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+      rollback_config:
+        parallelism: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    ports:
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: ingress
+    volumes:
+      - relay-data:/data
+    environment:
+      - DB_PATH=/data/relay.db
+      - PORT=8080
+    networks:
+      - relay-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  relay-data:
+    driver: local
+
+networks:
+  relay-net:
+    driver: overlay
+    attachable: true
