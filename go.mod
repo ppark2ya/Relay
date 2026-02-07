@@ -1,6 +1,6 @@
 module relay
 
-go 1.23
+go 1.25
 
 require (
 	github.com/PaesslerAG/jsonpath v0.1.1
