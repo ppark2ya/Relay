@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useCollections, useCreateCollection, useDeleteCollection, useCreateRequest, useDeleteRequest, useFlows, useCreateFlow, useDeleteFlow, useHistory, useDeleteHistory } from '../hooks/useApi';
+import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useCreateRequest, useDeleteRequest, useDuplicateRequest, useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useHistory, useDeleteHistory } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, Collection, Flow, History } from '../types';
 import { MethodBadge, TabNav, InlineCreateForm } from './ui';
@@ -56,6 +56,8 @@ function CollectionTree({
   onDeleteCollection,
   onDeleteRequest,
   onCreateRequest,
+  onDuplicateCollection,
+  onDuplicateRequest,
 }: {
   collections: Collection[];
   onSelectRequest: (request: Request) => void;
@@ -63,6 +65,8 @@ function CollectionTree({
   onDeleteCollection: (id: number) => void;
   onDeleteRequest: (id: number) => void;
   onCreateRequest: (collectionId: number) => void;
+  onDuplicateCollection: (id: number) => void;
+  onDuplicateRequest: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -98,6 +102,15 @@ function CollectionTree({
               </svg>
             </button>
             <button
+              onClick={(e) => { e.stopPropagation(); onDuplicateCollection(collection.id); }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
+              title="Duplicate Collection"
+            >
+              <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
+            <button
               onClick={(e) => { e.stopPropagation(); onDeleteCollection(collection.id); }}
               className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
               title="Delete Collection"
@@ -120,8 +133,18 @@ function CollectionTree({
                   <MethodBadge method={request.method} />
                   <span className="flex-1 text-sm truncate">{request.name}</span>
                   <button
+                    onClick={(e) => { e.stopPropagation(); onDuplicateRequest(request.id); }}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
+                    title="Duplicate Request"
+                  >
+                    <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                  <button
                     onClick={(e) => { e.stopPropagation(); onDeleteRequest(request.id); }}
                     className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
+                    title="Delete Request"
                   >
                     <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -137,6 +160,8 @@ function CollectionTree({
                   onDeleteCollection={onDeleteCollection}
                   onDeleteRequest={onDeleteRequest}
                   onCreateRequest={onCreateRequest}
+                  onDuplicateCollection={onDuplicateCollection}
+                  onDuplicateRequest={onDuplicateRequest}
                 />
               )}
             </div>
@@ -157,6 +182,9 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const deleteRequest = useDeleteRequest();
   const createFlow = useCreateFlow();
   const deleteFlow = useDeleteFlow();
+  const duplicateCollection = useDuplicateCollection();
+  const duplicateRequest = useDuplicateRequest();
+  const duplicateFlow = useDuplicateFlow();
   const deleteHistory = useDeleteHistory();
 
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -255,6 +283,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
               onDeleteCollection={id => deleteCollection.mutate(id)}
               onDeleteRequest={id => deleteRequest.mutate(id)}
               onCreateRequest={handleCreateRequest}
+              onDuplicateCollection={id => duplicateCollection.mutate(id)}
+              onDuplicateRequest={id => duplicateRequest.mutate(id)}
             />
           </>
         )}
@@ -290,8 +320,18 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                         <div className="text-xs text-gray-500 truncate">{flow.description || 'No description'}</div>
                       </div>
                       <button
+                        onClick={(e) => { e.stopPropagation(); duplicateFlow.mutate(flow.id); }}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded ml-1"
+                        title="Duplicate Flow"
+                      >
+                        <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                      <button
                         onClick={(e) => handleDeleteFlow(flow.id, e)}
                         className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded ml-1"
+                        title="Delete Flow"
                       >
                         <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

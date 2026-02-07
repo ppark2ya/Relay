@@ -47,11 +47,11 @@ func main() {
 	flowRunner := service.NewFlowRunner(queries, requestExecutor, variableResolver)
 
 	// Initialize handlers
-	collectionHandler := handler.NewCollectionHandler(queries)
+	collectionHandler := handler.NewCollectionHandler(queries, db)
 	requestHandler := handler.NewRequestHandler(queries, requestExecutor)
 	environmentHandler := handler.NewEnvironmentHandler(queries)
 	proxyHandler := handler.NewProxyHandler(queries)
-	flowHandler := handler.NewFlowHandler(queries, flowRunner)
+	flowHandler := handler.NewFlowHandler(queries, flowRunner, db)
 	historyHandler := handler.NewHistoryHandler(queries)
 
 	// Setup router
@@ -68,6 +68,7 @@ func main() {
 		r.Get("/collections/{id}", collectionHandler.Get)
 		r.Put("/collections/{id}", collectionHandler.Update)
 		r.Delete("/collections/{id}", collectionHandler.Delete)
+		r.Post("/collections/{id}/duplicate", collectionHandler.Duplicate)
 
 		// Ad-hoc execute (no saved request needed)
 		r.Post("/execute", requestHandler.ExecuteAdhoc)
@@ -79,6 +80,7 @@ func main() {
 		r.Put("/requests/{id}", requestHandler.Update)
 		r.Delete("/requests/{id}", requestHandler.Delete)
 		r.Post("/requests/{id}/execute", requestHandler.Execute)
+		r.Post("/requests/{id}/duplicate", requestHandler.Duplicate)
 
 		// Environments
 		r.Get("/environments", environmentHandler.List)
@@ -105,6 +107,7 @@ func main() {
 		r.Put("/flows/{id}", flowHandler.Update)
 		r.Delete("/flows/{id}", flowHandler.Delete)
 		r.Post("/flows/{id}/run", flowHandler.Run)
+		r.Post("/flows/{id}/duplicate", flowHandler.Duplicate)
 		r.Get("/flows/{id}/steps", flowHandler.ListSteps)
 		r.Post("/flows/{id}/steps", flowHandler.CreateStep)
 		r.Put("/flows/{id}/steps/{stepId}", flowHandler.UpdateStep)

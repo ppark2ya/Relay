@@ -29,6 +29,14 @@ export const useDeleteCollection = () => {
   });
 };
 
+export const useDuplicateCollection = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.duplicateCollection,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['collections'] }),
+  });
+};
+
 // Requests
 export const useRequests = () => useQuery({ queryKey: ['requests'], queryFn: api.getRequests });
 export const useRequest = (id: number) => useQuery({ queryKey: ['requests', id], queryFn: () => api.getRequest(id), enabled: !!id });
@@ -60,6 +68,17 @@ export const useDeleteRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.deleteRequest,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+    },
+  });
+};
+
+export const useDuplicateRequest = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.duplicateRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['collections'] });
@@ -192,6 +211,14 @@ export const useDeleteFlow = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.deleteFlow,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['flows'] }),
+  });
+};
+
+export const useDuplicateFlow = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.duplicateFlow,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['flows'] }),
   });
 };

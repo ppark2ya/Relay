@@ -270,6 +270,52 @@ func (h *RequestHandler) Execute(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, result)
 }
 
+func (h *RequestHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid ID")
+		return
+	}
+
+	source, err := h.queries.GetRequest(r.Context(), id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "Request not found")
+		return
+	}
+
+	req, err := h.queries.CreateRequest(r.Context(), repository.CreateRequestParams{
+		CollectionID: source.CollectionID,
+		Name:         source.Name + " (Copy)",
+		Method:       source.Method,
+		Url:          source.Url,
+		Headers:      source.Headers,
+		Body:         source.Body,
+		BodyType:     source.BodyType,
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := RequestResponse{
+		ID:        req.ID,
+		Name:      req.Name,
+		Method:    req.Method,
+		URL:       req.Url,
+		Headers:   req.Headers.String,
+		Body:      req.Body.String,
+		BodyType:  req.BodyType.String,
+		CreatedAt: formatTime(req.CreatedAt),
+		UpdatedAt: formatTime(req.UpdatedAt),
+	}
+	if req.CollectionID.Valid {
+		collID := req.CollectionID.Int64
+		resp.CollectionID = &collID
+	}
+
+	respondJSON(w, http.StatusCreated, resp)
+}
+
 func (h *RequestHandler) ExecuteAdhoc(w http.ResponseWriter, r *http.Request) {
 	var reqBody AdhocExecuteRequest
 	if err := decodeJSON(r, &reqBody); err != nil {

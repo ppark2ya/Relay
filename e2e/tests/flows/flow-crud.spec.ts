@@ -73,7 +73,7 @@ test.describe('Flow CRUD', () => {
     // The delete button is opacity-0 until hover, so we force click it
     const flowItem = sidebar.locator('.group', { hasText: 'Flow To Delete' });
     await flowItem.hover();
-    await flowItem.locator('button').click({ force: true });
+    await flowItem.getByTitle('Delete Flow').click({ force: true });
 
     // Verify flow is removed from sidebar
     await expect(sidebar.getByText('Flow To Delete')).not.toBeVisible();

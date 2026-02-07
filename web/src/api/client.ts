@@ -11,6 +11,7 @@ export const getCollection = (id: number) => api.get<Collection>(`/collections/$
 export const createCollection = (data: { name: string; parentId?: number }) => api.post<Collection>('/collections', data).then(r => r.data);
 export const updateCollection = (id: number, data: { name: string; parentId?: number }) => api.put<Collection>(`/collections/${id}`, data).then(r => r.data);
 export const deleteCollection = (id: number) => api.delete(`/collections/${id}`);
+export const duplicateCollection = (id: number) => api.post<Collection>(`/collections/${id}/duplicate`).then(r => r.data);
 
 // Requests
 export const getRequests = () => api.get<Request[]>('/requests').then(r => r.data);
@@ -18,6 +19,7 @@ export const getRequest = (id: number) => api.get<Request>(`/requests/${id}`).th
 export const createRequest = (data: Partial<Request>) => api.post<Request>('/requests', data).then(r => r.data);
 export const updateRequest = (id: number, data: Partial<Request>) => api.put<Request>(`/requests/${id}`, data).then(r => r.data);
 export const deleteRequest = (id: number) => api.delete(`/requests/${id}`);
+export const duplicateRequest = (id: number) => api.post<Request>(`/requests/${id}/duplicate`).then(r => r.data);
 export const executeRequest = (
   id: number,
   variables?: Record<string, string>,
@@ -48,6 +50,7 @@ export const getFlow = (id: number) => api.get<Flow>(`/flows/${id}`).then(r => r
 export const createFlow = (data: { name: string; description: string }) => api.post<Flow>('/flows', data).then(r => r.data);
 export const updateFlow = (id: number, data: { name: string; description: string }) => api.put<Flow>(`/flows/${id}`, data).then(r => r.data);
 export const deleteFlow = (id: number) => api.delete(`/flows/${id}`);
+export const duplicateFlow = (id: number) => api.post<Flow>(`/flows/${id}/duplicate`).then(r => r.data);
 export const runFlow = (id: number) => api.post<FlowResult>(`/flows/${id}/run`).then(r => r.data);
 export const getFlowSteps = (flowId: number) => api.get<FlowStep[]>(`/flows/${flowId}/steps`).then(r => r.data);
 export const createFlowStep = (flowId: number, data: Partial<FlowStep>) => api.post<FlowStep>(`/flows/${flowId}/steps`, data).then(r => r.data);

@@ -11,10 +11,11 @@ import (
 type FlowHandler struct {
 	queries *repository.Queries
 	runner  *service.FlowRunner
+	db      *sql.DB
 }
 
-func NewFlowHandler(queries *repository.Queries, runner *service.FlowRunner) *FlowHandler {
-	return &FlowHandler{queries: queries, runner: runner}
+func NewFlowHandler(queries *repository.Queries, runner *service.FlowRunner, db *sql.DB) *FlowHandler {
+	return &FlowHandler{queries: queries, runner: runner, db: db}
 }
 
 type FlowRequest struct {
@@ -215,6 +216,78 @@ func (h *FlowHandler) Run(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, result)
+}
+
+func (h *FlowHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid ID")
+		return
+	}
+
+	source, err := h.queries.GetFlow(r.Context(), id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "Flow not found")
+		return
+	}
+
+	steps, err := h.queries.ListFlowSteps(r.Context(), id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	txQueries := h.queries.WithTx(tx)
+
+	newFlow, err := txQueries.CreateFlow(r.Context(), repository.CreateFlowParams{
+		Name:        source.Name + " (Copy)",
+		Description: source.Description,
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	for _, s := range steps {
+		_, err := txQueries.CreateFlowStep(r.Context(), repository.CreateFlowStepParams{
+			FlowID:      newFlow.ID,
+			RequestID:   s.RequestID,
+			StepOrder:   s.StepOrder,
+			DelayMs:     s.DelayMs,
+			ExtractVars: s.ExtractVars,
+			Condition:   s.Condition,
+			Name:        s.Name,
+			Method:      s.Method,
+			Url:         s.Url,
+			Headers:     s.Headers,
+			Body:        s.Body,
+			BodyType:    s.BodyType,
+		})
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, FlowResponse{
+		ID:          newFlow.ID,
+		Name:        newFlow.Name,
+		Description: newFlow.Description.String,
+		CreatedAt:   formatTime(newFlow.CreatedAt),
+		UpdatedAt:   formatTime(newFlow.UpdatedAt),
+	})
 }
 
 func (h *FlowHandler) ListSteps(w http.ResponseWriter, r *http.Request) {

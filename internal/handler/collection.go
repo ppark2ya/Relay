@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 
@@ -9,10 +10,11 @@ import (
 
 type CollectionHandler struct {
 	queries *repository.Queries
+	db      *sql.DB
 }
 
-func NewCollectionHandler(queries *repository.Queries) *CollectionHandler {
-	return &CollectionHandler{queries: queries}
+func NewCollectionHandler(queries *repository.Queries, db *sql.DB) *CollectionHandler {
+	return &CollectionHandler{queries: queries, db: db}
 }
 
 type CollectionRequest struct {
@@ -218,6 +220,105 @@ func (h *CollectionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, resp)
+}
+
+func (h *CollectionHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid ID")
+		return
+	}
+
+	source, err := h.queries.GetCollection(r.Context(), id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "Collection not found")
+		return
+	}
+
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	txQueries := h.queries.WithTx(tx)
+
+	// Create the top-level copy with " (Copy)" suffix, same parent
+	newColl, err := txQueries.CreateCollection(r.Context(), repository.CreateCollectionParams{
+		Name:     source.Name + " (Copy)",
+		ParentID: source.ParentID,
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Recursively copy children and requests
+	if err := duplicateCollectionRecursive(r.Context(), txQueries, id, newColl.ID); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := CollectionResponse{
+		ID:        newColl.ID,
+		Name:      newColl.Name,
+		CreatedAt: formatTime(newColl.CreatedAt),
+		UpdatedAt: formatTime(newColl.UpdatedAt),
+	}
+	if newColl.ParentID.Valid {
+		parentID := newColl.ParentID.Int64
+		resp.ParentID = &parentID
+	}
+
+	respondJSON(w, http.StatusCreated, resp)
+}
+
+func duplicateCollectionRecursive(ctx context.Context, q *repository.Queries, sourceID, newParentID int64) error {
+	// Copy requests in source collection
+	requests, err := q.ListRequestsByCollection(ctx, sql.NullInt64{Int64: sourceID, Valid: true})
+	if err != nil {
+		return err
+	}
+	for _, req := range requests {
+		_, err := q.CreateRequest(ctx, repository.CreateRequestParams{
+			CollectionID: sql.NullInt64{Int64: newParentID, Valid: true},
+			Name:         req.Name,
+			Method:       req.Method,
+			Url:          req.Url,
+			Headers:      req.Headers,
+			Body:         req.Body,
+			BodyType:     req.BodyType,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// Copy child collections recursively
+	children, err := q.ListChildCollections(ctx, sql.NullInt64{Int64: sourceID, Valid: true})
+	if err != nil {
+		return err
+	}
+	for _, child := range children {
+		newChild, err := q.CreateCollection(ctx, repository.CreateCollectionParams{
+			Name:     child.Name,
+			ParentID: sql.NullInt64{Int64: newParentID, Valid: true},
+		})
+		if err != nil {
+			return err
+		}
+		if err := duplicateCollectionRecursive(ctx, q, child.ID, newChild.ID); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (h *CollectionHandler) Delete(w http.ResponseWriter, r *http.Request) {
