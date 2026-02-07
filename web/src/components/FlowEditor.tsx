@@ -377,10 +377,10 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
                             <MethodBadge method={step.method} />
-                            <span className="font-medium">{step.name || 'Untitled Step'}</span>
+                            <span className="font-medium dark:text-gray-200">{step.name || 'Untitled Step'}</span>
                             <span className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1">{step.url}</span>
                             {isStepError && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700">
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
@@ -390,7 +390,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                               </span>
                             )}
                             {isStepSuccess && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700">
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
@@ -414,7 +414,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                             </button>
                           </div>
                           {isStepError && stepResult.executeResult.error && (
-                            <div className="mt-2 ml-7 flex items-start gap-1.5 text-xs text-red-700 bg-red-100 rounded px-2 py-1.5">
+                            <div className="mt-2 ml-7 flex items-start gap-1.5 text-xs text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded px-2 py-1.5">
                               <svg className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
@@ -583,7 +583,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   <div>
-                    <div className="font-medium">Add Blank Step</div>
+                    <div className="font-medium dark:text-gray-200">Add Blank Step</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Create an empty step and configure it manually</div>
                   </div>
                 </button>
@@ -595,7 +595,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                   <div>
-                    <div className="font-medium">Copy From Request</div>
+                    <div className="font-medium dark:text-gray-200">Copy From Request</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Copy data from an existing request as a template</div>
                   </div>
                 </button>
@@ -624,7 +624,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 dark:text-gray-200"
                     >
                       <MethodBadge method={req.method} />
-                      <span className="font-medium">{req.name}</span>
+                      <span className="font-medium dark:text-gray-200">{req.name}</span>
                       <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{req.url}</span>
                     </button>
                   ))
@@ -640,9 +640,9 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
         <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 max-h-80 overflow-y-auto">
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold">
+              <h3 className="font-semibold dark:text-gray-100">
                 Flow Result
-                <span className={`ml-2 text-sm ${flowResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                <span className={`ml-2 text-sm ${flowResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {flowResult.success ? 'Success' : 'Failed'}
                 </span>
               </h3>
@@ -666,12 +666,12 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{index + 1}. {stepResult.requestName || 'Untitled'}</span>
+                    <span className="font-medium dark:text-gray-200">{index + 1}. {stepResult.requestName || 'Untitled'}</span>
                     {stepResult.skipped ? (
                       <span className="text-xs text-gray-500 dark:text-gray-400">Skipped: {stepResult.skipReason}</span>
                     ) : (
                       <>
-                        <span className={`text-sm ${stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400 ? 'text-red-600' : 'text-green-600'}`}>
+                        <span className={`text-sm ${stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                           {stepResult.executeResult.statusCode || 'Error'}
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">{stepResult.executeResult.durationMs}ms</span>
@@ -679,7 +679,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                     )}
                   </div>
                   {stepResult.executeResult.error && (
-                    <div className="mt-1 text-xs text-red-600">{stepResult.executeResult.error}</div>
+                    <div className="mt-1 text-xs text-red-600 dark:text-red-400">{stepResult.executeResult.error}</div>
                   )}
                 </div>
               ))}

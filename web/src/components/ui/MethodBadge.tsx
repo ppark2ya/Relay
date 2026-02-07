@@ -7,7 +7,7 @@ interface MethodBadgeProps {
 
 export function MethodBadge({ method, className = '' }: MethodBadgeProps) {
   return (
-    <span className={`text-xs font-mono font-semibold ${METHOD_TEXT_COLORS[method] || 'text-gray-600'} ${className}`}>
+    <span className={`text-xs font-mono font-semibold ${METHOD_TEXT_COLORS[method] || 'text-gray-600 dark:text-gray-400'} ${className}`}>
       {method}
     </span>
   );

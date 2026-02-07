@@ -362,7 +362,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
       {/* History banner */}
       {isFromHistory && (
-        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-sm text-amber-700 flex items-center gap-2">
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700 text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -450,7 +450,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
             <div className="absolute top-full right-0 mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-20">
               <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-t-lg">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium dark:text-gray-200">
                     {activeEnv ? activeEnv.name : 'No Environment'}
                   </span>
                   {activeEnv && (
@@ -555,7 +555,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           <div className="space-y-2">
             <div className="flex gap-4 text-sm">
               {['none', 'json', 'form', 'raw', 'graphql'].map(type => (
-                <label key={type} className="flex items-center gap-1">
+                <label key={type} className="flex items-center gap-1 dark:text-gray-200">
                   <input
                     type="radio"
                     name="bodyType"

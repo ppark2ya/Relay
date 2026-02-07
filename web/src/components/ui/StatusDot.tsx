@@ -1,7 +1,7 @@
 const BG_COLORS = {
   green: 'bg-green-500',
   yellow: 'bg-yellow-500',
-  gray: 'bg-gray-300',
+  gray: 'bg-gray-300 dark:bg-gray-500',
   red: 'bg-red-500',
 };
 

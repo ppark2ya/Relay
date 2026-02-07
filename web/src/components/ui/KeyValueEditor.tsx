@@ -245,7 +245,7 @@ export function KeyValueEditor({
           />
           <button
             onClick={() => handleRemove(index)}
-            className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
