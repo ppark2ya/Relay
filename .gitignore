@@ -1,5 +1,6 @@
 # Binaries
 relay
+relay-e2e
 *.exe
 *.dll
 *.so
