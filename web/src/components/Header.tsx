@@ -42,7 +42,7 @@ export function Header() {
       {/* Theme Toggle */}
       <button
         onClick={toggleTheme}
-        className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+        className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-amber-500 dark:text-amber-400"
         title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       >
         {theme === 'dark' ? (

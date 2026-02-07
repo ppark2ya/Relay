@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/Sidebar';
 import { RequestEditor } from './components/RequestEditor';
@@ -16,6 +16,8 @@ function AppContent() {
   const [localRequest, setLocalRequest] = useState<Request | null>(null);
   const [localFlow, setLocalFlow] = useState<Flow | null>(null);
   const [response, setResponse] = useState<ExecuteResult | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const cancelRef = useRef<(() => void) | null>(null);
 
   // Clear local overrides when browser back/forward changes the URL
   const handleUrlChange = useCallback(() => {
@@ -135,8 +137,14 @@ function AppContent() {
                 request={selectedRequest}
                 onExecute={setResponse}
                 onUpdate={setLocalRequest}
+                onExecutingChange={setIsExecuting}
+                cancelRef={cancelRef}
               />
-              <ResponseViewer response={response} />
+              <ResponseViewer
+                response={response}
+                isLoading={isExecuting}
+                onCancel={() => cancelRef.current?.()}
+              />
             </>
           )}
           {view === 'flows' && (

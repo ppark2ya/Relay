@@ -171,7 +171,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                 }`}
               >
                 {proxy.isActive && <StatusDot color="green" />}
-                <span className="truncate">{proxy.name}</span>
+                <span className="truncate dark:text-gray-200">{proxy.name}</span>
               </button>
             ))}
             {proxies.length === 0 && (
@@ -224,7 +224,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                     placeholder="http://proxy.example.com:8080"
                   />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Supported formats: http://host:port, http://user:pass@host:port, socks5://host:port
                   </p>
                 </FormField>
@@ -234,13 +234,13 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                   <button
                     onClick={handleTest}
                     disabled={testProxy.isPending || !url.trim()}
-                    className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                    className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 disabled:opacity-50"
                   >
                     {testProxy.isPending ? 'Testing...' : 'Test Connection'}
                   </button>
                   {testResult && (
                     <div className={`mt-2 px-3 py-2 rounded-md text-sm ${
-                      testResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                      testResult.success ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                     }`}>
                       {testResult.message}
                     </div>
@@ -249,10 +249,10 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
               </div>
 
               {/* Footer */}
-              <div className="mt-auto p-4 border-t border-gray-200 flex items-center justify-between">
+              <div className="mt-auto p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <button
                   onClick={handleDelete}
-                  className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md"
+                  className="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md"
                 >
                   Delete Proxy
                 </button>
@@ -268,7 +268,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
           ) : (
             <EmptyState
               icon={
-                <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
                 </svg>
               }

@@ -141,7 +141,7 @@ function AutocompleteInput({
       {open && filtered.length > 0 && dropdownPos && (
         <ul
           ref={listRef}
-          className="fixed bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto"
+          className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg dark:shadow-gray-900/50 z-50 max-h-48 overflow-y-auto"
           style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
         >
           {filtered.map((item, i) => (
@@ -153,7 +153,7 @@ function AutocompleteInput({
               }}
               onMouseEnter={() => setHighlightIndex(i)}
               className={`px-3 py-1.5 text-sm cursor-pointer ${
-                i === highlightIndex ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'
+                i === highlightIndex ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               {item}
@@ -195,7 +195,7 @@ export function KeyValueEditor({
   return (
     <div className="space-y-2">
       {showHeader && (
-        <div className="flex gap-2 text-xs font-medium text-gray-500">
+        <div className="flex gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
           {showEnabled && <div className="w-4" />}
           <div className="flex-1 px-2">{keyPlaceholder}</div>
           <div className="flex-1 px-2">{valuePlaceholder}</div>
@@ -217,7 +217,7 @@ export function KeyValueEditor({
               value={item.key}
               onChange={val => handleChange(index, 'key', val)}
               placeholder={keyPlaceholder}
-              className={`w-full px-2 py-1.5 border border-gray-300 rounded text-sm ${
+              className={`w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-100 ${
                 showEnabled && !(item.enabled ?? true) ? 'opacity-50' : ''
               } ${keyClassName}`}
               suggestions={suggestions}
@@ -229,7 +229,7 @@ export function KeyValueEditor({
               value={item.key}
               onChange={e => handleChange(index, 'key', e.target.value)}
               placeholder={keyPlaceholder}
-              className={`flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm ${
+              className={`flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-100 ${
                 showEnabled && !(item.enabled ?? true) ? 'opacity-50' : ''
               } ${keyClassName}`}
             />
@@ -239,7 +239,7 @@ export function KeyValueEditor({
             value={item.value}
             onChange={e => handleChange(index, 'value', e.target.value)}
             placeholder={valuePlaceholder}
-            className={`flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm ${
+            className={`flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-100 ${
               showEnabled && !(item.enabled ?? true) ? 'opacity-50' : ''
             }`}
           />
@@ -255,7 +255,7 @@ export function KeyValueEditor({
       ))}
       <button
         onClick={handleAdd}
-        className="text-sm text-blue-600 hover:underline"
+        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
       >
         {addLabel}
       </button>

@@ -6,7 +6,7 @@ import { graphql as graphqlParser } from 'codemirror-graphql/cm6-legacy/mode';
 import { EditorView } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 
-const highlightTheme = syntaxHighlighting(HighlightStyle.define([
+const lightHighlightTheme = syntaxHighlighting(HighlightStyle.define([
   // JSON: property names (keys) — blue
   { tag: tags.propertyName, color: '#2563eb' },
   // String values — green
@@ -36,6 +36,34 @@ const highlightTheme = syntaxHighlighting(HighlightStyle.define([
   { tag: tags.definition(tags.variableName), color: '#2563eb', fontWeight: 'bold' },
 ]));
 
+const darkHighlightTheme = syntaxHighlighting(HighlightStyle.define([
+  { tag: tags.propertyName, color: '#60a5fa' },
+  { tag: tags.string, color: '#4ade80' },
+  { tag: tags.number, color: '#fbbf24' },
+  { tag: tags.bool, color: '#c084fc' },
+  { tag: tags.null, color: '#c084fc' },
+  { tag: tags.punctuation, color: '#9ca3af' },
+  { tag: tags.separator, color: '#9ca3af' },
+  { tag: tags.keyword, color: '#c084fc', fontWeight: 'bold' },
+  { tag: tags.typeName, color: '#2dd4bf' },
+  { tag: tags.atom, color: '#60a5fa' },
+  { tag: tags.attributeName, color: '#fb7185' },
+  { tag: tags.variableName, color: '#fbbf24' },
+  { tag: tags.comment, color: '#6b7280', fontStyle: 'italic' },
+  { tag: tags.definition(tags.variableName), color: '#60a5fa', fontWeight: 'bold' },
+]));
+
+const darkEditorTheme = EditorView.theme({
+  '&': { backgroundColor: '#1f2937' },
+  '.cm-gutters': { backgroundColor: '#1f2937', borderRight: '1px solid #374151' },
+  '.cm-activeLineGutter': { backgroundColor: '#374151' },
+  '.cm-activeLine': { backgroundColor: '#374151' },
+  '.cm-cursor': { borderLeftColor: '#e5e7eb' },
+  '.cm-selectionBackground': { backgroundColor: '#374151 !important' },
+  '.cm-content': { color: '#e5e7eb' },
+  '.cm-placeholder': { color: '#6b7280' },
+}, { dark: true });
+
 interface CodeEditorProps {
   value: string;
   onChange?: (value: string) => void;
@@ -53,12 +81,18 @@ export function CodeEditor({
   height = '120px',
   readOnly = false,
 }: CodeEditorProps) {
+  const isDark = document.documentElement.classList.contains('dark');
+
   const extensions = useMemo(() => {
-    const exts = [EditorView.lineWrapping, highlightTheme];
+    const exts = [
+      EditorView.lineWrapping,
+      isDark ? darkHighlightTheme : lightHighlightTheme,
+    ];
+    if (isDark) exts.push(darkEditorTheme);
     if (language === 'json') exts.push(json());
     if (language === 'graphql') exts.push(StreamLanguage.define(graphqlParser));
     return exts;
-  }, [language]);
+  }, [language, isDark]);
 
   return (
     <CodeMirror
@@ -73,7 +107,8 @@ export function CodeEditor({
         foldGutter: false,
         highlightActiveLine: !readOnly,
       }}
-      className="border border-gray-300 rounded text-sm overflow-hidden"
+      className="border border-gray-300 dark:border-gray-600 rounded text-sm overflow-hidden"
+      theme={isDark ? 'dark' : 'light'}
     />
   );
 }

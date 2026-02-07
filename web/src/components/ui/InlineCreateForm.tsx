@@ -32,13 +32,13 @@ export function InlineCreateForm({
             }
           }}
           placeholder={placeholder}
-          className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-gray-100"
           autoFocus
         />
         <div className="flex gap-1">
           <button
             onClick={() => { onOpenChange(false); onValueChange(''); }}
-            className="flex-1 px-2 py-1 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+            className="flex-1 px-2 py-1 text-sm text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             Cancel
           </button>
@@ -56,7 +56,7 @@ export function InlineCreateForm({
   return (
     <button
       onClick={() => onOpenChange(true)}
-      className="w-full px-2 py-1 text-sm text-left text-blue-600 hover:bg-blue-50 rounded flex items-center gap-1"
+      className="w-full px-2 py-1 text-sm text-left text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded flex items-center gap-1"
     >
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, type MutableRefObject } from 'react';
 import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useEnvironments, useRequest } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult } from '../types';
@@ -8,6 +8,8 @@ interface RequestEditorProps {
   request: Request | null;
   onExecute: (result: ExecuteResult) => void;
   onUpdate: (request: Request) => void;
+  onExecutingChange?: (executing: boolean) => void;
+  cancelRef?: MutableRefObject<(() => void) | null>;
 }
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
@@ -33,7 +35,7 @@ const COMMON_HEADERS = [
 
 type Tab = 'params' | 'headers' | 'body';
 
-export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorProps) {
+export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange, cancelRef }: RequestEditorProps) {
   const [name, setName] = useState('');
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('');
@@ -48,10 +50,22 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   const [formItems, setFormItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [graphqlVariables, setGraphqlVariables] = useState('');
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const updateRequest = useUpdateRequest();
   const executeRequest = useExecuteRequest();
   const executeAdhoc = useExecuteAdhoc();
   const { data: environments = [] } = useEnvironments();
+
+  const handleCancel = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  }, []);
+
+  // Expose cancel function via ref for parent components
+  if (cancelRef) {
+    cancelRef.current = handleCancel;
+  }
 
   const isFromHistory = request?.id === 0;
 
@@ -257,6 +271,13 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   const handleExecute = () => {
     if (!request) return;
 
+    // Abort any in-flight request
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    onExecutingChange?.(true);
+
     // Build headers - for graphql, ensure Content-Type is set
     const headersObj: Record<string, string> = {};
     headerItems.forEach(({ key, value, enabled }) => {
@@ -276,15 +297,19 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
     // Build body based on type
     const bodyToSend = bodyType === 'graphql' ? buildGraphqlBody() : bodyType === 'form' ? buildFormBody(formItems) : body;
 
+    const onSettled = () => {
+      onExecutingChange?.(false);
+      abortControllerRef.current = null;
+    };
+
     if (isFromHistory) {
       // Ad-hoc execution for history-loaded requests
       executeAdhoc.mutate({
-        method,
-        url,
-        headers: headersJson,
-        body: bodyToSend,
+        data: { method, url, headers: headersJson, body: bodyToSend },
+        signal: controller.signal,
       }, {
         onSuccess: (result) => onExecute(result),
+        onSettled,
       });
     } else {
       // Execute with current form values (without needing to save)
@@ -297,8 +322,10 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
           body: bodyToSend,
           bodyType: bodyType === 'graphql' ? 'json' : bodyType, // Send as json to backend
         },
+        signal: controller.signal,
       }, {
         onSuccess: (result) => onExecute(result),
+        onSettled,
       });
     }
   };
@@ -318,9 +345,9 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   if (!request) {
     return (
       <EmptyState
-        className="bg-gray-50"
+        className="bg-gray-50 dark:bg-gray-900"
         icon={
-          <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         }
@@ -461,13 +488,21 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
             </div>
           )}
         </div>
-        <button
-          onClick={handleExecute}
-          disabled={isExecuting}
-          className="px-6 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
-        >
-          {isExecuting ? 'Sending...' : 'Send'}
-        </button>
+        {isExecuting ? (
+          <button
+            onClick={handleCancel}
+            className="px-6 py-2 bg-red-600 text-white font-medium rounded-md hover:bg-red-700"
+          >
+            Cancel
+          </button>
+        ) : (
+          <button
+            onClick={handleExecute}
+            className="px-6 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
+          >
+            Send
+          </button>
+        )}
         {!isFromHistory && (
           <button
             onClick={handleSave}

@@ -111,13 +111,13 @@ function CollectionTree({
       {collections.map(collection => (
         <div key={collection.id}>
           <div onClick={() => toggleExpand(collection.id)} className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded group cursor-pointer">
-            <svg className={`w-4 h-4 transition-transform ${expanded.has(collection.id) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className={`w-4 h-4 transition-transform text-gray-500 dark:text-gray-400 ${expanded.has(collection.id) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
             <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
             </svg>
-            <span className="flex-1 text-sm truncate">{collection.name}</span>
+            <span className="flex-1 text-sm truncate dark:text-gray-200">{collection.name}</span>
             <button
               onClick={(e) => { e.stopPropagation(); onCreateRequest(collection.id); }}
               className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
@@ -157,7 +157,7 @@ function CollectionTree({
                   }`}
                 >
                   <MethodBadge method={request.method} />
-                  <span className="flex-1 text-sm truncate">{request.name}</span>
+                  <span className="flex-1 text-sm truncate dark:text-gray-200">{request.name}</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); onDuplicateRequest(request.id); }}
                     className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
@@ -342,7 +342,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                   >
                     <div className="flex items-center">
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{flow.name}</div>
+                        <div className="text-sm font-medium truncate dark:text-gray-200">{flow.name}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{flow.description || 'No description'}</div>
                       </div>
                       <button
@@ -382,7 +382,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                     onClick={() => toggleDateGroup(group.label)}
                     className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer"
                   >
-                    <svg className={`w-4 h-4 transition-transform ${expandedDateGroups.has(group.label) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className={`w-4 h-4 transition-transform text-gray-500 dark:text-gray-400 ${expandedDateGroups.has(group.label) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                     <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">{group.label}</span>

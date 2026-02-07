@@ -222,9 +222,9 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   if (!flow) {
     return (
       <EmptyState
-        className="bg-gray-50"
+        className="bg-gray-50 dark:bg-gray-900"
         icon={
-          <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
           </svg>
         }
@@ -435,7 +435,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
 
                         {/* Expanded Inline Edit */}
                         {expandedStepId === step.id && edit && (
-                          <div className="border-t border-gray-200 bg-gray-50 p-4">
+                          <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
                             <div className="space-y-3 text-sm">
                               {/* Name */}
                               <FormField label="Name">
@@ -454,7 +454,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                   <select
                                     value={edit.method}
                                     onChange={e => handleEditChange(step.id, 'method', e.target.value)}
-                                    className="px-2 py-1.5 border border-gray-200 rounded text-sm font-mono focus:outline-none focus:border-blue-500"
+                                    className="px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-sm font-mono focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
                                   >
                                     {METHODS.map(m => (
                                       <option key={m} value={m}>{m}</option>
@@ -490,8 +490,8 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                       onClick={() => handleEditChange(step.id, 'bodyType', bt)}
                                       className={`px-2 py-1 text-xs rounded border ${
                                         edit.bodyType === bt
-                                          ? 'bg-blue-100 border-blue-300 text-blue-700'
-                                          : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                                          ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                                          : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                       }`}
                                     >
                                       {bt}
@@ -516,7 +516,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                   value={edit.delayMs}
                                   onChange={e => handleEditChange(step.id, 'delayMs', parseInt(e.target.value) || 0)}
                                   min={0}
-                                  className="w-32 px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500"
+                                  className="w-32 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
                                 />
                               </FormField>
 
@@ -566,7 +566,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           <div className="mt-4 relative" ref={addMenuRef}>
             <button
               onClick={() => setShowAddMenu(!showAddMenu)}
-              className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 flex items-center justify-center gap-2"
+              className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:border-blue-500 hover:text-blue-500 flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -574,58 +574,58 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               Add Step
             </button>
             {showAddMenu && !showRequestDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10">
                 <button
                   onClick={handleAddBlankStep}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center gap-3 border-b border-gray-100"
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
                 >
                   <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   <div>
                     <div className="font-medium">Add Blank Step</div>
-                    <div className="text-xs text-gray-500">Create an empty step and configure it manually</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Create an empty step and configure it manually</div>
                   </div>
                 </button>
                 <button
                   onClick={() => setShowRequestDropdown(true)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center gap-3"
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
                 >
                   <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                   <div>
                     <div className="font-medium">Copy From Request</div>
-                    <div className="text-xs text-gray-500">Copy data from an existing request as a template</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Copy data from an existing request as a template</div>
                   </div>
                 </button>
               </div>
             )}
             {showRequestDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
-                <div className="px-4 py-2 border-b border-gray-100 flex items-center gap-2">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10 max-h-64 overflow-y-auto">
+                <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
                   <button
                     onClick={() => setShowRequestDropdown(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                   </button>
-                  <span className="text-sm font-medium text-gray-600">Select a request to copy</span>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Select a request to copy</span>
                 </div>
                 {requests.length === 0 ? (
-                  <div className="p-4 text-sm text-gray-500">No requests available. Create requests first.</div>
+                  <div className="p-4 text-sm text-gray-500 dark:text-gray-400">No requests available. Create requests first.</div>
                 ) : (
                   requests.map(req => (
                     <button
                       key={req.id}
                       onClick={() => handleCopyFromRequest(req.id)}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-3"
+                      className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 dark:text-gray-200"
                     >
                       <MethodBadge method={req.method} />
                       <span className="font-medium">{req.name}</span>
-                      <span className="text-xs text-gray-400 truncate">{req.url}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{req.url}</span>
                     </button>
                   ))
                 )}
@@ -637,7 +637,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
 
       {/* Flow Result */}
       {flowResult && (
-        <div className="bg-white border-t border-gray-200 max-h-80 overflow-y-auto">
+        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 max-h-80 overflow-y-auto">
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold">
@@ -646,10 +646,10 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                   {flowResult.success ? 'Success' : 'Failed'}
                 </span>
               </h3>
-              <span className="text-sm text-gray-500">{flowResult.totalTimeMs}ms total</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{flowResult.totalTimeMs}ms total</span>
             </div>
             {flowResult.error && (
-              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-400">
                 {flowResult.error}
               </div>
             )}
@@ -659,22 +659,22 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                   key={stepResult.stepId}
                   className={`p-3 rounded-lg border ${
                     stepResult.skipped
-                      ? 'bg-gray-50 border-gray-200'
+                      ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
                       : stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400
-                      ? 'bg-red-50 border-red-200'
-                      : 'bg-green-50 border-green-200'
+                      ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700'
+                      : 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{index + 1}. {stepResult.requestName || 'Untitled'}</span>
                     {stepResult.skipped ? (
-                      <span className="text-xs text-gray-500">Skipped: {stepResult.skipReason}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Skipped: {stepResult.skipReason}</span>
                     ) : (
                       <>
                         <span className={`text-sm ${stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400 ? 'text-red-600' : 'text-green-600'}`}>
                           {stepResult.executeResult.statusCode || 'Error'}
                         </span>
-                        <span className="text-xs text-gray-500">{stepResult.executeResult.durationMs}ms</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{stepResult.executeResult.durationMs}ms</span>
                       </>
                     )}
                   </div>
