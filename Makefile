@@ -4,6 +4,7 @@
 BINARY=relay
 FRONTEND_DIR=web
 BACKEND_DIR=cmd/server
+LDFLAGS=-s -w
 
 all: build
 
@@ -12,17 +13,17 @@ build: frontend backend
 
 # Build frontend only
 frontend:
-	cd $(FRONTEND_DIR) && pnpm install && pnpm run build
+	cd $(FRONTEND_DIR) && bun install && bun run build
 	rm -rf $(BACKEND_DIR)/dist
 	cp -r $(FRONTEND_DIR)/dist $(BACKEND_DIR)/
 
 # Build backend only
 backend:
-	CGO_ENABLED=0 go build -o $(BINARY) ./$(BACKEND_DIR)
+	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o $(BINARY) ./$(BACKEND_DIR)
 
 # Development mode - run frontend and backend separately
 dev-frontend:
-	cd $(FRONTEND_DIR) && pnpm run dev
+	cd $(FRONTEND_DIR) && bun run dev
 
 dev-backend:
 	air
@@ -41,11 +42,11 @@ else
 endif
 
 test-frontend:
-	cd $(FRONTEND_DIR) && pnpm run lint
+	cd $(FRONTEND_DIR) && bun run lint
 
 # E2E tests
 test-e2e:
-	cd e2e && pnpm install && pnpm exec playwright install chromium && pnpm test
+	cd e2e && bun install && bunx playwright install chromium && bun test
 
 # Clean build artifacts
 clean:

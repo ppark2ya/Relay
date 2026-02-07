@@ -3,20 +3,18 @@
 ARG REGISTRY=nexus.example.com:8082
 
 # Stage 1: Build frontend
-FROM ${REGISTRY}/node:20-alpine AS frontend-builder
-# npm/pnpm 프록시 설정 (Nexus npm-proxy 저장소 사용)
+FROM ${REGISTRY}/oven/bun:1-alpine AS frontend-builder
+# npm 프록시 설정 (Nexus npm-proxy 저장소 사용)
 ARG REGISTRY
-ENV NPM_CONFIG_REGISTRY=http://${REGISTRY}/repository/npm-proxy/
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
-RUN pnpm config set registry http://${REGISTRY}/repository/npm-proxy/
+ENV BUN_CONFIG_REGISTRY=http://${REGISTRY}/repository/npm-proxy/
 WORKDIR /app/web
-COPY web/package.json web/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY web/package.json web/bun.lock ./
+RUN bun install --frozen-lockfile
 COPY web/ ./
-RUN pnpm run build
+RUN bun run build
 
 # Stage 2: Build backend
-FROM ${REGISTRY}/golang:1.18-alpine AS backend-builder
+FROM ${REGISTRY}/golang:1.23-alpine AS backend-builder
 # Go 모듈 프록시 설정 (Nexus go-proxy 저장소 사용)
 ARG REGISTRY
 ENV GOPROXY=http://${REGISTRY}/repository/go-proxy/,direct
@@ -26,7 +24,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend-builder /app/web/dist ./cmd/server/dist
-RUN CGO_ENABLED=0 go build -o relay ./cmd/server
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o relay ./cmd/server
 
 # Stage 3: Final image (minimal)
 FROM ${REGISTRY}/alpine:3.19

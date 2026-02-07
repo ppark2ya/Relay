@@ -4,9 +4,9 @@
 
 ## 기술 스택
 
-- **Backend**: Go 1.18+, Chi router, SQLite (modernc.org/sqlite), nhooyr.io/websocket
-- **Frontend**: React 18, TypeScript, Vite, TailwindCSS v4, TanStack Query, pnpm
-- **Build**: 단일 바이너리 (Go embed로 프론트엔드 포함)
+- **Backend**: Go 1.23+, Chi router, SQLite (modernc.org/sqlite), nhooyr.io/websocket
+- **Frontend**: React 19, TypeScript, Vite, TailwindCSS v4, TanStack Query, Bun
+- **Build**: 단일 바이너리 (Go embed로 프론트엔드 포함, `-ldflags="-s -w"`)
 
 ## 프로젝트 구조
 
@@ -34,7 +34,7 @@ relay/
 │       ├── hooks/               # React Query 훅, 커스텀 훅
 │       │   └── useWebSocket.ts  # WS 릴레이 연결 관리 훅
 │       ├── types/               # TypeScript 타입 정의
-│       └── api/client.ts        # API 클라이언트
+│       └── api/                  # 도메인별 API 모듈 (ky 기반)
 ├── .claude/skills/              # Claude 개발 가이드
 │   └── react-best-practices/    # React 성능 최적화 규칙
 ├── Dockerfile                   # 개발용 (golang 베이스)
@@ -110,7 +110,7 @@ History:      GET /api/history, GET/DELETE /api/history/:id
 ### 컴포넌트 구조
 
 - `components/`: UI 컴포넌트 (Header, Sidebar, RequestEditor, FlowEditor, WebSocketPanel 등)
-- `hooks/useApi.ts`: TanStack Query 기반 API 훅 (useCollections, useRequests, useFlows 등)
+- `api/<domain>/hooks.ts`: 도메인별 TanStack Query 훅 (collections, requests, flows 등)
 - `hooks/useWebSocket.ts`: WS 릴레이 연결/메시지 관리 훅
 - `hooks/useClickOutside.ts`: 드롭다운 외부 클릭 감지 훅
 - `types/index.ts`: 공유 TypeScript 타입 정의 (WSMessage, WSConnectionStatus 포함)
@@ -118,7 +118,7 @@ History:      GET /api/history, GET/DELETE /api/history/:id
 ### 주요 패턴
 
 - **상태 관리**: TanStack Query로 서버 상태 관리, React useState로 UI 상태 관리
-- **API 호출**: `api/client.ts`의 함수들을 `hooks/useApi.ts`에서 래핑하여 사용
+- **API 호출**: `api/<domain>/client.ts` 함수를 `api/<domain>/hooks.ts`에서 TanStack Query로 래핑
 - **드롭다운**: `useClickOutside` 훅으로 외부 클릭 시 닫기 처리
 - **스타일링**: TailwindCSS 유틸리티 클래스 사용
 

@@ -1,4 +1,4 @@
 [tools]
-node = "20"
-pnpm = "8.15"
-go = "1.25"
+node = "22"
+bun = "latest"
+go = "1.23"

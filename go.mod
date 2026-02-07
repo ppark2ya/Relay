@@ -1,11 +1,12 @@
 module relay
 
-go 1.18
+go 1.23
 
 require (
 	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/go-chi/chi/v5 v5.0.10
 	modernc.org/sqlite v1.20.0
+	nhooyr.io/websocket v1.8.17
 )
 
 require (
@@ -28,5 +29,4 @@ require (
 	modernc.org/opt v0.1.3 // indirect
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.0.1 // indirect
-	nhooyr.io/websocket v1.8.17 // indirect
 )
