@@ -17,10 +17,10 @@ function formatJson(str: string): string {
 }
 
 function getStatusColor(code: number): string {
-  if (code >= 200 && code < 300) return 'text-green-600 bg-green-50';
-  if (code >= 300 && code < 400) return 'text-blue-600 bg-blue-50';
-  if (code >= 400 && code < 500) return 'text-yellow-600 bg-yellow-50';
-  return 'text-red-600 bg-red-50';
+  if (code >= 200 && code < 300) return 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-900/30';
+  if (code >= 300 && code < 400) return 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/30';
+  if (code >= 400 && code < 500) return 'text-yellow-600 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-900/30';
+  return 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/30';
 }
 
 export function ResponseViewer({ response }: ResponseViewerProps) {
@@ -42,17 +42,17 @@ export function ResponseViewer({ response }: ResponseViewerProps) {
 
   if (response.error) {
     return (
-      <div className="flex-1 bg-gray-50 p-4">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-red-600 font-medium mb-2">
+      <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-4">
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-medium mb-2">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Error
           </div>
-          <p className="text-red-800">{response.error}</p>
+          <p className="text-red-800 dark:text-red-300">{response.error}</p>
           {response.resolvedUrl && (
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
               Requested URL: {response.resolvedUrl}
             </p>
           )}
@@ -65,19 +65,19 @@ export function ResponseViewer({ response }: ResponseViewerProps) {
   const isJson = contentType.includes('json');
 
   return (
-    <div className="flex-1 flex flex-col bg-white overflow-hidden">
+    <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 overflow-hidden">
       {/* Status Bar */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-gray-200 bg-gray-50">
+      <div className="flex items-center gap-4 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <span className={`px-2 py-0.5 rounded font-medium ${getStatusColor(response.statusCode)}`}>
           {response.statusCode}
         </span>
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-500 dark:text-gray-400">
           {response.durationMs}ms
         </span>
         {isJson && (
-          <span className="text-xs px-2 py-0.5 bg-gray-200 rounded">JSON</span>
+          <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-600 dark:text-gray-200 rounded">JSON</span>
         )}
-        <span className="text-xs text-gray-400 truncate flex-1">
+        <span className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1">
           {response.resolvedUrl}
         </span>
       </div>
@@ -104,7 +104,7 @@ export function ResponseViewer({ response }: ResponseViewerProps) {
               height="100%"
             />
           ) : (
-            <pre className="text-sm font-mono whitespace-pre-wrap break-words">
+            <pre className="text-sm font-mono whitespace-pre-wrap break-words dark:text-gray-200">
               {response.body}
             </pre>
           )
@@ -114,8 +114,8 @@ export function ResponseViewer({ response }: ResponseViewerProps) {
           <div className="space-y-1">
             {Object.entries(response.headers || {}).map(([key, value]) => (
               <div key={key} className="flex gap-4 text-sm">
-                <span className="font-medium text-gray-700 min-w-[200px]">{key}</span>
-                <span className="text-gray-600">{value}</span>
+                <span className="font-medium text-gray-700 dark:text-gray-200 min-w-[200px]">{key}</span>
+                <span className="text-gray-600 dark:text-gray-300">{value}</span>
               </div>
             ))}
           </div>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useCreateRequest, useDeleteRequest, useDuplicateRequest, useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useHistory, useDeleteHistory } from '../hooks/useApi';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, Collection, Flow, History } from '../types';
@@ -49,6 +49,12 @@ function formatTime(dateStr: string): string {
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+function containsRequest(collection: Collection, requestId: number): boolean {
+  if (collection.requests?.some(r => r.id === requestId)) return true;
+  if (collection.children?.some(c => containsRequest(c, requestId))) return true;
+  return false;
+}
+
 function CollectionTree({
   collections,
   onSelectRequest,
@@ -69,6 +75,26 @@ function CollectionTree({
   onDuplicateRequest: (id: number) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const lastAutoExpandedRef = useRef<number | undefined>();
+
+  useEffect(() => {
+    if (selectedRequestId && selectedRequestId !== lastAutoExpandedRef.current) {
+      lastAutoExpandedRef.current = selectedRequestId;
+      const toExpand: number[] = [];
+      for (const c of collections) {
+        if (containsRequest(c, selectedRequestId)) {
+          toExpand.push(c.id);
+        }
+      }
+      if (toExpand.length > 0) {
+        setExpanded(prev => {
+          const next = new Set(prev);
+          toExpand.forEach(id => next.add(id));
+          return next;
+        });
+      }
+    }
+  }, [selectedRequestId, collections]);
 
   const toggleExpand = (id: number) => {
     const newExpanded = new Set(expanded);
@@ -84,7 +110,7 @@ function CollectionTree({
     <div className="space-y-1">
       {collections.map(collection => (
         <div key={collection.id}>
-          <div onClick={() => toggleExpand(collection.id)} className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 rounded group cursor-pointer">
+          <div onClick={() => toggleExpand(collection.id)} className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded group cursor-pointer">
             <svg className={`w-4 h-4 transition-transform ${expanded.has(collection.id) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
@@ -94,7 +120,7 @@ function CollectionTree({
             <span className="flex-1 text-sm truncate">{collection.name}</span>
             <button
               onClick={(e) => { e.stopPropagation(); onCreateRequest(collection.id); }}
-              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
+              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
               title="Add Request"
             >
               <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -103,7 +129,7 @@ function CollectionTree({
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onDuplicateCollection(collection.id); }}
-              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
+              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
               title="Duplicate Collection"
             >
               <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -112,7 +138,7 @@ function CollectionTree({
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onDeleteCollection(collection.id); }}
-              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
+              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
               title="Delete Collection"
             >
               <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -127,14 +153,14 @@ function CollectionTree({
                   key={request.id}
                   onClick={() => onSelectRequest(request)}
                   className={`flex items-center gap-2 px-2 py-1 cursor-pointer rounded group ${
-                    selectedRequestId === request.id ? 'bg-blue-100' : 'hover:bg-gray-100'
+                    selectedRequestId === request.id ? 'bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
                   <MethodBadge method={request.method} />
                   <span className="flex-1 text-sm truncate">{request.name}</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); onDuplicateRequest(request.id); }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
                     title="Duplicate Request"
                   >
                     <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -143,7 +169,7 @@ function CollectionTree({
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); onDeleteRequest(request.id); }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
                     title="Delete Request"
                   >
                     <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -248,7 +274,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   };
 
   return (
-    <aside className="w-64 min-w-64 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+    <aside className="w-64 min-w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
       {/* View Tabs */}
       <TabNav
         tabs={[
@@ -304,24 +330,24 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
             </div>
             <div className="space-y-1">
               {flows.length === 0 ? (
-                <p className="text-sm text-gray-500 p-2">No flows created yet</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 p-2">No flows created yet</p>
               ) : (
                 flows.map(flow => (
                   <div
                     key={flow.id}
                     onClick={() => onSelectFlow(flow)}
                     className={`px-2 py-1 rounded cursor-pointer group ${
-                      selectedFlowId === flow.id ? 'bg-blue-100' : 'hover:bg-gray-100'
+                      selectedFlowId === flow.id ? 'bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     <div className="flex items-center">
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{flow.name}</div>
-                        <div className="text-xs text-gray-500 truncate">{flow.description || 'No description'}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{flow.description || 'No description'}</div>
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); duplicateFlow.mutate(flow.id); }}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded ml-1"
+                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded ml-1"
                         title="Duplicate Flow"
                       >
                         <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -330,7 +356,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                       </button>
                       <button
                         onClick={(e) => handleDeleteFlow(flow.id, e)}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 rounded ml-1"
+                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded ml-1"
                         title="Delete Flow"
                       >
                         <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -348,18 +374,18 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
         {view === 'history' && (
           <div className="space-y-1">
             {history.length === 0 ? (
-              <p className="text-sm text-gray-500 p-2">No history yet</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 p-2">No history yet</p>
             ) : (
               dateGroups.map(group => (
                 <div key={group.label}>
                   <div
                     onClick={() => toggleDateGroup(group.label)}
-                    className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 rounded cursor-pointer"
+                    className="flex items-center gap-1 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer"
                   >
                     <svg className={`w-4 h-4 transition-transform ${expandedDateGroups.has(group.label) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    <span className="flex-1 text-sm font-medium text-gray-700">{group.label}</span>
+                    <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">{group.label}</span>
                     <span className="text-xs text-gray-400">{group.items.length}</span>
                   </div>
                   {expandedDateGroups.has(group.label) && (
@@ -368,7 +394,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                         <div
                           key={item.id}
                           onClick={() => onSelectHistory(item)}
-                          className="px-2 py-1 hover:bg-gray-100 rounded group cursor-pointer"
+                          className="px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded group cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
                             <MethodBadge method={item.method} />
@@ -385,7 +411,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                               </svg>
                             </button>
                           </div>
-                          <div className="text-xs text-gray-600 truncate">{item.url}</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-300 truncate">{item.url}</div>
                         </div>
                       ))}
                     </div>

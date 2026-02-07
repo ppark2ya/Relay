@@ -149,8 +149,8 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
     <Modal isOpen={isOpen} onClose={closeModal} title="Manage Proxies" maxWidth="max-w-2xl">
       <div className="flex flex-1 overflow-hidden">
         {/* Proxy List */}
-        <div className="w-48 border-r border-gray-200 flex flex-col">
-          <div className="p-3 border-b border-gray-200">
+        <div className="w-48 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
             <InlineCreateForm
               isOpen={showNewProxyInput}
               onOpenChange={setShowNewProxyInput}
@@ -167,7 +167,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                 key={proxy.id}
                 onClick={() => setSelectedProxy(proxy)}
                 className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                  selectedProxy?.id === proxy.id ? 'bg-blue-100' : 'hover:bg-gray-100'
+                  selectedProxy?.id === proxy.id ? 'bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 {proxy.isActive && <StatusDot color="green" />}
@@ -175,7 +175,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
               </button>
             ))}
             {proxies.length === 0 && (
-              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+              <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
                 No proxies yet
               </div>
             )}
@@ -194,20 +194,20 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                       type="text"
                       value={name}
                       onChange={e => setName(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                       placeholder="Proxy name"
                     />
                     {!selectedProxy.isActive ? (
                       <button
                         onClick={handleActivate}
-                        className="px-3 py-2 text-sm text-green-600 border border-green-300 rounded-md hover:bg-green-50 whitespace-nowrap"
+                        className="px-3 py-2 text-sm text-green-600 dark:text-green-400 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/30 whitespace-nowrap"
                       >
                         Set Active
                       </button>
                     ) : (
                       <button
                         onClick={handleDeactivate}
-                        className="px-3 py-2 text-sm text-green-600 bg-green-50 border border-green-200 rounded-md hover:bg-red-50 hover:text-red-600 hover:border-red-300 whitespace-nowrap"
+                        className="px-3 py-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 hover:border-red-300 whitespace-nowrap"
                       >
                         Active
                       </button>
@@ -221,7 +221,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                     type="text"
                     value={url}
                     onChange={e => setUrl(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                     placeholder="http://proxy.example.com:8080"
                   />
                   <p className="mt-1 text-xs text-gray-500">

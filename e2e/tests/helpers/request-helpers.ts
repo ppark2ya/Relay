@@ -15,10 +15,15 @@ export async function createCollection(page: Page, name: string) {
   await expect(sidebar.getByText(name)).toBeVisible();
 }
 
-/** Expand a collection in the sidebar by clicking it */
+/** Expand a collection in the sidebar (idempotent — skips if already expanded) */
 export async function expandCollection(page: Page, collectionName: string) {
   const sidebar = page.getByRole('complementary');
-  await sidebar.getByText(collectionName).click();
+  const row = sidebar.getByText(collectionName).locator('..');
+  const arrow = row.locator('svg').first();
+  const isExpanded = await arrow.evaluate(el => el.classList.contains('rotate-90'));
+  if (!isExpanded) {
+    await sidebar.getByText(collectionName).click();
+  }
 }
 
 /** Create a new request inside a collection (collection must be expanded) */

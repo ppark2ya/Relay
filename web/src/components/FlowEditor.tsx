@@ -236,7 +236,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Flow Header */}
-      <div className="bg-white border-b border-gray-200 p-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-center gap-4">
           <div className="flex-1">
             {isEditingName ? (
@@ -252,13 +252,13 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                     setIsEditingName(false);
                   }
                 }}
-                className="text-xl font-semibold px-2 py-1 border border-blue-500 rounded focus:outline-none w-full"
+                className="text-xl font-semibold px-2 py-1 border border-blue-500 rounded focus:outline-none w-full dark:bg-gray-700 dark:text-gray-100"
                 autoFocus
               />
             ) : (
               <h2
                 onClick={() => setIsEditingName(true)}
-                className="text-xl font-semibold cursor-pointer hover:text-blue-600"
+                className="text-xl font-semibold cursor-pointer hover:text-blue-600 dark:text-gray-100"
                 title="Click to edit name"
               >
                 {name}
@@ -269,7 +269,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Add description..."
-              className="mt-1 text-sm text-gray-500 bg-transparent border-none focus:outline-none focus:ring-0 w-full"
+              className="mt-1 text-sm text-gray-500 dark:text-gray-400 bg-transparent border-none focus:outline-none focus:ring-0 w-full"
             />
           </div>
           <button
@@ -298,7 +298,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           <button
             onClick={handleSave}
             disabled={updateFlow.isPending}
-            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200"
           >
             Save
           </button>
@@ -306,11 +306,11 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
       </div>
 
       {/* Flow Steps */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
         <div className="max-w-3xl mx-auto">
           <div className="space-y-3">
             {steps.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 <p>No steps in this flow yet.</p>
                 <p className="text-sm">Add a blank step or copy from an existing request.</p>
               </div>
@@ -343,26 +343,26 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                           )}
                         </div>
                         {index < steps.length - 1 && (
-                          <div className="w-0.5 flex-1 bg-gray-300 my-1" />
+                          <div className="w-0.5 flex-1 bg-gray-300 dark:bg-gray-600 my-1" />
                         )}
                       </div>
 
                       {/* Step content */}
                       <div className={`flex-1 rounded-lg border overflow-hidden group ${
                         isStepError
-                          ? 'bg-red-50 border-red-300'
+                          ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700'
                           : isStepSuccess
-                          ? 'bg-green-50 border-green-300'
-                          : 'bg-white border-gray-200'
+                          ? 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700'
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                       }`}>
                         <div
                           onClick={() => handleExpandStep(step.id)}
                           className={`p-4 cursor-pointer ${
                             isStepError
-                              ? 'hover:bg-red-100'
+                              ? 'hover:bg-red-100 dark:hover:bg-red-900/40'
                               : isStepSuccess
-                              ? 'hover:bg-green-100'
-                              : 'hover:bg-gray-50'
+                              ? 'hover:bg-green-100 dark:hover:bg-green-900/40'
+                              : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                           }`}
                         >
                           <div className="flex items-center gap-3">
@@ -378,7 +378,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                             </svg>
                             <MethodBadge method={step.method} />
                             <span className="font-medium">{step.name || 'Untitled Step'}</span>
-                            <span className="text-xs text-gray-400 truncate flex-1">{step.url}</span>
+                            <span className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1">{step.url}</span>
                             {isStepError && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -400,13 +400,13 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                               </span>
                             )}
                             {isStepSkipped && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
                                 Skipped
                               </span>
                             )}
                             <button
                               onClick={(e) => { e.stopPropagation(); handleDeleteStep(step.id); }}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded"
+                              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
                             >
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -422,13 +422,13 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                             </div>
                           )}
                           {step.delayMs > 0 && (
-                            <div className="mt-2 text-xs text-gray-500 ml-7">
+                            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 ml-7">
                               Delay: {step.delayMs}ms
                             </div>
                           )}
                           {step.extractVars && step.extractVars !== '{}' && (
-                            <div className="mt-2 text-xs text-gray-500 ml-7">
-                              Extract: <code className="bg-gray-100 px-1 rounded">{step.extractVars}</code>
+                            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 ml-7">
+                              Extract: <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{step.extractVars}</code>
                             </div>
                           )}
                         </div>

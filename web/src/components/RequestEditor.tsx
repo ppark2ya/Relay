@@ -332,7 +332,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
   const isExecuting = executeRequest.isPending || executeAdhoc.isPending;
 
   return (
-    <div className="border-b border-gray-200 bg-white">
+    <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
       {/* History banner */}
       {isFromHistory && (
         <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-sm text-amber-700 flex items-center gap-2">
@@ -358,13 +358,13 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                 setIsEditingName(false);
               }
             }}
-            className="text-lg font-medium px-2 py-1 border border-blue-500 rounded focus:outline-none"
+            className="text-lg font-medium px-2 py-1 border border-blue-500 rounded focus:outline-none dark:bg-gray-700 dark:text-gray-100"
             autoFocus
           />
         ) : (
           <h2
             onClick={() => setIsEditingName(true)}
-            className="text-lg font-medium cursor-pointer hover:text-blue-600"
+            className="text-lg font-medium cursor-pointer hover:text-blue-600 dark:text-gray-100"
             title="Click to edit name"
           >
             {name}
@@ -385,12 +385,12 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
             </svg>
           </button>
           {showMethodDropdown && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+            <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg dark:shadow-gray-900/50 z-10">
               {METHODS.map(m => (
                 <button
                   key={m}
                   onClick={() => { setMethod(m); setShowMethodDropdown(false); }}
-                  className={`block w-full px-4 py-2 text-left hover:bg-gray-100 font-medium ${METHOD_TEXT_COLORS[m]} ${method === m ? 'bg-gray-100' : ''}`}
+                  className={`block w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 font-medium ${METHOD_TEXT_COLORS[m]} ${method === m ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
                 >
                   {m}
                 </button>
@@ -403,14 +403,14 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
           value={url}
           onChange={e => handleUrlChange(e.target.value)}
           placeholder="Enter URL or paste text (use {{variable}} for env vars)"
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm dark:bg-gray-700 dark:text-gray-100"
         />
         {/* Environment Variables Popup */}
         <div className="relative" ref={envVarsRef}>
           <button
             onClick={() => setShowEnvVars(!showEnvVars)}
             className={`h-full px-3 py-2 border rounded-md flex items-center gap-1 ${
-              activeEnv ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+              activeEnv ? 'border-green-300 text-green-700 hover:bg-green-50 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900/30' : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
             title={activeEnv ? `Environment: ${activeEnv.name}` : 'No active environment'}
           >
@@ -420,14 +420,14 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
             <span className="text-xs">{'{{}}'}</span>
           </button>
           {showEnvVars && (
-            <div className="absolute top-full right-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-              <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+            <div className="absolute top-full right-0 mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-20">
+              <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-t-lg">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">
                     {activeEnv ? activeEnv.name : 'No Environment'}
                   </span>
                   {activeEnv && (
-                    <span className="text-xs text-green-600 flex items-center gap-1">
+                    <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-green-500" />
                       Active
                     </span>
@@ -437,7 +437,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
               <div className="max-h-48 overflow-y-auto">
                 {Object.keys(envVariables).length > 0 ? (
                   <div className="p-2">
-                    <p className="text-xs text-gray-500 mb-2 px-1">Click to copy variable syntax</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 px-1">Click to copy variable syntax</p>
                     {Object.entries(envVariables).map(([key, value]) => (
                       <button
                         key={key}
@@ -445,15 +445,15 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                           navigator.clipboard.writeText(`{{${key}}}`);
                           setShowEnvVars(false);
                         }}
-                        className="w-full px-2 py-1.5 text-left hover:bg-gray-100 rounded flex items-center justify-between gap-2"
+                        className="w-full px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center justify-between gap-2"
                       >
-                        <code className="text-xs text-blue-600">{`{{${key}}}`}</code>
-                        <span className="text-xs text-gray-500 truncate max-w-32">{value}</span>
+                        <code className="text-xs text-blue-600 dark:text-blue-400">{`{{${key}}}`}</code>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-32">{value}</span>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 text-center text-sm text-gray-500">
+                  <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     {activeEnv ? 'No variables defined' : 'Select an environment to use variables'}
                   </div>
                 )}
@@ -472,7 +472,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
           <button
             onClick={handleSave}
             disabled={updateRequest.isPending}
-            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200"
           >
             Save
           </button>
@@ -534,7 +534,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
             {bodyType === 'graphql' && (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Query</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Query</label>
                   <CodeEditor
                     value={body}
                     onChange={setBody}
@@ -544,7 +544,7 @@ export function RequestEditor({ request, onExecute, onUpdate }: RequestEditorPro
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Variables (JSON)</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Variables (JSON)</label>
                   <CodeEditor
                     value={graphqlVariables}
                     onChange={setGraphqlVariables}

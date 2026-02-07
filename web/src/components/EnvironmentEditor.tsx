@@ -133,8 +133,8 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
     <Modal isOpen={isOpen} onClose={closeModal} title="Manage Environments">
       <div className="flex flex-1 overflow-hidden">
         {/* Environment List */}
-        <div className="w-56 border-r border-gray-200 flex flex-col">
-          <div className="p-3 border-b border-gray-200">
+        <div className="w-56 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
             <InlineCreateForm
               isOpen={showNewEnvInput}
               onOpenChange={setShowNewEnvInput}
@@ -151,7 +151,7 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
                 key={env.id}
                 onClick={() => setSelectedEnv(env)}
                 className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                  selectedEnv?.id === env.id ? 'bg-blue-100' : 'hover:bg-gray-100'
+                  selectedEnv?.id === env.id ? 'bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 {env.isActive && <StatusDot color="green" />}
@@ -159,7 +159,7 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
               </button>
             ))}
             {environments.length === 0 && (
-              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+              <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
                 No environments yet
               </div>
             )}
@@ -170,25 +170,25 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
         <div className="flex-1 flex flex-col overflow-hidden">
           {selectedEnv ? (
             <>
-              <div className="p-4 border-b border-gray-200">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center gap-3">
                   <input
                     type="text"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                     placeholder="Environment name"
                   />
                   {!selectedEnv.isActive && (
                     <button
                       onClick={handleActivate}
-                      className="px-3 py-2 text-sm text-green-600 border border-green-300 rounded-md hover:bg-green-50"
+                      className="px-3 py-2 text-sm text-green-600 dark:text-green-400 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/30"
                     >
                       Set Active
                     </button>
                   )}
                   {selectedEnv.isActive && (
-                    <span className="px-3 py-2 text-sm text-green-600 bg-green-50 rounded-md">
+                    <span className="px-3 py-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 rounded-md">
                       Active
                     </span>
                   )}
@@ -197,9 +197,9 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
 
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-700">Variables</h3>
-                  <p className="text-xs text-gray-500">
-                    Use <code className="bg-gray-100 px-1 rounded">{'{{variableName}}'}</code> in requests
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">Variables</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{{variableName}}'}</code> in requests
                   </p>
                 </div>
                 <KeyValueEditor
@@ -214,10 +214,10 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
               </div>
 
               {/* Footer */}
-              <div className="p-4 border-t border-gray-200 flex items-center justify-between">
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <button
                   onClick={handleDelete}
-                  className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md"
+                  className="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md"
                 >
                   Delete Environment
                 </button>
