@@ -26,9 +26,10 @@ func TestExecuteRequest_GET(t *testing.T) {
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
-		Name:   "test-get",
-		Method: "GET",
-		Url:    ts.URL,
+		Name:        "test-get",
+		Method:      "GET",
+		Url:         ts.URL,
+		WorkspaceID: 1,
 	})
 	if err != nil {
 		t.Fatalf("create request: %v", err)
@@ -65,10 +66,11 @@ func TestExecuteRequest_POSTWithBody(t *testing.T) {
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
-		Name:   "test-post",
-		Method: "POST",
-		Url:    ts.URL,
-		Body:   sql.NullString{String: `{"name":"relay"}`, Valid: true},
+		Name:        "test-post",
+		Method:      "POST",
+		Url:         ts.URL,
+		Body:        sql.NullString{String: `{"name":"relay"}`, Valid: true},
+		WorkspaceID: 1,
 	})
 	if err != nil {
 		t.Fatalf("create request: %v", err)
@@ -124,9 +126,10 @@ func TestExecute_WithOverrides(t *testing.T) {
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
-		Name:   "test-override",
-		Method: "GET",
-		Url:    ts.URL,
+		Name:        "test-override",
+		Method:      "GET",
+		Url:         ts.URL,
+		WorkspaceID: 1,
 	})
 	if err != nil {
 		t.Fatalf("create request: %v", err)
@@ -157,9 +160,10 @@ func TestExecuteRequest_VarSubstitution(t *testing.T) {
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
-		Name:   "test-var",
-		Method: "GET",
-		Url:    "{{base_url}}/api",
+		Name:        "test-var",
+		Method:      "GET",
+		Url:         "{{base_url}}/api",
+		WorkspaceID: 1,
 	})
 	if err != nil {
 		t.Fatalf("create request: %v", err)
@@ -185,9 +189,10 @@ func TestExecuteRequest_InvalidURL(t *testing.T) {
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
-		Name:   "test-bad-url",
-		Method: "GET",
-		Url:    "://invalid",
+		Name:        "test-bad-url",
+		Method:      "GET",
+		Url:         "://invalid",
+		WorkspaceID: 1,
 	})
 	if err != nil {
 		t.Fatalf("create request: %v", err)
@@ -215,9 +220,10 @@ func TestExecuteRequest_HistorySaved(t *testing.T) {
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
-		Name:   "test-history",
-		Method: "GET",
-		Url:    ts.URL,
+		Name:        "test-history",
+		Method:      "GET",
+		Url:         ts.URL,
+		WorkspaceID: 1,
 	})
 	if err != nil {
 		t.Fatalf("create request: %v", err)
@@ -228,7 +234,7 @@ func TestExecuteRequest_HistorySaved(t *testing.T) {
 		t.Fatalf("execute: %v", err)
 	}
 
-	histories, err := q.ListHistory(ctx, 10)
+	histories, err := q.ListHistory(ctx, repository.ListHistoryParams{WorkspaceID: 1, Limit: 10})
 	if err != nil {
 		t.Fatalf("list history: %v", err)
 	}

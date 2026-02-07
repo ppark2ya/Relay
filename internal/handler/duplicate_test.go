@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"relay/internal/handler"
+	"relay/internal/middleware"
 	"relay/internal/service"
 	"relay/internal/testutil"
 
@@ -30,6 +31,7 @@ func setupDuplicateTestServer(t *testing.T) *httptest.Server {
 	flowH := handler.NewFlowHandler(q, fr, db)
 
 	r := chi.NewRouter()
+	r.Use(middleware.WorkspaceID)
 
 	// Collections
 	r.Get("/api/collections", collH.List)

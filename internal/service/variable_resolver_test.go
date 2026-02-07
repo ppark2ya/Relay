@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"relay/internal/repository"
 	"relay/internal/testutil"
 )
 
@@ -67,17 +68,15 @@ func TestResolve_RuntimeVarsPriority(t *testing.T) {
 	ctx := context.Background()
 
 	// Create and activate an environment with host=env-host
-	env, err := q.CreateEnvironment(ctx, struct {
-		Name      string         `json:"name"`
-		Variables sql.NullString `json:"variables"`
-	}{
-		Name:      "test",
-		Variables: sql.NullString{String: `{"host":"env-host"}`, Valid: true},
+	env, err := q.CreateEnvironment(ctx, repository.CreateEnvironmentParams{
+		Name:        "test",
+		Variables:   sql.NullString{String: `{"host":"env-host"}`, Valid: true},
+		WorkspaceID: 1,
 	})
 	if err != nil {
 		t.Fatalf("create env: %v", err)
 	}
-	if err := q.DeactivateAllEnvironments(ctx); err != nil {
+	if err := q.DeactivateAllEnvironments(ctx, int64(1)); err != nil {
 		t.Fatalf("deactivate: %v", err)
 	}
 	if _, err := q.ActivateEnvironment(ctx, env.ID); err != nil {

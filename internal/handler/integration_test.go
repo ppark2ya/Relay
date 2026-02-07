@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"relay/internal/handler"
+	"relay/internal/middleware"
 	"relay/internal/service"
 	"relay/internal/testutil"
 
@@ -32,6 +33,7 @@ func setupTestServer(t *testing.T, mockTarget *httptest.Server) *httptest.Server
 	flowH := handler.NewFlowHandler(q, fr, db)
 
 	r := chi.NewRouter()
+	r.Use(middleware.WorkspaceID)
 
 	// Requests
 	r.Get("/api/requests", reqH.List)
@@ -61,6 +63,34 @@ func setupTestServer(t *testing.T, mockTarget *httptest.Server) *httptest.Server
 
 func postJSON(url string, body string) (*http.Response, error) {
 	return http.Post(url, "application/json", strings.NewReader(body))
+}
+
+func putJSON(url string, body string) (*http.Response, error) {
+	req, err := http.NewRequest("PUT", url, strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return http.DefaultClient.Do(req)
+}
+
+func postJSONWithWorkspace(url string, body string, workspaceID int64) (*http.Response, error) {
+	req, err := http.NewRequest("POST", url, strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Workspace-ID", fmt.Sprintf("%d", workspaceID))
+	return http.DefaultClient.Do(req)
+}
+
+func getWithWorkspace(url string, workspaceID int64) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Workspace-ID", fmt.Sprintf("%d", workspaceID))
+	return http.DefaultClient.Do(req)
 }
 
 func readJSON(t *testing.T, resp *http.Response, v interface{}) {

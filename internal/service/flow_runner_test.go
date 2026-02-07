@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,10 +15,10 @@ func createFlowWithSteps(t *testing.T, q *repository.Queries, steps []repository
 	t.Helper()
 	ctx := context.Background()
 
-	flow, err := q.CreateFlow(ctx, struct {
-		Name        string         `json:"name"`
-		Description sql.NullString `json:"description"`
-	}{Name: "test-flow"})
+	flow, err := q.CreateFlow(ctx, repository.CreateFlowParams{
+		Name:        "test-flow",
+		WorkspaceID: 1,
+	})
 	if err != nil {
 		t.Fatalf("create flow: %v", err)
 	}
@@ -176,10 +175,10 @@ func TestFlowRunner_StepWithNoURL(t *testing.T) {
 	fr := NewFlowRunner(q, re, vr)
 
 	ctx := context.Background()
-	flow, err := q.CreateFlow(ctx, struct {
-		Name        string         `json:"name"`
-		Description sql.NullString `json:"description"`
-	}{Name: "flow-no-url"})
+	flow, err := q.CreateFlow(ctx, repository.CreateFlowParams{
+		Name:        "flow-no-url",
+		WorkspaceID: 1,
+	})
 	if err != nil {
 		t.Fatalf("create flow: %v", err)
 	}
@@ -205,5 +204,5 @@ func TestFlowRunner_StepWithNoURL(t *testing.T) {
 	if result.Error == "" {
 		t.Error("expected error message")
 	}
-	fmt.Sprintf("%v", result) // ensure result is usable
+	_ = fmt.Sprintf("%v", result) // ensure result is usable
 }
