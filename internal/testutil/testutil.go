@@ -102,6 +102,13 @@ CREATE INDEX IF NOT EXISTS idx_history_created ON request_history(created_at DES
 // SetupTestDB creates an in-memory SQLite database with all tables and returns a Queries instance.
 func SetupTestDB(t *testing.T) *repository.Queries {
 	t.Helper()
+	_, q := SetupTestDBWithConn(t)
+	return q
+}
+
+// SetupTestDBWithConn creates an in-memory SQLite database and returns both the raw *sql.DB and Queries.
+func SetupTestDBWithConn(t *testing.T) (*sql.DB, *repository.Queries) {
+	t.Helper()
 
 	db, err := sql.Open("sqlite", ":memory:?_foreign_keys=on")
 	if err != nil {
@@ -113,5 +120,5 @@ func SetupTestDB(t *testing.T) *repository.Queries {
 		t.Fatalf("failed to run migrations: %v", err)
 	}
 
-	return repository.New(db)
+	return db, repository.New(db)
 }
