@@ -51,7 +51,7 @@ export async function configureStep(
     await nameInput.fill(opts.name);
   }
   if (opts.method !== undefined) {
-    await page.locator('select').selectOption(opts.method);
+    await page.locator('select.font-mono').selectOption(opts.method);
   }
   if (opts.url !== undefined) {
     const urlInput = page.getByPlaceholder('https://api.example.com/endpoint');
@@ -67,9 +67,10 @@ export async function configureStep(
     await page.getByRole('button', { name: opts.bodyType, exact: true }).click();
   }
   if (opts.body !== undefined) {
-    const bodyInput = page.getByPlaceholder('Request body...');
-    await bodyInput.clear();
-    await bodyInput.fill(opts.body);
+    // Body uses CodeMirror editor, not a plain textarea
+    const bodyEditor = page.locator('.cm-content[contenteditable="true"]');
+    await bodyEditor.click();
+    await bodyEditor.fill(opts.body);
   }
   if (opts.extractVars !== undefined) {
     const extractInput = page.getByPlaceholder('{"token": "$.data.accessToken"}');

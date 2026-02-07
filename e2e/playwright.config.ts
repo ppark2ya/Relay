@@ -28,7 +28,7 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      command: 'pnpm run dev',
+      command: 'bun run dev',
       port: 5173,
       reuseExistingServer: !process.env.CI,
       cwd: '../web',

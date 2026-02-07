@@ -39,8 +39,8 @@ test.describe('Request Execute', () => {
     // Wait for response status code 200
     await expect(page.getByText('200')).toBeVisible({ timeout: 30_000 });
 
-    // Response body should contain JSON content
-    await expect(page.locator('pre')).toContainText('userId');
+    // Response body should contain JSON content (rendered via CodeMirror for JSON)
+    await expect(page.locator('.cm-content')).toContainText('userId');
   });
 
   test('should execute POST request and show 201 response', async ({ page }) => {

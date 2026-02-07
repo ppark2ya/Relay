@@ -53,6 +53,6 @@ test.describe('Flow Copy From Request', () => {
     await runFlowAndWaitForResult(page);
 
     await expect(page.getByText('Success')).toBeVisible();
-    await expect(page.getByText('200')).toBeVisible();
+    await expect(page.getByText('200', { exact: true })).toBeVisible();
   });
 });

@@ -78,9 +78,10 @@ test.describe('Request Editor', () => {
     // Select json radio
     await page.getByLabel('Json').check();
 
-    // Type JSON body
-    const bodyTextarea = page.locator('textarea');
-    await bodyTextarea.fill('{"title": "test"}');
+    // Type JSON body (CodeMirror editor)
+    const bodyEditor = page.locator('.cm-content[contenteditable="true"]');
+    await bodyEditor.click();
+    await bodyEditor.fill('{"title": "test"}');
 
     // Save
     await page.getByRole('button', { name: 'Save' }).click();
@@ -93,6 +94,6 @@ test.describe('Request Editor', () => {
 
     await page.getByRole('button', { name: /Body/ }).click();
     await expect(page.getByLabel('Json')).toBeChecked();
-    await expect(page.locator('textarea')).toHaveValue('{"title": "test"}');
+    await expect(page.locator('.cm-content')).toContainText('"title"');
   });
 });
