@@ -46,7 +46,7 @@ test-frontend:
 
 # E2E tests
 test-e2e:
-	cd e2e && bun install && bunx playwright install chromium && bun test
+	cd e2e && bun install && bunx playwright install chromium && bunx playwright test
 
 # Clean build artifacts
 clean:

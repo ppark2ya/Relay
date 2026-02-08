@@ -26,8 +26,8 @@ async function createRequestViaApi(opts: {
   return req;
 }
 
-// Body type radio order: none(0), json(1), form(2), formdata(3), raw(4), graphql(5)
-const FORMDATA_RADIO_INDEX = 3;
+// Body type radio order: none(0), json(1), text(2), xml(3), form-urlencoded(4), formdata(5), graphql(6)
+const FORMDATA_RADIO_INDEX = 5;
 
 /** Select the "Form Data" radio button in the body type selector */
 async function selectFormDataBodyType(page: Page) {
