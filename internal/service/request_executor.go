@@ -7,8 +7,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
+	"strings"
 	"time"
 
 	"relay/internal/middleware"
@@ -37,13 +40,19 @@ type ExecuteResult struct {
 	ResolvedHeaders map[string]string `json:"resolvedHeaders"`
 }
 
+type FormDataFile struct {
+	Filename string
+	Data     []byte
+}
+
 type RequestOverrides struct {
-	Method   string
-	URL      string
-	Headers  string
-	Body     string
-	BodyType string
-	ProxyID  *int64
+	Method        string
+	URL           string
+	Headers       string
+	Body          string
+	BodyType      string
+	ProxyID       *int64
+	FormDataFiles map[int]FormDataFile
 }
 
 func (re *RequestExecutor) Execute(ctx context.Context, requestID int64, runtimeVars map[string]string, overrides *RequestOverrides) (*ExecuteResult, error) {
@@ -51,6 +60,8 @@ func (re *RequestExecutor) Execute(ctx context.Context, requestID int64, runtime
 	if err != nil {
 		return nil, err
 	}
+
+	var formFiles map[int]FormDataFile
 
 	// Apply overrides if provided
 	if overrides != nil {
@@ -66,6 +77,9 @@ func (re *RequestExecutor) Execute(ctx context.Context, requestID int64, runtime
 		if overrides.Body != "" {
 			req.Body = sql.NullString{String: overrides.Body, Valid: true}
 		}
+		if overrides.BodyType != "" {
+			req.BodyType = sql.NullString{String: overrides.BodyType, Valid: true}
+		}
 		if overrides.ProxyID != nil {
 			v := *overrides.ProxyID
 			if v == -1 {
@@ -75,9 +89,10 @@ func (re *RequestExecutor) Execute(ctx context.Context, requestID int64, runtime
 				req.ProxyID = sql.NullInt64{Int64: v, Valid: true}
 			}
 		}
+		formFiles = overrides.FormDataFiles
 	}
 
-	return re.ExecuteRequest(ctx, req, runtimeVars)
+	return re.executeRequestInternal(ctx, req, runtimeVars, formFiles)
 }
 
 func (re *RequestExecutor) ExecuteAdhoc(ctx context.Context, method, urlStr, headers, body string, runtimeVars map[string]string, proxyID *int64) (*ExecuteResult, error) {
@@ -98,7 +113,86 @@ func (re *RequestExecutor) ExecuteAdhoc(ctx context.Context, method, urlStr, hea
 	return re.ExecuteRequest(ctx, req, runtimeVars)
 }
 
+func (re *RequestExecutor) ExecuteAdhocFormData(ctx context.Context, method, urlStr, headers, itemsJSON string, runtimeVars map[string]string, proxyID *int64, formFiles map[int]FormDataFile) (*ExecuteResult, error) {
+	req := repository.Request{
+		Method:   method,
+		Url:      urlStr,
+		Headers:  sql.NullString{String: headers, Valid: headers != ""},
+		Body:     sql.NullString{String: itemsJSON, Valid: itemsJSON != ""},
+		BodyType: sql.NullString{String: "formdata", Valid: true},
+	}
+	if proxyID != nil {
+		v := *proxyID
+		if v == -1 {
+			req.ProxyID = sql.NullInt64{}
+		} else {
+			req.ProxyID = sql.NullInt64{Int64: v, Valid: true}
+		}
+	}
+	return re.executeRequestInternal(ctx, req, runtimeVars, formFiles)
+}
+
 func (re *RequestExecutor) ExecuteRequest(ctx context.Context, req repository.Request, runtimeVars map[string]string) (*ExecuteResult, error) {
+	return re.executeRequestInternal(ctx, req, runtimeVars, nil)
+}
+
+type formDataItem struct {
+	Key     string `json:"key"`
+	Value   string `json:"value"`
+	Type    string `json:"type"`
+	Enabled bool   `json:"enabled"`
+}
+
+func (re *RequestExecutor) buildFormDataBody(ctx context.Context, bodyStr string, runtimeVars map[string]string, formFiles map[int]FormDataFile) (io.Reader, string, error) {
+	var items []formDataItem
+	if err := json.Unmarshal([]byte(bodyStr), &items); err != nil {
+		return nil, "", err
+	}
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	for i, item := range items {
+		if !item.Enabled {
+			continue
+		}
+		if item.Type == "file" {
+			fd, ok := formFiles[i]
+			if !ok {
+				continue
+			}
+			h := make(textproto.MIMEHeader)
+			h.Set("Content-Disposition", `form-data; name="`+escapeQuotes(item.Key)+`"; filename="`+escapeQuotes(fd.Filename)+`"`)
+			h.Set("Content-Type", "application/octet-stream")
+			part, err := writer.CreatePart(h)
+			if err != nil {
+				return nil, "", err
+			}
+			if _, err := part.Write(fd.Data); err != nil {
+				return nil, "", err
+			}
+		} else {
+			resolvedValue, _ := re.variableResolver.Resolve(ctx, item.Value, runtimeVars)
+			if err := writer.WriteField(item.Key, resolvedValue); err != nil {
+				return nil, "", err
+			}
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+
+	return &buf, writer.FormDataContentType(), nil
+}
+
+func escapeQuotes(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return s
+}
+
+func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repository.Request, runtimeVars map[string]string, formFiles map[int]FormDataFile) (*ExecuteResult, error) {
 	result := &ExecuteResult{}
 
 	// Resolve URL
@@ -121,12 +215,6 @@ func (re *RequestExecutor) ExecuteRequest(ctx context.Context, req repository.Re
 	}
 	result.ResolvedHeaders = resolvedHeaders
 
-	// Resolve body
-	body := ""
-	if req.Body.Valid {
-		body, _ = re.variableResolver.Resolve(ctx, req.Body.String, runtimeVars)
-	}
-
 	// Create HTTP client with proxy if active
 	client, err := re.createHTTPClient(ctx, req.ProxyID)
 	if err != nil {
@@ -134,8 +222,31 @@ func (re *RequestExecutor) ExecuteRequest(ctx context.Context, req repository.Re
 		return result, nil
 	}
 
+	// Build request body
+	var bodyReader io.Reader
+	bodyType := ""
+	if req.BodyType.Valid {
+		bodyType = req.BodyType.String
+	}
+
+	if bodyType == "formdata" && req.Body.Valid {
+		reader, contentType, err := re.buildFormDataBody(ctx, req.Body.String, runtimeVars, formFiles)
+		if err != nil {
+			result.Error = "Failed to build form data: " + err.Error()
+			return result, nil
+		}
+		bodyReader = reader
+		resolvedHeaders["Content-Type"] = contentType
+	} else {
+		body := ""
+		if req.Body.Valid {
+			body, _ = re.variableResolver.Resolve(ctx, req.Body.String, runtimeVars)
+		}
+		bodyReader = bytes.NewBufferString(body)
+	}
+
 	// Create request
-	httpReq, err := http.NewRequestWithContext(ctx, req.Method, resolvedURL, bytes.NewBufferString(body))
+	httpReq, err := http.NewRequestWithContext(ctx, req.Method, resolvedURL, bodyReader)
 	if err != nil {
 		result.Error = err.Error()
 		return result, nil

@@ -7,5 +7,7 @@ export {
   useDuplicateRequest,
   useExecuteRequest,
   useExecuteAdhoc,
+  useExecuteRequestWithFiles,
+  useExecuteAdhocWithFiles,
 } from './hooks';
 export type { Request } from './types';

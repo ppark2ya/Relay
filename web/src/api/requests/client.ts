@@ -29,3 +29,46 @@ export const executeAdhoc = (
   data: { method: string; url: string; headers: string; body: string; variables?: Record<string, string>; proxyId?: number },
   signal?: AbortSignal,
 ) => api.post('execute', { json: data, signal }).json<ExecuteResult>();
+
+export interface FormDataFileItem {
+  key: string;
+  value: string;
+  type: 'text' | 'file';
+  enabled: boolean;
+  file?: File;
+}
+
+export const executeRequestWithFiles = (
+  id: number,
+  items: FormDataFileItem[],
+  overrides: { method: string; url: string; headers: string; bodyType: string; proxyId?: number },
+  variables?: Record<string, string>,
+  signal?: AbortSignal,
+) => {
+  const formData = new FormData();
+  formData.append('_metadata', JSON.stringify({ variables, ...overrides }));
+  formData.append('_items', JSON.stringify(items.map(({ key, value, type, enabled }) => ({ key, value, type, enabled }))));
+  items.forEach((item, index) => {
+    if (item.type === 'file' && item.file && item.enabled) {
+      formData.append(`file_${index}`, item.file);
+    }
+  });
+  return api.post(`requests/${id}/execute`, { body: formData, signal }).json<ExecuteResult>();
+};
+
+export const executeAdhocWithFiles = (
+  items: FormDataFileItem[],
+  overrides: { method: string; url: string; headers: string; proxyId?: number },
+  variables?: Record<string, string>,
+  signal?: AbortSignal,
+) => {
+  const formData = new FormData();
+  formData.append('_metadata', JSON.stringify({ variables, ...overrides }));
+  formData.append('_items', JSON.stringify(items.map(({ key, value, type, enabled }) => ({ key, value, type, enabled }))));
+  items.forEach((item, index) => {
+    if (item.type === 'file' && item.file && item.enabled) {
+      formData.append(`file_${index}`, item.file);
+    }
+  });
+  return api.post('execute', { body: formData, signal }).json<ExecuteResult>();
+};

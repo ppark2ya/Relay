@@ -4,6 +4,7 @@ import type { WSMessage, WSConnectionStatus } from '../types';
 interface RelayEnvelope {
   type: 'connected' | 'received' | 'error' | 'closed';
   url?: string;
+  subprotocol?: string;
   payload?: string;
   format?: string;
   message?: string;
@@ -19,7 +20,7 @@ export function useWebSocket() {
   const [messages, setMessages] = useState<WSMessage[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const connect = useCallback((url: string, headers: string, proxyId?: number | null, wsConnectionId?: number) => {
+  const connect = useCallback((url: string, headers: string, proxyId?: number | null, wsConnectionId?: number, subprotocols?: string[]) => {
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -44,6 +45,9 @@ export function useWebSocket() {
       if (wsConnectionId) {
         connectMsg.wsConnectionId = wsConnectionId;
       }
+      if (subprotocols?.length) {
+        connectMsg.subprotocols = subprotocols;
+      }
       ws.send(JSON.stringify(connectMsg));
     };
 
@@ -52,16 +56,18 @@ export function useWebSocket() {
       const ts = envelope.timestamp || new Date().toISOString();
 
       switch (envelope.type) {
-        case 'connected':
+        case 'connected': {
           setStatus('connected');
+          const subInfo = envelope.subprotocol ? ` [${envelope.subprotocol}]` : '';
           setMessages(prev => [...prev, {
             id: String(++messageIdCounter),
             type: 'system',
-            payload: `Connected to ${envelope.url}`,
+            payload: `Connected to ${envelope.url}${subInfo}`,
             format: 'text',
             timestamp: ts,
           }]);
           break;
+        }
         case 'received':
           setMessages(prev => [...prev, {
             id: String(++messageIdCounter),

@@ -80,3 +80,41 @@ export const useExecuteAdhoc = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.history }),
   });
 };
+
+export const useExecuteRequestWithFiles = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      items,
+      overrides,
+      variables,
+      signal,
+    }: {
+      id: number;
+      items: api.FormDataFileItem[];
+      overrides: Parameters<typeof api.executeRequestWithFiles>[2];
+      variables?: Record<string, string>;
+      signal?: AbortSignal;
+    }) => api.executeRequestWithFiles(id, items, overrides, variables, signal),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.history }),
+  });
+};
+
+export const useExecuteAdhocWithFiles = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      items,
+      overrides,
+      variables,
+      signal,
+    }: {
+      items: api.FormDataFileItem[];
+      overrides: Parameters<typeof api.executeAdhocWithFiles>[1];
+      variables?: Record<string, string>;
+      signal?: AbortSignal;
+    }) => api.executeAdhocWithFiles(items, overrides, variables, signal),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.history }),
+  });
+};

@@ -1,14 +1,15 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useRequest } from '../api/requests';
+import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useExecuteRequestWithFiles, useExecuteAdhocWithFiles, useRequest } from '../api/requests';
 import { useEnvironments } from '../api/environments';
 import { useProxies } from '../api/proxies';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult, WSConnectionStatus } from '../types';
-import { TabNav, KeyValueEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
+import { TabNav, KeyValueEditor, FormDataEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
+import type { FormDataItem } from './ui';
 
 interface WSControls {
   status: WSConnectionStatus;
-  connect: (url: string, headers: string, proxyId?: number | null, requestId?: number) => void;
+  connect: (url: string, headers: string, proxyId?: number | null, requestId?: number, subprotocols?: string[]) => void;
   disconnect: () => void;
 }
 
@@ -58,6 +59,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const [headerItems, setHeaderItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [paramItems, setParamItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [formItems, setFormItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
+  const [formDataItems, setFormDataItems] = useState<FormDataItem[]>([]);
   const [graphqlVariables, setGraphqlVariables] = useState('');
   const [proxyId, setProxyId] = useState<number | null>(null); // null = global inherit, 0 = no proxy, >0 = specific
 
@@ -66,6 +68,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const updateRequest = useUpdateRequest();
   const executeRequest = useExecuteRequest();
   const executeAdhoc = useExecuteAdhoc();
+  const executeRequestWithFiles = useExecuteRequestWithFiles();
+  const executeAdhocWithFiles = useExecuteAdhocWithFiles();
   const { data: environments = [] } = useEnvironments();
   const { data: proxies = [] } = useProxies();
 
@@ -201,6 +205,16 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     }
 
     setFormItems(fullRequestData.bodyType === 'form' ? parseFormBody(fullRequestData.body || '') : []);
+    if (fullRequestData.bodyType === 'formdata' && fullRequestData.body) {
+      try {
+        const parsed = JSON.parse(fullRequestData.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean }>;
+        setFormDataItems(parsed.map(item => ({ ...item, file: undefined })));
+      } catch {
+        setFormDataItems([]);
+      }
+    } else {
+      setFormDataItems([]);
+    }
     setHeaderItems(parseHeaders(fullRequestData.headers || '{}'));
     parseParamsFromUrl(fullRequestData.url);
     setProxyId(fullRequestData.proxyId ?? null);
@@ -219,6 +233,16 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setBody(request.body || '');
     setGraphqlVariables('');
     setFormItems(request.bodyType === 'form' ? parseFormBody(request.body || '') : []);
+    if (request.bodyType === 'formdata' && request.body) {
+      try {
+        const parsed = JSON.parse(request.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean }>;
+        setFormDataItems(parsed.map(item => ({ ...item, file: undefined })));
+      } catch {
+        setFormDataItems([]);
+      }
+    } else {
+      setFormDataItems([]);
+    }
     setHeaderItems(parseHeaders(request.headers || '{}'));
     parseParamsFromUrl(request.url);
     setProxyId(null);
@@ -276,7 +300,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       const collectionId = fullRequestData?.collectionId ?? request.collectionId;
 
       // Build body based on type
-      const bodyToSave = bodyType === 'graphql' ? buildGraphqlBody() : bodyType === 'form' ? buildFormBody(formItems) : body;
+      const bodyToSave = bodyType === 'graphql'
+        ? buildGraphqlBody()
+        : bodyType === 'form'
+        ? buildFormBody(formItems)
+        : bodyType === 'formdata'
+        ? JSON.stringify(formDataItems.map(({ key, value, type, enabled }) => ({ key, value, type, enabled })))
+        : body;
 
       updateRequest.mutate({
         id: request.id,
@@ -335,6 +365,36 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     // Map proxyId: null→-1 (global inherit), 0→0 (no proxy), N→N (specific)
     const proxyIdForExec = proxyId === null ? -1 : proxyId;
 
+    // Use multipart upload for formdata body type
+    if (bodyType === 'formdata') {
+      const enabledItems = formDataItems.filter(i => i.enabled);
+      const hasFiles = enabledItems.some(i => i.type === 'file' && i.file);
+
+      if (hasFiles || enabledItems.length > 0) {
+        if (isFromHistory) {
+          executeAdhocWithFiles.mutate({
+            items: formDataItems,
+            overrides: { method, url, headers: headersJson, proxyId: proxyIdForExec },
+            signal: controller.signal,
+          }, {
+            onSuccess: (result) => onExecute(result),
+            onSettled,
+          });
+        } else {
+          executeRequestWithFiles.mutate({
+            id: request.id,
+            items: formDataItems,
+            overrides: { method, url, headers: headersJson, bodyType: 'formdata', proxyId: proxyIdForExec },
+            signal: controller.signal,
+          }, {
+            onSuccess: (result) => onExecute(result),
+            onSettled,
+          });
+        }
+        return;
+      }
+    }
+
     if (isFromHistory) {
       // Ad-hoc execution for history-loaded requests
       executeAdhoc.mutate({
@@ -390,7 +450,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     );
   }
 
-  const isExecuting = executeRequest.isPending || executeAdhoc.isPending;
+  const isExecuting = executeRequest.isPending || executeAdhoc.isPending || executeRequestWithFiles.isPending || executeAdhocWithFiles.isPending;
 
   return (
     <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
@@ -631,10 +691,17 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                   ws.disconnect();
                 } else {
                   const headersObj: Record<string, string> = {};
+                  let subprotocols: string[] = [];
                   headerItems.forEach(({ key, value, enabled }) => {
-                    if (key.trim() && enabled) headersObj[key] = value;
+                    if (key.trim() && enabled) {
+                      if (key.toLowerCase() === 'sec-websocket-protocol') {
+                        subprotocols = value.split(',').map(s => s.trim()).filter(Boolean);
+                      } else {
+                        headersObj[key] = value;
+                      }
+                    }
                   });
-                  ws.connect(url, JSON.stringify(headersObj), proxyId, request?.id);
+                  ws.connect(url, JSON.stringify(headersObj), proxyId, request?.id, subprotocols);
                 }
               }}
               className={`px-4 py-2 font-medium rounded-md text-white ${
@@ -714,7 +781,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         {activeTab === 'body' && method !== 'WS' && (
           <div className="space-y-2">
             <div className="flex gap-4 text-sm">
-              {['none', 'json', 'form', 'raw', 'graphql'].map(type => (
+              {['none', 'json', 'form', 'formdata', 'raw', 'graphql'].map(type => (
                 <label key={type} className="flex items-center gap-1 dark:text-gray-200">
                   <input
                     type="radio"
@@ -722,7 +789,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                     checked={bodyType === type}
                     onChange={() => setBodyType(type)}
                   />
-                  {type === 'graphql' ? 'GraphQL' : type.charAt(0).toUpperCase() + type.slice(1)}
+                  {type === 'graphql' ? 'GraphQL' : type === 'formdata' ? 'Form Data' : type.charAt(0).toUpperCase() + type.slice(1)}
                 </label>
               ))}
             </div>
@@ -760,7 +827,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 addLabel="+ Add Field"
               />
             )}
-            {bodyType !== 'none' && bodyType !== 'graphql' && bodyType !== 'form' && (
+            {bodyType === 'formdata' && (
+              <FormDataEditor
+                items={formDataItems}
+                onChange={setFormDataItems}
+              />
+            )}
+            {bodyType !== 'none' && bodyType !== 'graphql' && bodyType !== 'form' && bodyType !== 'formdata' && (
               <CodeEditor
                 value={body}
                 onChange={setBody}

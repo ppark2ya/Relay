@@ -5,6 +5,8 @@ export { EmptyState } from './EmptyState';
 export { FormField, INPUT_CLASS } from './FormField';
 export { TabNav } from './TabNav';
 export { KeyValueEditor } from './KeyValueEditor';
+export { FormDataEditor } from './FormDataEditor';
+export type { FormDataItem } from './FormDataEditor';
 export { InlineCreateForm } from './InlineCreateForm';
 export { Modal } from './Modal';
 export { CodeEditor } from './CodeEditor';

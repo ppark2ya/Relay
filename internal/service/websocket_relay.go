@@ -29,17 +29,19 @@ func NewWebSocketRelay(queries *repository.Queries, vr *VariableResolver) *WebSo
 
 // Envelope types for browser <-> Go communication
 type wsEnvelope struct {
-	Type           string  `json:"type"`
-	URL            string  `json:"url,omitempty"`
-	Headers        string  `json:"headers,omitempty"`
-	ProxyID        *int64  `json:"proxyId,omitempty"`
-	WSConnectionID *int64  `json:"wsConnectionId,omitempty"`
-	Payload        string  `json:"payload,omitempty"`
-	Format         string  `json:"format,omitempty"`
-	Message        string  `json:"message,omitempty"`
-	Code           int     `json:"code,omitempty"`
-	Reason         string  `json:"reason,omitempty"`
-	Timestamp      string  `json:"timestamp,omitempty"`
+	Type           string   `json:"type"`
+	URL            string   `json:"url,omitempty"`
+	Headers        string   `json:"headers,omitempty"`
+	ProxyID        *int64   `json:"proxyId,omitempty"`
+	WSConnectionID *int64   `json:"wsConnectionId,omitempty"`
+	Subprotocols   []string `json:"subprotocols,omitempty"`
+	Subprotocol    string   `json:"subprotocol,omitempty"`
+	Payload        string   `json:"payload,omitempty"`
+	Format         string   `json:"format,omitempty"`
+	Message        string   `json:"message,omitempty"`
+	Code           int      `json:"code,omitempty"`
+	Reason         string   `json:"reason,omitempty"`
+	Timestamp      string   `json:"timestamp,omitempty"`
 }
 
 func (wr *WebSocketRelay) HandleRelay(w http.ResponseWriter, r *http.Request) {
@@ -110,8 +112,9 @@ func (wr *WebSocketRelay) HandleRelay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dialOpts := &websocket.DialOptions{
-		HTTPHeader: httpHeaders,
-		HTTPClient: httpClient,
+		HTTPHeader:   httpHeaders,
+		HTTPClient:   httpClient,
+		Subprotocols: connectMsg.Subprotocols,
 	}
 
 	// Connect to target WebSocket server
@@ -124,9 +127,10 @@ func (wr *WebSocketRelay) HandleRelay(w http.ResponseWriter, r *http.Request) {
 
 	// Send "connected" to browser
 	wsjson.Write(ctx, browserConn, wsEnvelope{
-		Type:      "connected",
-		URL:       resolvedURL,
-		Timestamp: time.Now().Format(time.RFC3339Nano),
+		Type:        "connected",
+		URL:         resolvedURL,
+		Subprotocol: targetConn.Subprotocol(),
+		Timestamp:   time.Now().Format(time.RFC3339Nano),
 	})
 
 	startTime := time.Now()
