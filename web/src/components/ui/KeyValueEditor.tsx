@@ -123,7 +123,7 @@ function AutocompleteInput({
   }, []);
 
   return (
-    <div className="flex-1">
+    <div>
       <input
         ref={inputRef}
         type="text"
@@ -165,11 +165,12 @@ function AutocompleteInput({
   );
 }
 
+const CELL_BORDER = 'border-l border-gray-200 dark:border-gray-700';
+
 export function KeyValueEditor({
   items,
   onChange,
   showEnabled = false,
-  showHeader = false,
   keyPlaceholder = 'Key',
   valuePlaceholder = 'Value',
   addLabel = '+ Add',
@@ -192,70 +193,80 @@ export function KeyValueEditor({
 
   const usedKeys = new Set(items.map(item => item.key.toLowerCase()).filter(k => k));
 
+  const inputClass = (item: KeyValueItem) =>
+    `w-full px-3 py-1.5 text-sm bg-transparent outline-none dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
+      showEnabled && !(item.enabled ?? true) ? 'opacity-50' : ''
+    }`;
+
   return (
-    <div className="space-y-2">
-      {showHeader && (
-        <div className="flex gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
-          {showEnabled && <div className="w-4" />}
-          <div className="flex-1 px-2">{keyPlaceholder}</div>
-          <div className="flex-1 px-2">{valuePlaceholder}</div>
-          <div className="w-8" />
+    <div>
+      <div className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center bg-gray-50 dark:bg-gray-800 text-xs font-medium text-gray-500 dark:text-gray-400">
+          {showEnabled && <div className="w-10 shrink-0" />}
+          <div className={`flex-1 min-w-0 px-3 py-1.5 ${CELL_BORDER}`}>{keyPlaceholder}</div>
+          <div className={`flex-1 min-w-0 px-3 py-1.5 ${CELL_BORDER}`}>{valuePlaceholder}</div>
+          <div className="w-9 shrink-0" />
         </div>
-      )}
-      {items.map((item, index) => (
-        <div key={index} className="flex items-center gap-2">
-          {showEnabled && (
-            <input
-              type="checkbox"
-              checked={item.enabled ?? true}
-              onChange={e => handleChange(index, 'enabled', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300"
-            />
-          )}
-          {suggestions ? (
-            <AutocompleteInput
-              value={item.key}
-              onChange={val => handleChange(index, 'key', val)}
-              placeholder={keyPlaceholder}
-              className={`w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-100 ${
-                showEnabled && !(item.enabled ?? true) ? 'opacity-50' : ''
-              } ${keyClassName}`}
-              suggestions={suggestions}
-              usedKeys={usedKeys}
-            />
-          ) : (
-            <input
-              type="text"
-              value={item.key}
-              onChange={e => handleChange(index, 'key', e.target.value)}
-              placeholder={keyPlaceholder}
-              className={`flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-100 ${
-                showEnabled && !(item.enabled ?? true) ? 'opacity-50' : ''
-              } ${keyClassName}`}
-            />
-          )}
-          <input
-            type="text"
-            value={item.value}
-            onChange={e => handleChange(index, 'value', e.target.value)}
-            placeholder={valuePlaceholder}
-            className={`flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-100 ${
-              showEnabled && !(item.enabled ?? true) ? 'opacity-50' : ''
-            }`}
-          />
-          <button
-            onClick={() => handleRemove(index)}
-            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      ))}
+
+        {/* Rows */}
+        {items.map((item, index) => (
+          <div key={index} className="flex items-center border-t border-gray-200 dark:border-gray-700">
+            {showEnabled && (
+              <div className="w-10 shrink-0 flex justify-center">
+                <input
+                  type="checkbox"
+                  checked={item.enabled ?? true}
+                  onChange={e => handleChange(index, 'enabled', e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+              </div>
+            )}
+            <div className={`flex-1 min-w-0 ${CELL_BORDER}`}>
+              {suggestions ? (
+                <AutocompleteInput
+                  value={item.key}
+                  onChange={val => handleChange(index, 'key', val)}
+                  placeholder={keyPlaceholder}
+                  className={`${inputClass(item)} ${keyClassName}`}
+                  suggestions={suggestions}
+                  usedKeys={usedKeys}
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={item.key}
+                  onChange={e => handleChange(index, 'key', e.target.value)}
+                  placeholder={keyPlaceholder}
+                  className={`${inputClass(item)} ${keyClassName}`}
+                />
+              )}
+            </div>
+            <div className={`flex-1 min-w-0 ${CELL_BORDER}`}>
+              <input
+                type="text"
+                value={item.value}
+                onChange={e => handleChange(index, 'value', e.target.value)}
+                placeholder={valuePlaceholder}
+                className={inputClass(item)}
+              />
+            </div>
+            <div className="w-9 shrink-0 flex justify-center">
+              <button
+                onClick={() => handleRemove(index)}
+                className="p-1 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
       <button
         onClick={handleAdd}
-        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+        className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
       >
         {addLabel}
       </button>

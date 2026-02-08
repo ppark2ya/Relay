@@ -846,7 +846,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       />
 
       {/* Tab Content */}
-      <div className="p-4 max-h-48 overflow-y-auto">
+      <div className="p-4 max-h-72 overflow-y-auto">
         {activeTab === 'params' && method !== 'WS' && (
           <KeyValueEditor
             items={paramItems}
