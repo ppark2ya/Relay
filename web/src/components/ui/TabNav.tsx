@@ -27,7 +27,7 @@ export function TabNav({ tabs, activeTab, onTabChange, className = '', tabClassN
         >
           {tab.label}
           {tab.badge !== undefined && tab.badge > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 dark:text-gray-200 rounded-full">{tab.badge}</span>
+            <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-full">{tab.badge}</span>
           )}
         </button>
       ))}

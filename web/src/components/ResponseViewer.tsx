@@ -109,7 +109,7 @@ export function ResponseViewer({ response, isLoading, onCancel }: ResponseViewer
           {response.durationMs}ms
         </span>
         {isJson && (
-          <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-600 dark:text-gray-200 rounded">JSON</span>
+          <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded">JSON</span>
         )}
         <span className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1">
           {response.resolvedUrl}

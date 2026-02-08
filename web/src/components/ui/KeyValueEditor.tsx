@@ -153,7 +153,7 @@ function AutocompleteInput({
               }}
               onMouseEnter={() => setHighlightIndex(i)}
               className={`px-3 py-1.5 text-sm cursor-pointer ${
-                i === highlightIndex ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                i === highlightIndex ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               {item}
