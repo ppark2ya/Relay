@@ -98,13 +98,15 @@ function AppContent() {
       )?.[1] as string | undefined;
       if (contentType) {
         if (contentType.includes('json')) bodyType = 'json';
-        else if (contentType.includes('form')) bodyType = 'form';
-        else bodyType = 'raw';
+        else if (contentType.includes('xml')) bodyType = 'xml';
+        else if (contentType.includes('form-urlencoded')) bodyType = 'form-urlencoded';
+        else if (contentType.includes('form')) bodyType = 'form-urlencoded';
+        else bodyType = 'text';
       } else if (item.requestBody) {
-        bodyType = 'raw';
+        bodyType = 'text';
       }
     } catch {
-      if (item.requestBody) bodyType = 'raw';
+      if (item.requestBody) bodyType = 'text';
     }
 
     // Always use id=0 for history-loaded requests so useRequest won't fetch from DB
