@@ -44,6 +44,7 @@ type FlowStepRequest struct {
 	Headers     string `json:"headers"`
 	Body        string `json:"body"`
 	BodyType    string `json:"bodyType"`
+	Cookies     string `json:"cookies"`
 	ProxyID     *int64 `json:"proxyId"`
 }
 
@@ -61,6 +62,7 @@ type FlowStepResponse struct {
 	Headers     string `json:"headers"`
 	Body        string `json:"body"`
 	BodyType    string `json:"bodyType"`
+	Cookies     string `json:"cookies"`
 	ProxyID     *int64 `json:"proxyId"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
@@ -90,6 +92,7 @@ func toFlowStepResponse(s repository.FlowStep) FlowStepResponse {
 		Headers:     s.Headers.String,
 		Body:        s.Body.String,
 		BodyType:    s.BodyType.String,
+		Cookies:     s.Cookies.String,
 		ProxyID:     proxyID,
 		CreatedAt:   formatTime(s.CreatedAt),
 		UpdatedAt:   formatTime(s.UpdatedAt),
@@ -282,6 +285,7 @@ func (h *FlowHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 			Headers:     s.Headers,
 			Body:        s.Body,
 			BodyType:    s.BodyType,
+			Cookies:     s.Cookies,
 			ProxyID:     s.ProxyID,
 		})
 		if err != nil {
@@ -366,6 +370,10 @@ func (h *FlowHandler) CreateStep(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.Cookies == "" {
+		req.Cookies = "{}"
+	}
+
 	step, err := h.queries.CreateFlowStep(r.Context(), repository.CreateFlowStepParams{
 		FlowID:      flowID,
 		RequestID:   reqID,
@@ -379,6 +387,7 @@ func (h *FlowHandler) CreateStep(w http.ResponseWriter, r *http.Request) {
 		Headers:     sql.NullString{String: req.Headers, Valid: true},
 		Body:        sql.NullString{String: req.Body, Valid: true},
 		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
+		Cookies:     sql.NullString{String: req.Cookies, Valid: true},
 		ProxyID:     proxyID,
 	})
 	if err != nil {
@@ -430,6 +439,7 @@ func (h *FlowHandler) UpdateStep(w http.ResponseWriter, r *http.Request) {
 		Headers:     sql.NullString{String: req.Headers, Valid: true},
 		Body:        sql.NullString{String: req.Body, Valid: true},
 		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
+		Cookies:     sql.NullString{String: req.Cookies, Valid: true},
 		ProxyID:     proxyID,
 	})
 	if err != nil {

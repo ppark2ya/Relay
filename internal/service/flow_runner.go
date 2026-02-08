@@ -86,6 +86,7 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64) (*FlowResult, error
 			Headers:  step.Headers,
 			Body:     step.Body,
 			BodyType: step.BodyType,
+			Cookies:  step.Cookies,
 			ProxyID:  step.ProxyID,
 		}
 

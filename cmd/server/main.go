@@ -269,6 +269,9 @@ CREATE INDEX IF NOT EXISTS idx_history_created ON request_history(created_at DES
 	// Add proxy_id column to requests and flow_steps
 	migrateProxyOverrides(db)
 
+	// Add cookies column to requests and flow_steps
+	migrateCookies(db)
+
 	// Add workspaces table and workspace_id columns
 	migrateWorkspaces(db)
 
@@ -362,6 +365,16 @@ func migrateProxyOverrides(db *sql.DB) {
 	stmts := []string{
 		"ALTER TABLE requests ADD COLUMN proxy_id INTEGER DEFAULT NULL",
 		"ALTER TABLE flow_steps ADD COLUMN proxy_id INTEGER DEFAULT NULL",
+	}
+	for _, s := range stmts {
+		db.Exec(s) // Ignore "duplicate column" errors
+	}
+}
+
+func migrateCookies(db *sql.DB) {
+	stmts := []string{
+		"ALTER TABLE requests ADD COLUMN cookies TEXT DEFAULT '{}'",
+		"ALTER TABLE flow_steps ADD COLUMN cookies TEXT DEFAULT '{}'",
 	}
 	for _, s := range stmts {
 		db.Exec(s) // Ignore "duplicate column" errors

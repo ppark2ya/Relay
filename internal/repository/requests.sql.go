@@ -11,8 +11,8 @@ import (
 )
 
 const createRequest = `-- name: CreateRequest :one
-INSERT INTO requests (collection_id, name, method, url, headers, body, body_type, proxy_id, workspace_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, collection_id, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id
+INSERT INTO requests (collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, workspace_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id
 `
 
 type CreateRequestParams struct {
@@ -23,6 +23,7 @@ type CreateRequestParams struct {
 	Headers      sql.NullString `json:"headers"`
 	Body         sql.NullString `json:"body"`
 	BodyType     sql.NullString `json:"body_type"`
+	Cookies      sql.NullString `json:"cookies"`
 	ProxyID      sql.NullInt64  `json:"proxy_id"`
 	WorkspaceID  int64          `json:"workspace_id"`
 }
@@ -36,6 +37,7 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		arg.Headers,
 		arg.Body,
 		arg.BodyType,
+		arg.Cookies,
 		arg.ProxyID,
 		arg.WorkspaceID,
 	)
@@ -49,6 +51,7 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		&i.Headers,
 		&i.Body,
 		&i.BodyType,
+		&i.Cookies,
 		&i.ProxyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -67,7 +70,7 @@ func (q *Queries) DeleteRequest(ctx context.Context, id int64) error {
 }
 
 const getRequest = `-- name: GetRequest :one
-SELECT id, collection_id, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id FROM requests WHERE id = ? LIMIT 1
+SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id FROM requests WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetRequest(ctx context.Context, id int64) (Request, error) {
@@ -82,6 +85,7 @@ func (q *Queries) GetRequest(ctx context.Context, id int64) (Request, error) {
 		&i.Headers,
 		&i.Body,
 		&i.BodyType,
+		&i.Cookies,
 		&i.ProxyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -91,7 +95,7 @@ func (q *Queries) GetRequest(ctx context.Context, id int64) (Request, error) {
 }
 
 const listRequests = `-- name: ListRequests :many
-SELECT id, collection_id, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id FROM requests WHERE workspace_id = ? ORDER BY name
+SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id FROM requests WHERE workspace_id = ? ORDER BY name
 `
 
 func (q *Queries) ListRequests(ctx context.Context, workspaceID int64) ([]Request, error) {
@@ -112,6 +116,7 @@ func (q *Queries) ListRequests(ctx context.Context, workspaceID int64) ([]Reques
 			&i.Headers,
 			&i.Body,
 			&i.BodyType,
+			&i.Cookies,
 			&i.ProxyID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -131,7 +136,7 @@ func (q *Queries) ListRequests(ctx context.Context, workspaceID int64) ([]Reques
 }
 
 const listRequestsByCollection = `-- name: ListRequestsByCollection :many
-SELECT id, collection_id, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id FROM requests WHERE collection_id = ? ORDER BY name
+SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id FROM requests WHERE collection_id = ? ORDER BY name
 `
 
 func (q *Queries) ListRequestsByCollection(ctx context.Context, collectionID sql.NullInt64) ([]Request, error) {
@@ -152,6 +157,7 @@ func (q *Queries) ListRequestsByCollection(ctx context.Context, collectionID sql
 			&i.Headers,
 			&i.Body,
 			&i.BodyType,
+			&i.Cookies,
 			&i.ProxyID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -179,9 +185,10 @@ UPDATE requests SET
     headers = ?,
     body = ?,
     body_type = ?,
+    cookies = ?,
     proxy_id = ?,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = ? RETURNING id, collection_id, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id
+WHERE id = ? RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id
 `
 
 type UpdateRequestParams struct {
@@ -192,6 +199,7 @@ type UpdateRequestParams struct {
 	Headers      sql.NullString `json:"headers"`
 	Body         sql.NullString `json:"body"`
 	BodyType     sql.NullString `json:"body_type"`
+	Cookies      sql.NullString `json:"cookies"`
 	ProxyID      sql.NullInt64  `json:"proxy_id"`
 	ID           int64          `json:"id"`
 }
@@ -205,6 +213,7 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		arg.Headers,
 		arg.Body,
 		arg.BodyType,
+		arg.Cookies,
 		arg.ProxyID,
 		arg.ID,
 	)
@@ -218,6 +227,7 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		&i.Headers,
 		&i.Body,
 		&i.BodyType,
+		&i.Cookies,
 		&i.ProxyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,

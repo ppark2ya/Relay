@@ -30,6 +30,7 @@ type RequestRequest struct {
 	Headers      string `json:"headers"`
 	Body         string `json:"body"`
 	BodyType     string `json:"bodyType"`
+	Cookies      string `json:"cookies"`
 	ProxyID      *int64 `json:"proxyId"`
 }
 
@@ -42,6 +43,7 @@ type RequestResponse struct {
 	Headers      string `json:"headers,omitempty"`
 	Body         string `json:"body,omitempty"`
 	BodyType     string `json:"bodyType,omitempty"`
+	Cookies      string `json:"cookies,omitempty"`
 	ProxyID      *int64 `json:"proxyId"`
 	CreatedAt    string `json:"createdAt,omitempty"`
 	UpdatedAt    string `json:"updatedAt,omitempty"`
@@ -76,6 +78,7 @@ func toRequestResponse(req repository.Request) RequestResponse {
 		Headers:   req.Headers.String,
 		Body:      req.Body.String,
 		BodyType:  req.BodyType.String,
+		Cookies:   req.Cookies.String,
 		CreatedAt: formatTime(req.CreatedAt),
 		UpdatedAt: formatTime(req.UpdatedAt),
 	}
@@ -140,6 +143,9 @@ func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if reqBody.BodyType == "" {
 		reqBody.BodyType = "none"
 	}
+	if reqBody.Cookies == "" {
+		reqBody.Cookies = "{}"
+	}
 
 	var proxyID sql.NullInt64
 	if reqBody.ProxyID != nil {
@@ -160,6 +166,7 @@ func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Headers:      sql.NullString{String: reqBody.Headers, Valid: true},
 		Body:         sql.NullString{String: reqBody.Body, Valid: reqBody.Body != ""},
 		BodyType:     sql.NullString{String: reqBody.BodyType, Valid: true},
+		Cookies:      sql.NullString{String: reqBody.Cookies, Valid: true},
 		ProxyID:      proxyID,
 		WorkspaceID:  wsID,
 	})
@@ -208,6 +215,7 @@ func (h *RequestHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Headers:      sql.NullString{String: reqBody.Headers, Valid: true},
 		Body:         sql.NullString{String: reqBody.Body, Valid: reqBody.Body != ""},
 		BodyType:     sql.NullString{String: reqBody.BodyType, Valid: true},
+		Cookies:      sql.NullString{String: reqBody.Cookies, Valid: true},
 		ProxyID:      proxyID,
 	})
 	if err != nil {
@@ -365,6 +373,7 @@ func (h *RequestHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 		Headers:      source.Headers,
 		Body:         source.Body,
 		BodyType:     source.BodyType,
+		Cookies:      source.Cookies,
 		ProxyID:      source.ProxyID,
 		WorkspaceID:  source.WorkspaceID,
 	})

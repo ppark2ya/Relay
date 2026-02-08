@@ -20,6 +20,7 @@ interface RequestEditorProps {
   onExecutingChange?: (executing: boolean) => void;
   onCancelReady?: (fn: (() => void) | null) => void;
   onMethodChange?: (method: string) => void;
+  onImportCookiesReady?: (fn: ((cookies: Array<{ key: string; value: string; enabled: boolean }>) => void) | null) => void;
   ws?: WSControls;
 }
 
@@ -44,9 +45,9 @@ const COMMON_HEADERS = [
   'X-API-Key',
 ];
 
-type Tab = 'params' | 'headers' | 'body';
+type Tab = 'params' | 'headers' | 'cookies' | 'body';
 
-export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange, onCancelReady, onMethodChange, ws }: RequestEditorProps) {
+export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange, onCancelReady, onMethodChange, onImportCookiesReady, ws }: RequestEditorProps) {
   const [name, setName] = useState('');
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('');
@@ -60,6 +61,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const [paramItems, setParamItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [formItems, setFormItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [formDataItems, setFormDataItems] = useState<FormDataItem[]>([]);
+  const [cookieItems, setCookieItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [graphqlVariables, setGraphqlVariables] = useState('');
   const [proxyId, setProxyId] = useState<number | null>(null); // null = global inherit, 0 = no proxy, >0 = specific
 
@@ -83,6 +85,23 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     onCancelReady?.(handleCancel);
     return () => onCancelReady?.(null);
   }, [onCancelReady, handleCancel]);
+
+  // Expose import cookies function to parent
+  const handleImportCookies = useCallback((imported: Array<{ key: string; value: string; enabled: boolean }>) => {
+    setCookieItems(prev => {
+      const existing = new Map(prev.filter(c => c.key.trim()).map(c => [c.key, c]));
+      for (const c of imported) {
+        existing.set(c.key, c);
+      }
+      return Array.from(existing.values());
+    });
+    setActiveTab('cookies');
+  }, []);
+
+  useEffect(() => {
+    onImportCookiesReady?.(handleImportCookies);
+    return () => onImportCookiesReady?.(null);
+  }, [onImportCookiesReady, handleImportCookies]);
 
   // Notify parent when method changes
   useEffect(() => {
@@ -164,6 +183,22 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       .join('&');
   }, []);
 
+  // Parse cookies from JSON string (same format as headers)
+  const parseCookies = useCallback((cookiesJson: string) => {
+    try {
+      const parsed = JSON.parse(cookiesJson || '{}');
+      return Object.entries(parsed).map(([key, val]) => {
+        if (typeof val === 'object' && val !== null && 'value' in val) {
+          const obj = val as { value: string; enabled: boolean };
+          return { key, value: obj.value, enabled: obj.enabled ?? true };
+        }
+        return { key, value: String(val), enabled: true };
+      });
+    } catch {
+      return [];
+    }
+  }, []);
+
   // Parse headers from JSON string
   const parseHeaders = useCallback((headersJson: string) => {
     try {
@@ -216,6 +251,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       setFormDataItems([]);
     }
     setHeaderItems(parseHeaders(fullRequestData.headers || '{}'));
+    setCookieItems(parseCookies(fullRequestData.cookies || '{}'));
     parseParamsFromUrl(fullRequestData.url);
     setProxyId(fullRequestData.proxyId ?? null);
   }
@@ -244,6 +280,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       setFormDataItems([]);
     }
     setHeaderItems(parseHeaders(request.headers || '{}'));
+    setCookieItems(parseCookies(request.cookies || '{}'));
     parseParamsFromUrl(request.url);
     setProxyId(null);
   }
@@ -268,6 +305,15 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const handleUrlChange = (newUrl: string) => {
     setUrl(newUrl);
     parseParamsFromUrl(newUrl);
+  };
+
+  // Get cookies JSON for saving (includes enabled state)
+  const getCookiesJsonForSave = () => {
+    const obj: Record<string, { value: string; enabled: boolean }> = {};
+    cookieItems.forEach(({ key, value, enabled }) => {
+      if (key.trim()) obj[key] = { value, enabled };
+    });
+    return JSON.stringify(obj, null, 2);
   };
 
   // Get headers JSON for saving (includes enabled state)
@@ -297,6 +343,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const handleSave = () => {
     if (request) {
       const headersJson = getHeadersJsonForSave();
+      const cookiesJson = getCookiesJsonForSave();
       const collectionId = fullRequestData?.collectionId ?? request.collectionId;
 
       // Build body based on type
@@ -317,6 +364,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           headers: headersJson,
           body: bodyToSave,
           bodyType,
+          cookies: cookiesJson,
           collectionId, // Preserve collectionId
           proxyId: proxyId === null ? -1 : proxyId,
         },
@@ -343,6 +391,16 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     headerItems.forEach(({ key, value, enabled }) => {
       if (key.trim() && enabled) headersObj[key] = value;
     });
+
+    // Merge enabled cookies into Cookie header
+    const cookiePairs = cookieItems
+      .filter(c => c.key.trim() && c.enabled)
+      .map(c => `${c.key}=${c.value}`)
+      .join('; ');
+    if (cookiePairs) {
+      const existing = headersObj['Cookie'] || '';
+      headersObj['Cookie'] = existing ? `${existing}; ${cookiePairs}` : cookiePairs;
+    }
 
     // Auto-add Content-Type if not present
     if (bodyType === 'graphql' && !headersObj['Content-Type']) {
@@ -434,6 +492,12 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const validHeadersCount = useMemo(() =>
     headerItems.filter(h => h.key.trim() && h.enabled).length,
     [headerItems]
+  );
+
+  // Count enabled cookies with non-empty keys
+  const validCookiesCount = useMemo(() =>
+    cookieItems.filter(c => c.key.trim() && c.enabled).length,
+    [cookieItems]
   );
 
   if (!request) {
@@ -746,6 +810,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         ] : [
           { key: 'params', label: 'Params', badge: validParamsCount },
           { key: 'headers', label: 'Headers', badge: validHeadersCount },
+          { key: 'cookies', label: 'Cookies', badge: validCookiesCount },
           { key: 'body', label: 'Body' },
         ]}
         activeTab={method === 'WS' ? 'headers' : activeTab}
@@ -778,6 +843,17 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           />
         )}
 
+        {activeTab === 'cookies' && method !== 'WS' && (
+          <KeyValueEditor
+            items={cookieItems}
+            onChange={items => setCookieItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
+            showEnabled
+            keyPlaceholder="Cookie name"
+            valuePlaceholder="Value"
+            addLabel="+ Add Cookie"
+          />
+        )}
+
         {activeTab === 'body' && method !== 'WS' && (
           <div className="space-y-2">
             <div className="flex gap-4 text-sm">
@@ -789,7 +865,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                     checked={bodyType === type}
                     onChange={() => setBodyType(type)}
                   />
-                  {type === 'graphql' ? 'GraphQL' : type === 'formdata' ? 'Form Data' : type.charAt(0).toUpperCase() + type.slice(1)}
+                  {type === 'graphql' ? 'GraphQL' : type === 'formdata' ? 'Multipart' : type === 'form' ? 'URL Encoded' : type.charAt(0).toUpperCase() + type.slice(1)}
                 </label>
               ))}
             </div>

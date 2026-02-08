@@ -7,6 +7,7 @@ export interface Request {
   headers?: string;
   body?: string;
   bodyType?: string;
+  cookies?: string;
   proxyId?: number | null;
   createdAt?: string;
   updatedAt?: string;

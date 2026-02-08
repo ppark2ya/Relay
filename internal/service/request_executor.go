@@ -31,13 +31,14 @@ func NewRequestExecutor(queries *repository.Queries, vr *VariableResolver) *Requ
 }
 
 type ExecuteResult struct {
-	StatusCode      int               `json:"statusCode"`
-	Headers         map[string]string `json:"headers"`
-	Body            string            `json:"body"`
-	DurationMs      int64             `json:"durationMs"`
-	Error           string            `json:"error,omitempty"`
-	ResolvedURL     string            `json:"resolvedUrl"`
-	ResolvedHeaders map[string]string `json:"resolvedHeaders"`
+	StatusCode        int                 `json:"statusCode"`
+	Headers           map[string]string   `json:"headers"`
+	MultiValueHeaders map[string][]string `json:"multiValueHeaders,omitempty"`
+	Body              string              `json:"body"`
+	DurationMs        int64               `json:"durationMs"`
+	Error             string              `json:"error,omitempty"`
+	ResolvedURL       string              `json:"resolvedUrl"`
+	ResolvedHeaders   map[string]string   `json:"resolvedHeaders"`
 }
 
 type FormDataFile struct {
@@ -192,6 +193,39 @@ func escapeQuotes(s string) string {
 	return s
 }
 
+// buildCookieHeader parses the cookies JSON (same format as headers: {"name": {"value": "val", "enabled": true}})
+// and builds a Cookie header string like "name1=val1; name2=val2".
+func (re *RequestExecutor) buildCookieHeader(ctx context.Context, cookiesJSON string, runtimeVars map[string]string) string {
+	var parsed map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(cookiesJSON), &parsed); err != nil {
+		return ""
+	}
+
+	var pairs []string
+	for name, raw := range parsed {
+		var obj struct {
+			Value   string `json:"value"`
+			Enabled bool   `json:"enabled"`
+		}
+		if err := json.Unmarshal(raw, &obj); err != nil {
+			// Try plain string value
+			var strVal string
+			if err2 := json.Unmarshal(raw, &strVal); err2 != nil {
+				continue
+			}
+			resolved, _ := re.variableResolver.Resolve(ctx, strVal, runtimeVars)
+			pairs = append(pairs, name+"="+resolved)
+			continue
+		}
+		if !obj.Enabled {
+			continue
+		}
+		resolved, _ := re.variableResolver.Resolve(ctx, obj.Value, runtimeVars)
+		pairs = append(pairs, name+"="+resolved)
+	}
+	return strings.Join(pairs, "; ")
+}
+
 func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repository.Request, runtimeVars map[string]string, formFiles map[int]FormDataFile) (*ExecuteResult, error) {
 	result := &ExecuteResult{}
 
@@ -257,6 +291,19 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 		httpReq.Header.Set(k, v)
 	}
 
+	// Merge cookies from cookies field into Cookie header
+	if req.Cookies.Valid && req.Cookies.String != "" && req.Cookies.String != "{}" {
+		cookiePairs := re.buildCookieHeader(ctx, req.Cookies.String, runtimeVars)
+		if cookiePairs != "" {
+			existing := httpReq.Header.Get("Cookie")
+			if existing != "" {
+				httpReq.Header.Set("Cookie", existing+"; "+cookiePairs)
+			} else {
+				httpReq.Header.Set("Cookie", cookiePairs)
+			}
+		}
+	}
+
 	// Execute request
 	start := time.Now()
 	resp, err := client.Do(httpReq)
@@ -280,9 +327,13 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 	result.StatusCode = resp.StatusCode
 	result.Body = string(respBody)
 	result.Headers = make(map[string]string)
+	result.MultiValueHeaders = make(map[string][]string)
 	for k, v := range resp.Header {
 		if len(v) > 0 {
 			result.Headers[k] = v[0]
+		}
+		if len(v) > 1 || strings.EqualFold(k, "Set-Cookie") {
+			result.MultiValueHeaders[k] = v
 		}
 	}
 

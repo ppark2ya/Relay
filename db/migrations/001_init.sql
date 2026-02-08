@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS requests (
     headers TEXT DEFAULT '{}',
     body TEXT DEFAULT '',
     body_type TEXT DEFAULT 'none',
+    cookies TEXT DEFAULT '{}',
     proxy_id INTEGER DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -61,6 +62,7 @@ CREATE TABLE IF NOT EXISTS flow_steps (
     headers TEXT DEFAULT '{}',
     body TEXT DEFAULT '',
     body_type TEXT DEFAULT 'none',
+    cookies TEXT DEFAULT '{}',
     proxy_id INTEGER DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

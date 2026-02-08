@@ -6,6 +6,7 @@ interface ResponseViewerProps {
   response: ExecuteResult | null;
   isLoading?: boolean;
   onCancel?: () => void;
+  onImportCookies?: (cookies: Array<{ key: string; value: string; enabled: boolean }>) => void;
 }
 
 type Tab = 'body' | 'headers';
@@ -39,7 +40,21 @@ function ElapsedTimer() {
   return <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums">{elapsed.toFixed(1)}s</span>;
 }
 
-export function ResponseViewer({ response, isLoading, onCancel }: ResponseViewerProps) {
+function parseSetCookies(setCookieHeaders: string[]): Array<{ key: string; value: string; enabled: boolean }> {
+  return setCookieHeaders.map(header => {
+    // "name=value; Path=/; HttpOnly; ..." → extract "name" and "value"
+    const nameValuePart = header.split(';')[0];
+    const eqIndex = nameValuePart.indexOf('=');
+    if (eqIndex === -1) return { key: nameValuePart.trim(), value: '', enabled: true };
+    return {
+      key: nameValuePart.slice(0, eqIndex).trim(),
+      value: nameValuePart.slice(eqIndex + 1).trim(),
+      enabled: true,
+    };
+  });
+}
+
+export function ResponseViewer({ response, isLoading, onCancel, onImportCookies }: ResponseViewerProps) {
   const [activeTab, setActiveTab] = useState<Tab>('body');
 
   if (isLoading) {
@@ -144,16 +159,40 @@ export function ResponseViewer({ response, isLoading, onCancel }: ResponseViewer
           )
         )}
 
-        {activeTab === 'headers' && (
-          <div className="space-y-1">
-            {Object.entries(response.headers || {}).map(([key, value]) => (
-              <div key={key} className="flex gap-4 text-sm">
-                <span className="font-medium text-gray-700 dark:text-gray-200 min-w-[200px]">{key}</span>
-                <span className="text-gray-600 dark:text-gray-300">{value}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {activeTab === 'headers' && (() => {
+          const setCookieValues = response.multiValueHeaders?.['Set-Cookie'] || [];
+          return (
+            <div className="space-y-1">
+              {Object.entries(response.headers || {}).map(([key, value]) => {
+                // For Set-Cookie, show all values from multiValueHeaders
+                if (key === 'Set-Cookie' && setCookieValues.length > 0) {
+                  return setCookieValues.map((val, i) => (
+                    <div key={`${key}-${i}`} className="flex gap-4 text-sm">
+                      <span className="font-medium text-gray-700 dark:text-gray-200 min-w-[200px]">{key}</span>
+                      <span className="text-gray-600 dark:text-gray-300">{val}</span>
+                    </div>
+                  ));
+                }
+                return (
+                  <div key={key} className="flex gap-4 text-sm">
+                    <span className="font-medium text-gray-700 dark:text-gray-200 min-w-[200px]">{key}</span>
+                    <span className="text-gray-600 dark:text-gray-300">{value}</span>
+                  </div>
+                );
+              })}
+              {setCookieValues.length > 0 && onImportCookies && (
+                <div className="pt-3 border-t border-gray-200 dark:border-gray-700 mt-3">
+                  <button
+                    onClick={() => onImportCookies(parseSetCookies(setCookieValues))}
+                    className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                  >
+                    Import {setCookieValues.length} cookie{setCookieValues.length > 1 ? 's' : ''}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

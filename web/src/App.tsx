@@ -28,6 +28,8 @@ function AppContent() {
     cancel: () => cancelRef.current?.(),
   }), []);
 
+  const importCookiesRef = useRef<((cookies: Array<{ key: string; value: string; enabled: boolean }>) => void) | null>(null);
+
   // WebSocket controls
   const ws = useWebSocket();
 
@@ -162,6 +164,7 @@ function AppContent() {
               onExecutingChange={setIsExecuting}
               onCancelReady={cancelCallbacks.onCancelReady}
               onMethodChange={handleMethodChange}
+              onImportCookiesReady={(fn) => { importCookiesRef.current = fn; }}
               ws={ws}
             />
             {isWSMode ? (
@@ -176,6 +179,7 @@ function AppContent() {
                 response={response}
                 isLoading={isExecuting}
                 onCancel={cancelCallbacks.cancel}
+                onImportCookies={(cookies) => importCookiesRef.current?.(cookies)}
               />
             )}
           </div>

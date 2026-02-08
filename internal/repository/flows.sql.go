@@ -36,8 +36,8 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, e
 
 const createFlowStep = `-- name: CreateFlowStep :one
 INSERT INTO flow_steps (flow_id, request_id, step_order, delay_ms, extract_vars, condition,
-                        name, method, url, headers, body, body_type, proxy_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id
+                        name, method, url, headers, body, body_type, cookies, proxy_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id
 `
 
 type CreateFlowStepParams struct {
@@ -53,6 +53,7 @@ type CreateFlowStepParams struct {
 	Headers     sql.NullString `json:"headers"`
 	Body        sql.NullString `json:"body"`
 	BodyType    sql.NullString `json:"body_type"`
+	Cookies     sql.NullString `json:"cookies"`
 	ProxyID     sql.NullInt64  `json:"proxy_id"`
 }
 
@@ -70,6 +71,7 @@ func (q *Queries) CreateFlowStep(ctx context.Context, arg CreateFlowStepParams) 
 		arg.Headers,
 		arg.Body,
 		arg.BodyType,
+		arg.Cookies,
 		arg.ProxyID,
 	)
 	var i FlowStep
@@ -87,6 +89,7 @@ func (q *Queries) CreateFlowStep(ctx context.Context, arg CreateFlowStepParams) 
 		&i.Headers,
 		&i.Body,
 		&i.BodyType,
+		&i.Cookies,
 		&i.ProxyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -141,7 +144,7 @@ func (q *Queries) GetFlow(ctx context.Context, id int64) (Flow, error) {
 }
 
 const getFlowStep = `-- name: GetFlowStep :one
-SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id FROM flow_steps WHERE id = ? LIMIT 1
+SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id FROM flow_steps WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
@@ -161,6 +164,7 @@ func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
 		&i.Headers,
 		&i.Body,
 		&i.BodyType,
+		&i.Cookies,
 		&i.ProxyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -170,7 +174,7 @@ func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
 }
 
 const listFlowSteps = `-- name: ListFlowSteps :many
-SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id FROM flow_steps WHERE flow_id = ? ORDER BY step_order
+SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id FROM flow_steps WHERE flow_id = ? ORDER BY step_order
 `
 
 func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, error) {
@@ -196,6 +200,7 @@ func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, 
 			&i.Headers,
 			&i.Body,
 			&i.BodyType,
+			&i.Cookies,
 			&i.ProxyID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -285,9 +290,10 @@ UPDATE flow_steps SET
     headers = ?,
     body = ?,
     body_type = ?,
+    cookies = ?,
     proxy_id = ?,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = ? RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, proxy_id, created_at, updated_at, workspace_id
+WHERE id = ? RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id
 `
 
 type UpdateFlowStepParams struct {
@@ -302,6 +308,7 @@ type UpdateFlowStepParams struct {
 	Headers     sql.NullString `json:"headers"`
 	Body        sql.NullString `json:"body"`
 	BodyType    sql.NullString `json:"body_type"`
+	Cookies     sql.NullString `json:"cookies"`
 	ProxyID     sql.NullInt64  `json:"proxy_id"`
 	ID          int64          `json:"id"`
 }
@@ -319,6 +326,7 @@ func (q *Queries) UpdateFlowStep(ctx context.Context, arg UpdateFlowStepParams) 
 		arg.Headers,
 		arg.Body,
 		arg.BodyType,
+		arg.Cookies,
 		arg.ProxyID,
 		arg.ID,
 	)
@@ -337,6 +345,7 @@ func (q *Queries) UpdateFlowStep(ctx context.Context, arg UpdateFlowStepParams) 
 		&i.Headers,
 		&i.Body,
 		&i.BodyType,
+		&i.Cookies,
 		&i.ProxyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
