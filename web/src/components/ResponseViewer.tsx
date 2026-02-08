@@ -189,7 +189,8 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
 
   const contentType = response.headers?.['Content-Type'] || response.headers?.['content-type'] || '';
   const isJson = contentType.includes('json');
-  const isXml = contentType.includes('xml');
+  const isXml = contentType.includes('xml') && !contentType.includes('html');
+  const isHtml = contentType.includes('html');
   const isImage = isImageContentType(contentType);
   const bodySize = response.bodySize || (response.body ? response.body.length : 0);
 
@@ -211,6 +212,9 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
         )}
         {isXml && (
           <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded">XML</span>
+        )}
+        {isHtml && (
+          <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded">HTML</span>
         )}
         <span className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1">
           {response.resolvedUrl}
@@ -280,11 +284,11 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
           }
 
           // Text: existing behavior
-          if (isJson || isXml) {
+          if (isJson || isXml || isHtml) {
             return (
               <CodeEditor
                 value={isJson ? formatJson(response.body) : response.body}
-                language={isJson ? 'json' : 'xml'}
+                language={isJson ? 'json' : isXml ? 'xml' : 'html'}
                 readOnly
                 height="100%"
               />

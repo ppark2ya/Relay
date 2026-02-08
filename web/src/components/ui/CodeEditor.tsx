@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { xml } from '@codemirror/lang-xml';
+import { html } from '@codemirror/lang-html';
 import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { graphql as graphqlParser } from 'codemirror-graphql/cm6-legacy/mode';
 import { EditorView } from '@codemirror/view';
@@ -68,7 +69,7 @@ const darkEditorTheme = EditorView.theme({
 interface CodeEditorProps {
   value: string;
   onChange?: (value: string) => void;
-  language?: 'json' | 'graphql' | 'xml';
+  language?: 'json' | 'graphql' | 'xml' | 'html';
   placeholder?: string;
   height?: string;
   readOnly?: boolean;
@@ -93,6 +94,7 @@ export function CodeEditor({
     if (language === 'json') exts.push(json());
     if (language === 'graphql') exts.push(StreamLanguage.define(graphqlParser));
     if (language === 'xml') exts.push(xml());
+    if (language === 'html') exts.push(html());
     return exts;
   }, [language, isDark]);
 
