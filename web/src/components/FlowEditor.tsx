@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   useFlow,
   useFlowSteps,
@@ -20,7 +20,7 @@ interface FlowEditorProps {
 }
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
-const BODY_TYPES = ['none', 'json', 'text', 'xml', 'form-urlencoded', 'graphql'];
+const BODY_TYPES = ['none', 'json', 'text', 'xml', 'form-urlencoded', 'formdata', 'graphql'];
 
 interface StepEditState {
   name: string;
@@ -97,6 +97,20 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
       });
     }
   };
+
+  // Cmd+S / Ctrl+S to save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (flow) {
+          handleSave();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [flow, handleSave]);
 
   const handleRun = () => {
     if (flow) {
@@ -500,7 +514,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                           : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                       }`}
                                     >
-                                      {bt}
+                                      {bt === 'formdata' ? 'multipart' : bt}
                                     </button>
                                   ))}
                                 </div>
@@ -508,7 +522,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                   <CodeEditor
                                     value={edit.body}
                                     onChange={val => handleEditChange(step.id, 'body', val)}
-                                    language={edit.bodyType === 'json' ? 'json' : edit.bodyType === 'graphql' ? 'graphql' : undefined}
+                                    language={edit.bodyType === 'json' || edit.bodyType === 'formdata' ? 'json' : edit.bodyType === 'graphql' ? 'graphql' : edit.bodyType === 'xml' ? 'xml' : undefined}
                                     placeholder="Request body..."
                                     height="96px"
                                   />

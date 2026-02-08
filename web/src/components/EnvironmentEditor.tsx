@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   useEnvironments,
   useCreateEnvironment,
@@ -112,6 +112,19 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
       },
     });
   };
+
+  // Cmd+S / Ctrl+S to save
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, handleSave]);
 
   const handleDelete = () => {
     if (!selectedEnv) return;

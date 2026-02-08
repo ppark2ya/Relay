@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   useWorkspaces,
   useCreateWorkspace,
@@ -86,6 +86,19 @@ export function WorkspaceEditor({ isOpen, onClose, currentWorkspaceId, onSwitchW
       },
     });
   };
+
+  // Cmd+S / Ctrl+S to save
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, handleSave]);
 
   const handleDelete = () => {
     if (!selectedWs) return;

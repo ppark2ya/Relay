@@ -26,6 +26,13 @@ interface RequestEditorProps {
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS', 'WS'];
 
+/** Normalize legacy body type values to unified types */
+function normalizeBodyType(bt: string): string {
+  if (bt === 'raw') return 'text';
+  if (bt === 'form') return 'form-urlencoded';
+  return bt;
+}
+
 const COMMON_HEADERS = [
   'Accept',
   'Accept-Encoding',
@@ -223,7 +230,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setName(fullRequestData.name);
     setMethod(fullRequestData.method);
     setUrl(fullRequestData.url);
-    setBodyType(fullRequestData.bodyType || 'none');
+    setBodyType(normalizeBodyType(fullRequestData.bodyType || 'none'));
 
     if (fullRequestData.bodyType === 'graphql' && fullRequestData.body) {
       try {
@@ -239,7 +246,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       setGraphqlVariables('');
     }
 
-    setFormItems(fullRequestData.bodyType === 'form' ? parseFormBody(fullRequestData.body || '') : []);
+    setFormItems(fullRequestData.bodyType === 'form' || fullRequestData.bodyType === 'form-urlencoded' ? parseFormBody(fullRequestData.body || '') : []);
     if (fullRequestData.bodyType === 'formdata' && fullRequestData.body) {
       try {
         const parsed = JSON.parse(fullRequestData.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean }>;
@@ -265,10 +272,10 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setName(request.name);
     setMethod(request.method);
     setUrl(request.url);
-    setBodyType(request.bodyType || 'none');
+    setBodyType(normalizeBodyType(request.bodyType || 'none'));
     setBody(request.body || '');
     setGraphqlVariables('');
-    setFormItems(request.bodyType === 'form' ? parseFormBody(request.body || '') : []);
+    setFormItems(request.bodyType === 'form' || request.bodyType === 'form-urlencoded' ? parseFormBody(request.body || '') : []);
     if (request.bodyType === 'formdata' && request.body) {
       try {
         const parsed = JSON.parse(request.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean }>;
@@ -349,7 +356,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       // Build body based on type
       const bodyToSave = bodyType === 'graphql'
         ? buildGraphqlBody()
-        : bodyType === 'form'
+        : bodyType === 'form-urlencoded'
         ? buildFormBody(formItems)
         : bodyType === 'formdata'
         ? JSON.stringify(formDataItems.map(({ key, value, type, enabled }) => ({ key, value, type, enabled })))
@@ -375,6 +382,20 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       });
     }
   };
+
+  // Cmd+S / Ctrl+S to save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (request && !isFromHistory) {
+          handleSave();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [request, isFromHistory, handleSave]);
 
   const handleExecute = () => {
     if (!request) return;
@@ -406,14 +427,20 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     if (bodyType === 'graphql' && !headersObj['Content-Type']) {
       headersObj['Content-Type'] = 'application/json';
     }
-    if (bodyType === 'form' && !headersObj['Content-Type']) {
+    if (bodyType === 'form-urlencoded' && !headersObj['Content-Type']) {
       headersObj['Content-Type'] = 'application/x-www-form-urlencoded';
+    }
+    if (bodyType === 'text' && !headersObj['Content-Type']) {
+      headersObj['Content-Type'] = 'text/plain';
+    }
+    if (bodyType === 'xml' && !headersObj['Content-Type']) {
+      headersObj['Content-Type'] = 'application/xml';
     }
 
     const headersJson = JSON.stringify(headersObj, null, 2);
 
     // Build body based on type
-    const bodyToSend = bodyType === 'graphql' ? buildGraphqlBody() : bodyType === 'form' ? buildFormBody(formItems) : body;
+    const bodyToSend = bodyType === 'graphql' ? buildGraphqlBody() : bodyType === 'form-urlencoded' ? buildFormBody(formItems) : body;
 
     const onSettled = () => {
       onExecutingChange?.(false);
@@ -857,7 +884,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         {activeTab === 'body' && method !== 'WS' && (
           <div className="space-y-2">
             <div className="flex gap-4 text-sm">
-              {['none', 'json', 'form', 'formdata', 'raw', 'graphql'].map(type => (
+              {['none', 'json', 'text', 'xml', 'form-urlencoded', 'formdata', 'graphql'].map(type => (
                 <label key={type} className="flex items-center gap-1 dark:text-gray-200">
                   <input
                     type="radio"
@@ -865,7 +892,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                     checked={bodyType === type}
                     onChange={() => setBodyType(type)}
                   />
-                  {type === 'graphql' ? 'GraphQL' : type === 'formdata' ? 'Multipart' : type === 'form' ? 'URL Encoded' : type.charAt(0).toUpperCase() + type.slice(1)}
+                  {type === 'formdata' ? 'multipart' : type}
                 </label>
               ))}
             </div>
@@ -893,7 +920,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 </div>
               </div>
             )}
-            {bodyType === 'form' && (
+            {bodyType === 'form-urlencoded' && (
               <KeyValueEditor
                 items={formItems}
                 onChange={items => setFormItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
@@ -909,12 +936,12 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 onChange={setFormDataItems}
               />
             )}
-            {bodyType !== 'none' && bodyType !== 'graphql' && bodyType !== 'form' && bodyType !== 'formdata' && (
+            {bodyType !== 'none' && bodyType !== 'graphql' && bodyType !== 'form-urlencoded' && bodyType !== 'formdata' && (
               <CodeEditor
                 value={body}
                 onChange={setBody}
-                language={bodyType === 'json' ? 'json' : undefined}
-                placeholder={bodyType === 'json' ? '{\n  "key": "value"\n}' : 'Request body'}
+                language={bodyType === 'json' ? 'json' : bodyType === 'xml' ? 'xml' : undefined}
+                placeholder={bodyType === 'json' ? '{\n  "key": "value"\n}' : bodyType === 'xml' ? '<root>\n  <item>value</item>\n</root>' : 'Request body'}
                 height="128px"
               />
             )}

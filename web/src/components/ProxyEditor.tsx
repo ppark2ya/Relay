@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   useProxies,
   useCreateProxy,
@@ -95,6 +95,19 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
       },
     });
   };
+
+  // Cmd+S / Ctrl+S to save
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, handleSave]);
 
   const handleDelete = () => {
     if (!selectedProxy) return;
