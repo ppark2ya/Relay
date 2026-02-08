@@ -699,7 +699,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                     <svg className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/condition:block w-64 px-3 py-2 text-xs text-gray-100 bg-gray-800 dark:bg-gray-700 rounded-md shadow-lg z-50 font-normal leading-relaxed">
+                                    <span className="absolute bottom-full left-0 mb-1.5 hidden group-hover/condition:block w-64 px-3 py-2 text-xs text-gray-100 bg-gray-800 dark:bg-gray-700 rounded-md shadow-lg z-50 font-normal leading-relaxed">
                                       변수가 존재하고 비어있지 않으면 이 스텝을 실행합니다. 조건이 비어있으면 항상 실행됩니다.
                                       <span className="block mt-1 text-gray-400">예: {`{{token}}`} — token 변수가 있을 때만 실행</span>
                                     </span>
