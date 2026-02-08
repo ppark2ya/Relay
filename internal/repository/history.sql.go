@@ -13,8 +13,8 @@ import (
 const createHistory = `-- name: CreateHistory :one
 INSERT INTO request_history (
     request_id, flow_id, method, url, request_headers, request_body,
-    status_code, response_headers, response_body, duration_ms, error, workspace_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, request_id, flow_id, method, url, request_headers, request_body, status_code, response_headers, response_body, duration_ms, error, created_at, workspace_id
+    status_code, response_headers, response_body, duration_ms, error, body_size, is_binary, workspace_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, request_id, flow_id, method, url, request_headers, request_body, status_code, response_headers, response_body, duration_ms, error, body_size, is_binary, created_at, workspace_id
 `
 
 type CreateHistoryParams struct {
@@ -29,6 +29,8 @@ type CreateHistoryParams struct {
 	ResponseBody    sql.NullString `json:"response_body"`
 	DurationMs      sql.NullInt64  `json:"duration_ms"`
 	Error           sql.NullString `json:"error"`
+	BodySize        sql.NullInt64  `json:"body_size"`
+	IsBinary        sql.NullInt64  `json:"is_binary"`
 	WorkspaceID     int64          `json:"workspace_id"`
 }
 
@@ -45,6 +47,8 @@ func (q *Queries) CreateHistory(ctx context.Context, arg CreateHistoryParams) (R
 		arg.ResponseBody,
 		arg.DurationMs,
 		arg.Error,
+		arg.BodySize,
+		arg.IsBinary,
 		arg.WorkspaceID,
 	)
 	var i RequestHistory
@@ -61,6 +65,8 @@ func (q *Queries) CreateHistory(ctx context.Context, arg CreateHistoryParams) (R
 		&i.ResponseBody,
 		&i.DurationMs,
 		&i.Error,
+		&i.BodySize,
+		&i.IsBinary,
 		&i.CreatedAt,
 		&i.WorkspaceID,
 	)
@@ -86,7 +92,7 @@ func (q *Queries) DeleteOldHistory(ctx context.Context) error {
 }
 
 const getHistory = `-- name: GetHistory :one
-SELECT id, request_id, flow_id, method, url, request_headers, request_body, status_code, response_headers, response_body, duration_ms, error, created_at, workspace_id FROM request_history WHERE id = ? LIMIT 1
+SELECT id, request_id, flow_id, method, url, request_headers, request_body, status_code, response_headers, response_body, duration_ms, error, body_size, is_binary, created_at, workspace_id FROM request_history WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetHistory(ctx context.Context, id int64) (RequestHistory, error) {
@@ -105,6 +111,8 @@ func (q *Queries) GetHistory(ctx context.Context, id int64) (RequestHistory, err
 		&i.ResponseBody,
 		&i.DurationMs,
 		&i.Error,
+		&i.BodySize,
+		&i.IsBinary,
 		&i.CreatedAt,
 		&i.WorkspaceID,
 	)
@@ -112,7 +120,7 @@ func (q *Queries) GetHistory(ctx context.Context, id int64) (RequestHistory, err
 }
 
 const listHistory = `-- name: ListHistory :many
-SELECT id, request_id, flow_id, method, url, request_headers, request_body, status_code, response_headers, response_body, duration_ms, error, created_at, workspace_id FROM request_history WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?
+SELECT id, request_id, flow_id, method, url, request_headers, request_body, status_code, response_headers, response_body, duration_ms, error, body_size, is_binary, created_at, workspace_id FROM request_history WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?
 `
 
 type ListHistoryParams struct {
@@ -142,6 +150,8 @@ func (q *Queries) ListHistory(ctx context.Context, arg ListHistoryParams) ([]Req
 			&i.ResponseBody,
 			&i.DurationMs,
 			&i.Error,
+			&i.BodySize,
+			&i.IsBinary,
 			&i.CreatedAt,
 			&i.WorkspaceID,
 		); err != nil {
@@ -159,7 +169,7 @@ func (q *Queries) ListHistory(ctx context.Context, arg ListHistoryParams) ([]Req
 }
 
 const listHistoryByRequest = `-- name: ListHistoryByRequest :many
-SELECT id, request_id, flow_id, method, url, request_headers, request_body, status_code, response_headers, response_body, duration_ms, error, created_at, workspace_id FROM request_history WHERE request_id = ? ORDER BY created_at DESC LIMIT ?
+SELECT id, request_id, flow_id, method, url, request_headers, request_body, status_code, response_headers, response_body, duration_ms, error, body_size, is_binary, created_at, workspace_id FROM request_history WHERE request_id = ? ORDER BY created_at DESC LIMIT ?
 `
 
 type ListHistoryByRequestParams struct {
@@ -189,6 +199,8 @@ func (q *Queries) ListHistoryByRequest(ctx context.Context, arg ListHistoryByReq
 			&i.ResponseBody,
 			&i.DurationMs,
 			&i.Error,
+			&i.BodySize,
+			&i.IsBinary,
 			&i.CreatedAt,
 			&i.WorkspaceID,
 		); err != nil {

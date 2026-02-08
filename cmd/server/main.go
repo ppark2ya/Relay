@@ -247,6 +247,8 @@ CREATE TABLE IF NOT EXISTS request_history (
     response_body TEXT DEFAULT '',
     duration_ms INTEGER,
     error TEXT DEFAULT '',
+    body_size INTEGER DEFAULT 0,
+    is_binary INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -274,6 +276,9 @@ CREATE INDEX IF NOT EXISTS idx_history_created ON request_history(created_at DES
 
 	// Add workspaces table and workspace_id columns
 	migrateWorkspaces(db)
+
+	// Add binary response columns to request_history
+	migrateBinaryResponse(db)
 
 	return nil
 }
@@ -375,6 +380,16 @@ func migrateCookies(db *sql.DB) {
 	stmts := []string{
 		"ALTER TABLE requests ADD COLUMN cookies TEXT DEFAULT '{}'",
 		"ALTER TABLE flow_steps ADD COLUMN cookies TEXT DEFAULT '{}'",
+	}
+	for _, s := range stmts {
+		db.Exec(s) // Ignore "duplicate column" errors
+	}
+}
+
+func migrateBinaryResponse(db *sql.DB) {
+	stmts := []string{
+		"ALTER TABLE request_history ADD COLUMN body_size INTEGER DEFAULT 0",
+		"ALTER TABLE request_history ADD COLUMN is_binary INTEGER DEFAULT 0",
 	}
 	for _, s := range stmts {
 		db.Exec(s) // Ignore "duplicate column" errors

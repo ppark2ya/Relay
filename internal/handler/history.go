@@ -28,6 +28,8 @@ type HistoryResponse struct {
 	ResponseBody    string `json:"responseBody"`
 	DurationMs      *int64 `json:"durationMs,omitempty"`
 	Error           string `json:"error,omitempty"`
+	BodySize        int64  `json:"bodySize"`
+	IsBinary        bool   `json:"isBinary,omitempty"`
 	CreatedAt       string `json:"createdAt"`
 }
 
@@ -53,6 +55,8 @@ func (h *HistoryHandler) List(w http.ResponseWriter, r *http.Request) {
 			ResponseHeaders: hist.ResponseHeaders.String,
 			ResponseBody:    hist.ResponseBody.String,
 			Error:           hist.Error.String,
+			BodySize:        hist.BodySize.Int64,
+			IsBinary:        hist.IsBinary.Int64 != 0,
 			CreatedAt:       formatTime(hist.CreatedAt),
 		}
 		if hist.RequestID.Valid {
@@ -99,6 +103,8 @@ func (h *HistoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 		ResponseHeaders: hist.ResponseHeaders.String,
 		ResponseBody:    hist.ResponseBody.String,
 		Error:           hist.Error.String,
+		BodySize:        hist.BodySize.Int64,
+		IsBinary:        hist.IsBinary.Int64 != 0,
 		CreatedAt:       formatTime(hist.CreatedAt),
 	}
 	if hist.RequestID.Valid {

@@ -239,6 +239,8 @@ func (wr *WebSocketRelay) saveWSHistory(ctx context.Context, connectMsg wsEnvelo
 		ResponseBody:    sql.NullString{String: string(respBody), Valid: true},
 		DurationMs:      sql.NullInt64{Int64: durationMs, Valid: true},
 		Error:           sql.NullString{},
+		BodySize:        sql.NullInt64{Int64: int64(len(respBody)), Valid: true},
+		IsBinary:        sql.NullInt64{Int64: 0, Valid: true},
 		WorkspaceID:     workspaceID,
 	})
 }

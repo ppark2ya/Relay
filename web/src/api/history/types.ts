@@ -11,5 +11,7 @@ export interface History {
   responseBody: string;
   durationMs?: number;
   error?: string;
+  bodySize: number;
+  isBinary?: boolean;
   createdAt: string;
 }

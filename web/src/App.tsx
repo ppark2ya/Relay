@@ -127,7 +127,10 @@ function AppContent() {
     const historyResponse: ExecuteResult = {
       statusCode: item.statusCode || 0,
       headers: responseHeaders,
-      body: item.responseBody || '',
+      body: item.isBinary ? '' : (item.responseBody || ''),
+      bodyBase64: item.isBinary ? (item.responseBody || '') : undefined,
+      bodySize: item.bodySize || 0,
+      isBinary: item.isBinary,
       durationMs: item.durationMs || 0,
       error: item.error,
       resolvedUrl: item.url,

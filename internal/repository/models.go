@@ -96,6 +96,8 @@ type RequestHistory struct {
 	ResponseBody    sql.NullString `json:"response_body"`
 	DurationMs      sql.NullInt64  `json:"duration_ms"`
 	Error           sql.NullString `json:"error"`
+	BodySize        sql.NullInt64  `json:"body_size"`
+	IsBinary        sql.NullInt64  `json:"is_binary"`
 	CreatedAt       sql.NullTime   `json:"created_at"`
 	WorkspaceID     int64          `json:"workspace_id"`
 }

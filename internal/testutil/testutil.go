@@ -107,6 +107,8 @@ CREATE TABLE IF NOT EXISTS request_history (
     response_body TEXT DEFAULT '',
     duration_ms INTEGER,
     error TEXT DEFAULT '',
+    body_size INTEGER DEFAULT 0,
+    is_binary INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     workspace_id INTEGER NOT NULL DEFAULT 1 REFERENCES workspaces(id) ON DELETE CASCADE
 );

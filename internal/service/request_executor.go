@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -35,6 +36,9 @@ type ExecuteResult struct {
 	Headers           map[string]string   `json:"headers"`
 	MultiValueHeaders map[string][]string `json:"multiValueHeaders,omitempty"`
 	Body              string              `json:"body"`
+	BodyBase64        string              `json:"bodyBase64,omitempty"`
+	BodySize          int64               `json:"bodySize"`
+	IsBinary          bool                `json:"isBinary,omitempty"`
 	DurationMs        int64               `json:"durationMs"`
 	Error             string              `json:"error,omitempty"`
 	ResolvedURL       string              `json:"resolvedUrl"`
@@ -226,6 +230,38 @@ func (re *RequestExecutor) buildCookieHeader(ctx context.Context, cookiesJSON st
 	return strings.Join(pairs, "; ")
 }
 
+// isTextContentType returns true if the Content-Type indicates a text-based response.
+func isTextContentType(ct string) bool {
+	ct = strings.ToLower(ct)
+	if strings.HasPrefix(ct, "text/") {
+		return true
+	}
+	textTypes := []string{
+		"application/json", "application/xml", "application/javascript",
+		"application/ecmascript", "application/x-javascript",
+		"application/xhtml+xml", "application/soap+xml",
+		"application/graphql",
+	}
+	for _, t := range textTypes {
+		if strings.Contains(ct, t) {
+			return true
+		}
+	}
+	textSubstrings := []string{
+		"+json", "+xml", "yaml", "csv", "html", "css", "svg",
+		"text", "urlencoded",
+	}
+	for _, s := range textSubstrings {
+		if strings.Contains(ct, s) {
+			return true
+		}
+	}
+	if strings.HasPrefix(ct, "multipart/") {
+		return true
+	}
+	return false
+}
+
 func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repository.Request, runtimeVars map[string]string, formFiles map[int]FormDataFile) (*ExecuteResult, error) {
 	result := &ExecuteResult{}
 
@@ -317,15 +353,15 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 	}
 	defer resp.Body.Close()
 
-	// Read response
-	respBody, err := io.ReadAll(resp.Body)
+	// Read response (limit to 50MB)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 50*1024*1024))
 	if err != nil {
 		result.Error = err.Error()
 		return result, nil
 	}
 
 	result.StatusCode = resp.StatusCode
-	result.Body = string(respBody)
+	result.BodySize = int64(len(respBody))
 	result.Headers = make(map[string]string)
 	result.MultiValueHeaders = make(map[string][]string)
 	for k, v := range resp.Header {
@@ -335,6 +371,15 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 		if len(v) > 1 || strings.EqualFold(k, "Set-Cookie") {
 			result.MultiValueHeaders[k] = v
 		}
+	}
+
+	// Detect binary vs text based on Content-Type
+	ct := resp.Header.Get("Content-Type")
+	if ct == "" || isTextContentType(ct) {
+		result.Body = string(respBody)
+	} else {
+		result.IsBinary = true
+		result.BodyBase64 = base64.StdEncoding.EncodeToString(respBody)
 	}
 
 	// Save to history
@@ -396,6 +441,17 @@ func (re *RequestExecutor) saveHistory(ctx context.Context, req repository.Reque
 		body = req.Body.String
 	}
 
+	// For binary responses, store base64 in history; for text, store body as-is
+	responseBody := result.Body
+	if result.IsBinary {
+		responseBody = result.BodyBase64
+	}
+
+	var isBinaryInt int64
+	if result.IsBinary {
+		isBinaryInt = 1
+	}
+
 	wsID := middleware.GetWorkspaceID(ctx)
 	re.queries.CreateHistory(ctx, repository.CreateHistoryParams{
 		RequestID:       sql.NullInt64{Int64: req.ID, Valid: req.ID != 0},
@@ -406,9 +462,11 @@ func (re *RequestExecutor) saveHistory(ctx context.Context, req repository.Reque
 		RequestBody:     sql.NullString{String: body, Valid: true},
 		StatusCode:      sql.NullInt64{Int64: int64(result.StatusCode), Valid: result.StatusCode > 0},
 		ResponseHeaders: sql.NullString{String: string(respHeaders), Valid: true},
-		ResponseBody:    sql.NullString{String: result.Body, Valid: true},
+		ResponseBody:    sql.NullString{String: responseBody, Valid: true},
 		DurationMs:      sql.NullInt64{Int64: result.DurationMs, Valid: true},
 		Error:           sql.NullString{String: result.Error, Valid: result.Error != ""},
+		BodySize:        sql.NullInt64{Int64: result.BodySize, Valid: true},
+		IsBinary:        sql.NullInt64{Int64: isBinaryInt, Valid: true},
 		WorkspaceID:     wsID,
 	})
 }
