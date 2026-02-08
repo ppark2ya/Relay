@@ -110,8 +110,30 @@ History:      GET /api/history, GET/DELETE /api/history/:id
 - **WebSocket**: WS/WSS 서버 테스트 (Method 드롭다운에서 WS 선택, Go 릴레이 방식)
 - **Environments**: 변수 집합 관리, `{{변수}}` 치환
 - **Proxies**: 프록시 설정 (글로벌/요청별/Flow 단계별 오버라이드)
-- **Flows**: 요청 체이닝 (순차 실행, JSONPath 변수 추출)
+- **Flows**: 요청 체이닝 (순차 실행, JSONPath 변수 추출, 조건부 실행)
 - **History**: 실행 기록
+
+## Body Type 체계
+
+Requests와 Flows에서 통일된 body type 사용:
+
+```
+none | json | text | xml | form-urlencoded | formdata | graphql
+```
+
+| Body Type | 에디터 | Content-Type 자동 설정 |
+|-----------|--------|----------------------|
+| `none` | 없음 | — |
+| `json` | CodeEditor (json) | `application/json` |
+| `text` | CodeEditor (plain) | `text/plain` |
+| `xml` | CodeEditor (xml) | `application/xml` |
+| `form-urlencoded` | KeyValueEditor | `application/x-www-form-urlencoded` |
+| `formdata` | FormDataEditor | `multipart/form-data` |
+| `graphql` | CodeEditor (query) + CodeEditor (variables) | `application/json` |
+
+- **라벨**: 소문자 (`formdata` → `multipart` 표시)
+- **레거시 호환**: `normalizeBodyType()` 헬퍼가 `raw`→`text`, `form`→`form-urlencoded` 자동 변환
+- **Backend**: bodyType을 문자열로 저장, `formdata`만 multipart 특수 처리
 
 ## 환경 변수
 
@@ -157,6 +179,9 @@ History:      GET /api/history, GET/DELETE /api/history/:id
 ### 컴포넌트 구조
 
 - `components/`: UI 컴포넌트 (Header, Sidebar, RequestEditor, FlowEditor, WebSocketPanel, WorkspaceEditor 등)
+- `components/ui/CodeEditor.tsx`: CodeMirror 래퍼 (json, graphql, xml, html, css language 지원)
+- `components/ui/KeyValueEditor.tsx`: key-value 쌍 편집기 (params, headers, cookies, form-urlencoded)
+- `components/ui/FormDataEditor.tsx`: multipart form-data 편집기 (text/file 타입 지원)
 - `hooks/useWorkspace.ts`: 워크스페이스 Context (localStorage 기반 전환, 캐시 무효화)
 - `hooks/useWebSocket.ts`: WS 릴레이 연결/메시지 관리 훅
 - `hooks/useClickOutside.ts`: 드롭다운 외부 클릭 감지 훅
