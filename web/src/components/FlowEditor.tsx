@@ -12,7 +12,8 @@ import { useRequests } from '../api/requests';
 import { useProxies } from '../api/proxies';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Flow, FlowStep, FlowResult } from '../types';
-import { MethodBadge, EmptyState, FormField, INPUT_CLASS, CodeEditor } from './ui';
+import { MethodBadge, EmptyState, FormField, INPUT_CLASS, CodeEditor, KeyValueEditor, FormDataEditor } from './ui';
+import type { FormDataItem } from './ui';
 
 interface FlowEditorProps {
   flow: Flow | null;
@@ -29,20 +30,72 @@ interface StepEditState {
   headers: string;
   body: string;
   bodyType: string;
+  formItems: Array<{ key: string; value: string; enabled: boolean }>;
+  formDataItems: FormDataItem[];
+  graphqlVariables: string;
   delayMs: number;
   extractVars: string;
   condition: string;
   proxyId: number | null;
 }
 
+function parseFormBody(bodyStr: string): Array<{ key: string; value: string; enabled: boolean }> {
+  if (!bodyStr.trim()) return [];
+  return bodyStr.split('&').map(pair => {
+    const [k, ...rest] = pair.split('=');
+    return {
+      key: decodeURIComponent(k || ''),
+      value: decodeURIComponent(rest.join('=')),
+      enabled: true,
+    };
+  });
+}
+
+function buildFormBody(items: Array<{ key: string; value: string; enabled: boolean }>): string {
+  return items
+    .filter(i => i.enabled && i.key.trim())
+    .map(i => `${encodeURIComponent(i.key)}=${encodeURIComponent(i.value)}`)
+    .join('&');
+}
+
 function stepToEditState(step: FlowStep): StepEditState {
+  const bodyType = step.bodyType || 'none';
+  const body = step.body || '';
+
+  let parsedBody = body;
+  let graphqlVariables = '';
+  let formItems: Array<{ key: string; value: string; enabled: boolean }> = [];
+  let formDataItems: FormDataItem[] = [];
+
+  if (bodyType === 'graphql' && body) {
+    try {
+      const parsed = JSON.parse(body);
+      parsedBody = parsed.query || '';
+      graphqlVariables = parsed.variables ? JSON.stringify(parsed.variables, null, 2) : '';
+    } catch {
+      parsedBody = body;
+    }
+  } else if (bodyType === 'form-urlencoded') {
+    formItems = parseFormBody(body);
+  } else if (bodyType === 'formdata') {
+    try {
+      const parsed = JSON.parse(body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean }>;
+      formDataItems = parsed.map(item => ({ ...item, file: undefined }));
+    } catch {
+      formDataItems = [];
+    }
+  }
+
   return {
     name: step.name,
     method: step.method,
     url: step.url,
     headers: step.headers || '{}',
-    body: step.body || '',
-    bodyType: step.bodyType || 'none',
+    body: parsedBody,
+    bodyType,
+    formItems,
+    formDataItems,
+    graphqlVariables,
     delayMs: step.delayMs,
     extractVars: step.extractVars || '{}',
     condition: step.condition || '',
@@ -205,7 +258,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     }
   };
 
-  const handleEditChange = (stepId: number, field: keyof StepEditState, value: string | number) => {
+  const handleEditChange = (stepId: number, field: keyof StepEditState, value: string | number | Array<{ key: string; value: string; enabled: boolean }> | FormDataItem[]) => {
     setEditStates(prev => ({
       ...prev,
       [stepId]: { ...prev[stepId], [field]: value },
@@ -218,6 +271,20 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     if (!edit) return;
     const step = steps.find(s => s.id === stepId);
     if (!step) return;
+
+    // Build body based on bodyType
+    let bodyToSave = edit.body;
+    if (edit.bodyType === 'graphql') {
+      const graphqlPayload: { query: string; variables?: Record<string, unknown> } = { query: edit.body };
+      if (edit.graphqlVariables.trim()) {
+        try { graphqlPayload.variables = JSON.parse(edit.graphqlVariables); } catch { /* ignore */ }
+      }
+      bodyToSave = JSON.stringify(graphqlPayload);
+    } else if (edit.bodyType === 'form-urlencoded') {
+      bodyToSave = buildFormBody(edit.formItems);
+    } else if (edit.bodyType === 'formdata') {
+      bodyToSave = JSON.stringify(edit.formDataItems.map(({ key, value, type, enabled }) => ({ key, value, type, enabled })));
+    }
 
     updateStep.mutate({
       flowId: flow.id,
@@ -232,7 +299,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
         method: edit.method,
         url: edit.url,
         headers: edit.headers,
-        body: edit.body,
+        body: bodyToSave,
         bodyType: edit.bodyType,
         proxyId: edit.proxyId === null ? -1 : edit.proxyId,
       },
@@ -518,12 +585,52 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                                     </button>
                                   ))}
                                 </div>
-                                {edit.bodyType !== 'none' && (
+                                {edit.bodyType === 'graphql' && (
+                                  <div className="space-y-2">
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Query</label>
+                                      <CodeEditor
+                                        value={edit.body}
+                                        onChange={val => handleEditChange(step.id, 'body', val)}
+                                        language="graphql"
+                                        placeholder="{ health }"
+                                        height="96px"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Variables (JSON)</label>
+                                      <CodeEditor
+                                        value={edit.graphqlVariables}
+                                        onChange={val => handleEditChange(step.id, 'graphqlVariables', val)}
+                                        language="json"
+                                        placeholder='{ "id": "123" }'
+                                        height="80px"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                {edit.bodyType === 'form-urlencoded' && (
+                                  <KeyValueEditor
+                                    items={edit.formItems}
+                                    onChange={items => handleEditChange(step.id, 'formItems', items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
+                                    showEnabled
+                                    keyPlaceholder="Field name"
+                                    valuePlaceholder="Value"
+                                    addLabel="+ Add Field"
+                                  />
+                                )}
+                                {edit.bodyType === 'formdata' && (
+                                  <FormDataEditor
+                                    items={edit.formDataItems}
+                                    onChange={items => handleEditChange(step.id, 'formDataItems', items)}
+                                  />
+                                )}
+                                {edit.bodyType !== 'none' && edit.bodyType !== 'graphql' && edit.bodyType !== 'form-urlencoded' && edit.bodyType !== 'formdata' && (
                                   <CodeEditor
                                     value={edit.body}
                                     onChange={val => handleEditChange(step.id, 'body', val)}
-                                    language={edit.bodyType === 'json' || edit.bodyType === 'formdata' ? 'json' : edit.bodyType === 'graphql' ? 'graphql' : edit.bodyType === 'xml' ? 'xml' : undefined}
-                                    placeholder="Request body..."
+                                    language={edit.bodyType === 'json' ? 'json' : edit.bodyType === 'xml' ? 'xml' : undefined}
+                                    placeholder={edit.bodyType === 'json' ? '{\n  "key": "value"\n}' : edit.bodyType === 'xml' ? '<root>\n  <item>value</item>\n</root>' : 'Request body...'}
                                     height="96px"
                                   />
                                 )}
