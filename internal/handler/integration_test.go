@@ -1,9 +1,12 @@
 package handler_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -467,4 +470,254 @@ func TestIntegration_ExecuteWithOverrides(t *testing.T) {
 	if echoBody["path"] != "/overridden" {
 		t.Errorf("expected overridden path /overridden, got %q", echoBody["path"])
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 6: Execute with multipart/form-data (text fields + file)
+// ---------------------------------------------------------------------------
+func TestIntegration_ExecuteFormData(t *testing.T) {
+	var receivedFields map[string]string
+	var receivedFiles map[string][]byte
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ct := r.Header.Get("Content-Type")
+		_, params, _ := mime.ParseMediaType(ct)
+		reader := multipart.NewReader(r.Body, params["boundary"])
+
+		receivedFields = make(map[string]string)
+		receivedFiles = make(map[string][]byte)
+
+		for {
+			part, err := reader.NextPart()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				break
+			}
+			data, _ := io.ReadAll(part)
+			if part.FileName() != "" {
+				receivedFiles[part.FormName()] = data
+			} else {
+				receivedFields[part.FormName()] = string(data)
+			}
+			part.Close()
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]int{
+			"fields": len(receivedFields),
+			"files":  len(receivedFiles),
+		})
+	}))
+	defer mock.Close()
+
+	ts := setupTestServer(t, mock)
+
+	// 1. Create request with formdata body type
+	items := fmt.Sprintf(`[{"key":"name","value":"relay","type":"text","enabled":true},{"key":"upload","value":"data.bin","type":"file","enabled":true}]`)
+	resp, err := postJSON(ts.URL+"/api/requests", fmt.Sprintf(`{
+		"name":"FormData Request",
+		"method":"POST",
+		"url":"%s/upload",
+		"headers":"{}",
+		"body":%s,
+		"bodyType":"formdata"
+	}`, mock.URL, toJSONString(items)))
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+	var req struct{ ID int64 `json:"id"` }
+	readJSON(t, resp, &req)
+
+	// 2. Execute via multipart form with a file
+	metadata := fmt.Sprintf(`{"method":"POST","url":"%s/upload","headers":"{}","bodyType":"formdata"}`, mock.URL)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	writer.WriteField("_metadata", metadata)
+	writer.WriteField("_items", items)
+
+	// Add a file for index 1 (the "upload" field)
+	filePart, _ := writer.CreateFormFile("file_1", "data.bin")
+	filePart.Write([]byte("binary-content-here"))
+	writer.Close()
+
+	httpReq, _ := http.NewRequest("POST", ts.URL+fmt.Sprintf("/api/requests/%d/execute", req.ID), &body)
+	httpReq.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err = http.DefaultClient.Do(httpReq)
+	if err != nil {
+		t.Fatalf("execute formdata: %v", err)
+	}
+	var result service.ExecuteResult
+	readJSON(t, resp, &result)
+
+	// 3. Verify
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	if result.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", result.StatusCode)
+	}
+	if receivedFields["name"] != "relay" {
+		t.Errorf("text field 'name': got %q, want %q", receivedFields["name"], "relay")
+	}
+	if string(receivedFiles["upload"]) != "binary-content-here" {
+		t.Errorf("file 'upload': got %q, want %q", string(receivedFiles["upload"]), "binary-content-here")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 7: Adhoc execute with multipart/form-data
+// ---------------------------------------------------------------------------
+func TestIntegration_AdhocExecuteFormData(t *testing.T) {
+	var receivedFields map[string]string
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ct := r.Header.Get("Content-Type")
+		_, params, _ := mime.ParseMediaType(ct)
+		reader := multipart.NewReader(r.Body, params["boundary"])
+
+		receivedFields = make(map[string]string)
+		for {
+			part, err := reader.NextPart()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				break
+			}
+			data, _ := io.ReadAll(part)
+			if part.FileName() == "" {
+				receivedFields[part.FormName()] = string(data)
+			}
+			part.Close()
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer mock.Close()
+
+	ts := setupTestServer(t, mock)
+
+	items := `[{"key":"color","value":"blue","type":"text","enabled":true},{"key":"size","value":"large","type":"text","enabled":true}]`
+	metadata := fmt.Sprintf(`{"method":"POST","url":"%s/form","headers":"{}"}`, mock.URL)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	writer.WriteField("_metadata", metadata)
+	writer.WriteField("_items", items)
+	writer.Close()
+
+	httpReq, _ := http.NewRequest("POST", ts.URL+"/api/execute", &body)
+	httpReq.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		t.Fatalf("adhoc execute formdata: %v", err)
+	}
+	var result service.ExecuteResult
+	readJSON(t, resp, &result)
+
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	if result.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", result.StatusCode)
+	}
+	if receivedFields["color"] != "blue" {
+		t.Errorf("field 'color': got %q, want %q", receivedFields["color"], "blue")
+	}
+	if receivedFields["size"] != "large" {
+		t.Errorf("field 'size': got %q, want %q", receivedFields["size"], "large")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 8: FormData text-only (no files) via saved request
+// ---------------------------------------------------------------------------
+func TestIntegration_ExecuteFormDataTextOnly(t *testing.T) {
+	var receivedFields map[string]string
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ct := r.Header.Get("Content-Type")
+		_, params, _ := mime.ParseMediaType(ct)
+		reader := multipart.NewReader(r.Body, params["boundary"])
+
+		receivedFields = make(map[string]string)
+		for {
+			part, err := reader.NextPart()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				break
+			}
+			data, _ := io.ReadAll(part)
+			receivedFields[part.FormName()] = string(data)
+			part.Close()
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer mock.Close()
+
+	ts := setupTestServer(t, mock)
+
+	items := `[{"key":"q","value":"relay","type":"text","enabled":true}]`
+	metadata := fmt.Sprintf(`{"method":"POST","url":"%s/search","headers":"{}","bodyType":"formdata"}`, mock.URL)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	writer.WriteField("_metadata", metadata)
+	writer.WriteField("_items", items)
+	writer.Close()
+
+	// Create request first
+	resp, _ := postJSON(ts.URL+"/api/requests", fmt.Sprintf(`{
+		"name":"Search FormData",
+		"method":"POST",
+		"url":"%s/search",
+		"headers":"{}",
+		"body":%s,
+		"bodyType":"formdata"
+	}`, mock.URL, toJSONString(items)))
+	var req struct{ ID int64 `json:"id"` }
+	readJSON(t, resp, &req)
+
+	// Execute via multipart (text only, no files)
+	var body2 bytes.Buffer
+	writer2 := multipart.NewWriter(&body2)
+	writer2.WriteField("_metadata", metadata)
+	writer2.WriteField("_items", items)
+	writer2.Close()
+
+	httpReq, _ := http.NewRequest("POST", ts.URL+fmt.Sprintf("/api/requests/%d/execute", req.ID), &body2)
+	httpReq.Header.Set("Content-Type", writer2.FormDataContentType())
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		t.Fatalf("execute formdata text-only: %v", err)
+	}
+	var result service.ExecuteResult
+	readJSON(t, resp, &result)
+
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	if result.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", result.StatusCode)
+	}
+	if receivedFields["q"] != "relay" {
+		t.Errorf("field 'q': got %q, want %q", receivedFields["q"], "relay")
+	}
+}
+
+// toJSONString escapes a raw string as a JSON string value.
+func toJSONString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }
