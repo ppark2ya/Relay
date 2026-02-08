@@ -142,7 +142,7 @@ test.describe('History - Click to Load', () => {
     await expect(urlInput).toHaveValue(/jsonplaceholder.*posts\/1/);
 
     // Save button should NOT be visible (since it's from history with id=0)
-    await expect(page.getByRole('button', { name: 'Save' })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).not.toBeVisible();
 
     // Send button should be visible
     await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
