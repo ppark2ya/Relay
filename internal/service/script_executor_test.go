@@ -1,7 +1,9 @@
 package service
 
 import (
+	"strconv"
 	"testing"
+	"time"
 )
 
 func TestScriptExecutor_Assertions(t *testing.T) {
@@ -370,5 +372,27 @@ func TestScriptExecutor_BuiltinVariables(t *testing.T) {
 				t.Errorf("resolveVariables(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+
+	// __timestamp__: should return current Unix milliseconds
+	ts := se.resolveVariables("{{__timestamp__}}", ctx)
+	tsVal, err := strconv.ParseInt(ts, 10, 64)
+	if err != nil {
+		t.Errorf("__timestamp__ should be numeric, got %q", ts)
+	}
+	now := time.Now().UnixMilli()
+	if tsVal < now-1000 || tsVal > now+1000 {
+		t.Errorf("__timestamp__ = %d, expected close to %d", tsVal, now)
+	}
+
+	// __uuid__: should return valid UUID v4 format
+	uid := se.resolveVariables("{{__uuid__}}", ctx)
+	if len(uid) != 36 {
+		t.Errorf("__uuid__ length = %d, want 36, got %q", len(uid), uid)
+	}
+	// Each call should produce a different UUID
+	uid2 := se.resolveVariables("{{__uuid__}}", ctx)
+	if uid == uid2 {
+		t.Errorf("__uuid__ should generate unique values, got same: %q", uid)
 	}
 }

@@ -6,8 +6,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/PaesslerAG/jsonpath"
+	"github.com/google/uuid"
 )
 
 // FlowAction represents the action to take after script execution
@@ -439,6 +441,10 @@ func (se *ScriptExecutor) resolveVariables(s string, ctx *ScriptContext) string 
 			return fmt.Sprintf("%d", ctx.StepOrder)
 		case "__flowName__":
 			return ctx.FlowName
+		case "__timestamp__":
+			return strconv.FormatInt(time.Now().UnixMilli(), 10)
+		case "__uuid__":
+			return uuid.New().String()
 		}
 
 		if val, ok := ctx.RuntimeVars[varName]; ok {

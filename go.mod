@@ -6,12 +6,12 @@ require (
 	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/coder/websocket v1.8.14
 	github.com/go-chi/chi/v5 v5.0.10
+	github.com/google/uuid v1.6.0
 	modernc.org/sqlite v1.20.0
 )
 
 require (
 	github.com/PaesslerAG/gval v1.0.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-sqlite3 v1.14.33 // indirect
