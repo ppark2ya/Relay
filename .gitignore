@@ -10,6 +10,9 @@ relay-e2e
 *.db
 *.db-journal
 
+# Uploads
+uploads/
+
 # Frontend
 web/node_modules/
 web/dist/
