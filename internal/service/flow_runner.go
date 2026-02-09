@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"relay/internal/repository"
@@ -32,6 +33,8 @@ type StepResult struct {
 	ExtractedVars map[string]string `json:"extractedVars"`
 	Skipped       bool              `json:"skipped"`
 	SkipReason    string            `json:"skipReason,omitempty"`
+	Iteration     int64             `json:"iteration,omitempty"`
+	LoopCount     int64             `json:"loopCount,omitempty"`
 }
 
 type FlowResult struct {
@@ -43,7 +46,7 @@ type FlowResult struct {
 	Error       string       `json:"error,omitempty"`
 }
 
-func (fr *FlowRunner) Run(ctx context.Context, flowID int64) (*FlowResult, error) {
+func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []int64) (*FlowResult, error) {
 	flow, err := fr.queries.GetFlow(ctx, flowID)
 	if err != nil {
 		return nil, err
@@ -61,88 +64,116 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64) (*FlowResult, error
 		Success:  true,
 	}
 
+	// Build set of selected step IDs for quick lookup
+	selectedSet := make(map[int64]bool)
+	for _, id := range selectedStepIDs {
+		selectedSet[id] = true
+	}
+
 	// Runtime variables accumulated during flow execution
 	runtimeVars := make(map[string]string)
 	startTime := time.Now()
 
 	for _, step := range steps {
+		// Skip step if not in selected list (when selection is provided)
+		if len(selectedStepIDs) > 0 && !selectedSet[step.ID] {
+			continue
+		}
+
 		var reqID *int64
 		if step.RequestID.Valid {
 			reqID = &step.RequestID.Int64
 		}
 
-		stepResult := StepResult{
-			StepID:        step.ID,
-			RequestID:     reqID,
-			RequestName:   step.Name,
-			ExtractedVars: make(map[string]string),
+		loopCount := step.LoopCount.Int64
+		if loopCount < 1 {
+			loopCount = 1
 		}
 
-		// Build request from step's inline fields
-		req := repository.Request{
-			Name:     step.Name,
-			Method:   step.Method,
-			Url:      step.Url,
-			Headers:  step.Headers,
-			Body:     step.Body,
-			BodyType: step.BodyType,
-			Cookies:  step.Cookies,
-			ProxyID:  step.ProxyID,
-		}
+		// Loop execution
+		for iteration := int64(1); iteration <= loopCount; iteration++ {
+			// Add iteration info to runtime vars
+			runtimeVars["__iteration__"] = strconv.FormatInt(iteration, 10)
+			runtimeVars["__loopCount__"] = strconv.FormatInt(loopCount, 10)
 
-		if step.Url == "" {
-			stepResult.ExecuteResult = &ExecuteResult{Error: "step has no URL configured"}
-			result.Steps = append(result.Steps, stepResult)
-			result.Success = false
-			result.Error = "step has no URL configured"
-			break
-		}
-
-		// Check condition
-		if step.Condition.Valid && step.Condition.String != "" {
-			conditionMet, err := fr.evaluateCondition(step.Condition.String, runtimeVars)
-			if err != nil || !conditionMet {
-				stepResult.Skipped = true
-				stepResult.SkipReason = "Condition not met"
-				result.Steps = append(result.Steps, stepResult)
-				continue
+			stepResult := StepResult{
+				StepID:        step.ID,
+				RequestID:     reqID,
+				RequestName:   step.Name,
+				ExtractedVars: make(map[string]string),
+				Iteration:     iteration,
+				LoopCount:     loopCount,
 			}
-		}
 
-		// Apply delay
-		if step.DelayMs.Valid && step.DelayMs.Int64 > 0 {
-			time.Sleep(time.Duration(step.DelayMs.Int64) * time.Millisecond)
-		}
+			// Build request from step's inline fields
+			req := repository.Request{
+				Name:     step.Name,
+				Method:   step.Method,
+				Url:      step.Url,
+				Headers:  step.Headers,
+				Body:     step.Body,
+				BodyType: step.BodyType,
+				Cookies:  step.Cookies,
+				ProxyID:  step.ProxyID,
+			}
 
-		// Execute request using inline fields
-		execResult, err := fr.requestExecutor.ExecuteRequest(ctx, req, runtimeVars)
-		if err != nil {
-			stepResult.ExecuteResult = &ExecuteResult{Error: err.Error()}
-			result.Steps = append(result.Steps, stepResult)
-			result.Success = false
-			result.Error = err.Error()
-			break
-		}
-		stepResult.ExecuteResult = execResult
+			if step.Url == "" {
+				stepResult.ExecuteResult = &ExecuteResult{Error: "step has no URL configured"}
+				result.Steps = append(result.Steps, stepResult)
+				result.Success = false
+				result.Error = "step has no URL configured"
+				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				return result, nil
+			}
 
-		// Extract variables from response
-		if step.ExtractVars.Valid && step.ExtractVars.String != "" {
-			extracted, err := fr.extractVariables(execResult.Body, step.ExtractVars.String)
-			if err == nil {
-				stepResult.ExtractedVars = extracted
-				for k, v := range extracted {
-					runtimeVars[k] = v
+			// Check condition
+			if step.Condition.Valid && step.Condition.String != "" {
+				conditionMet, err := fr.evaluateCondition(step.Condition.String, runtimeVars)
+				if err != nil || !conditionMet {
+					stepResult.Skipped = true
+					stepResult.SkipReason = "Condition not met"
+					result.Steps = append(result.Steps, stepResult)
+					continue
 				}
 			}
-		}
 
-		result.Steps = append(result.Steps, stepResult)
+			// Apply delay
+			if step.DelayMs.Valid && step.DelayMs.Int64 > 0 {
+				time.Sleep(time.Duration(step.DelayMs.Int64) * time.Millisecond)
+			}
 
-		// Check if request failed
-		if execResult.Error != "" {
-			result.Success = false
-			result.Error = execResult.Error
-			break
+			// Execute request using inline fields
+			execResult, err := fr.requestExecutor.ExecuteRequest(ctx, req, runtimeVars)
+			if err != nil {
+				stepResult.ExecuteResult = &ExecuteResult{Error: err.Error()}
+				result.Steps = append(result.Steps, stepResult)
+				result.Success = false
+				result.Error = err.Error()
+				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				return result, nil
+			}
+			stepResult.ExecuteResult = execResult
+
+			// Extract variables from response
+			if step.ExtractVars.Valid && step.ExtractVars.String != "" {
+				extracted, err := fr.extractVariables(execResult.Body, step.ExtractVars.String)
+				if err == nil {
+					stepResult.ExtractedVars = extracted
+					for k, v := range extracted {
+						runtimeVars[k] = v
+					}
+				}
+			}
+
+			result.Steps = append(result.Steps, stepResult)
+
+			// Check if request failed
+			if execResult.Error != "" {
+				result.Success = false
+				result.Error = execResult.Error
+				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				return result, nil
+			}
 		}
 	}
 

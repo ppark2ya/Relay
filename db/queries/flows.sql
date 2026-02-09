@@ -21,8 +21,8 @@ SELECT * FROM flow_steps WHERE flow_id = ? ORDER BY step_order;
 
 -- name: CreateFlowStep :one
 INSERT INTO flow_steps (flow_id, request_id, step_order, delay_ms, extract_vars, condition,
-                        name, method, url, headers, body, body_type, cookies, proxy_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+                        name, method, url, headers, body, body_type, cookies, proxy_id, loop_count)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 -- name: UpdateFlowStep :one
 UPDATE flow_steps SET
@@ -39,6 +39,7 @@ UPDATE flow_steps SET
     body_type = ?,
     cookies = ?,
     proxy_id = ?,
+    loop_count = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ? RETURNING *;
 

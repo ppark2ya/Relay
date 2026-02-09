@@ -49,7 +49,7 @@ func TestFlowRunner_SingleStep(t *testing.T) {
 		{Name: "step1", Method: "GET", Url: ts.URL},
 	})
 
-	result, err := fr.Run(context.Background(), flowID)
+	result, err := fr.Run(context.Background(), flowID, nil)
 	if err != nil {
 		t.Fatalf("run flow: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestFlowRunner_MultipleStepsSequential(t *testing.T) {
 		{Name: "step2", Method: "GET", Url: ts.URL + "/second"},
 	})
 
-	result, err := fr.Run(context.Background(), flowID)
+	result, err := fr.Run(context.Background(), flowID, nil)
 	if err != nil {
 		t.Fatalf("run flow: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestFlowRunner_StepWithNoURL(t *testing.T) {
 		t.Fatalf("create step: %v", err)
 	}
 
-	result, err := fr.Run(ctx, flow.ID)
+	result, err := fr.Run(ctx, flow.ID, nil)
 	if err != nil {
 		t.Fatalf("run should not return error: %v", err)
 	}

@@ -48,7 +48,8 @@ export const useDuplicateFlow = () => {
 export const useRunFlow = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: api.runFlow,
+    mutationFn: ({ flowId, stepIds }: { flowId: number; stepIds?: number[] }) =>
+      api.runFlow(flowId, stepIds),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.history }),
   });
 };

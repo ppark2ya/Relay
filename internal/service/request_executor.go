@@ -313,6 +313,20 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 			body, _ = re.variableResolver.Resolve(ctx, req.Body.String, runtimeVars)
 		}
 		bodyReader = bytes.NewBufferString(body)
+
+		// Auto-set Content-Type based on body type if not already set
+		if _, hasContentType := resolvedHeaders["Content-Type"]; !hasContentType && bodyType != "" && bodyType != "none" {
+			switch bodyType {
+			case "json", "graphql":
+				resolvedHeaders["Content-Type"] = "application/json"
+			case "xml":
+				resolvedHeaders["Content-Type"] = "application/xml"
+			case "text":
+				resolvedHeaders["Content-Type"] = "text/plain"
+			case "form-urlencoded":
+				resolvedHeaders["Content-Type"] = "application/x-www-form-urlencoded"
+			}
+		}
 	}
 
 	// Create request

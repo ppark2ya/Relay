@@ -55,6 +55,7 @@ type FlowStep struct {
 	CreatedAt   sql.NullTime   `json:"created_at"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
 	WorkspaceID int64          `json:"workspace_id"`
+	LoopCount   sql.NullInt64  `json:"loop_count"`
 }
 
 type Proxy struct {

@@ -46,6 +46,11 @@ type FlowStepRequest struct {
 	BodyType    string `json:"bodyType"`
 	Cookies     string `json:"cookies"`
 	ProxyID     *int64 `json:"proxyId"`
+	LoopCount   int64  `json:"loopCount"`
+}
+
+type RunFlowRequest struct {
+	StepIDs []int64 `json:"stepIds"`
 }
 
 type FlowStepResponse struct {
@@ -64,6 +69,7 @@ type FlowStepResponse struct {
 	BodyType    string `json:"bodyType"`
 	Cookies     string `json:"cookies"`
 	ProxyID     *int64 `json:"proxyId"`
+	LoopCount   int64  `json:"loopCount"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
 }
@@ -77,6 +83,10 @@ func toFlowStepResponse(s repository.FlowStep) FlowStepResponse {
 	if s.ProxyID.Valid {
 		pid := s.ProxyID.Int64
 		proxyID = &pid
+	}
+	loopCount := s.LoopCount.Int64
+	if loopCount < 1 {
+		loopCount = 1
 	}
 	return FlowStepResponse{
 		ID:          s.ID,
@@ -94,6 +104,7 @@ func toFlowStepResponse(s repository.FlowStep) FlowStepResponse {
 		BodyType:    s.BodyType.String,
 		Cookies:     s.Cookies.String,
 		ProxyID:     proxyID,
+		LoopCount:   loopCount,
 		CreatedAt:   formatTime(s.CreatedAt),
 		UpdatedAt:   formatTime(s.UpdatedAt),
 	}
@@ -224,7 +235,13 @@ func (h *FlowHandler) Run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.runner.Run(r.Context(), id)
+	var req RunFlowRequest
+	if err := decodeJSON(r, &req); err != nil {
+		// Ignore decode error for backwards compatibility (empty body)
+		req.StepIDs = nil
+	}
+
+	result, err := h.runner.Run(r.Context(), id, req.StepIDs)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -287,6 +304,7 @@ func (h *FlowHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 			BodyType:    s.BodyType,
 			Cookies:     s.Cookies,
 			ProxyID:     s.ProxyID,
+			LoopCount:   s.LoopCount,
 		})
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
@@ -374,6 +392,11 @@ func (h *FlowHandler) CreateStep(w http.ResponseWriter, r *http.Request) {
 		req.Cookies = "{}"
 	}
 
+	loopCount := req.LoopCount
+	if loopCount < 1 {
+		loopCount = 1
+	}
+
 	step, err := h.queries.CreateFlowStep(r.Context(), repository.CreateFlowStepParams{
 		FlowID:      flowID,
 		RequestID:   reqID,
@@ -389,6 +412,7 @@ func (h *FlowHandler) CreateStep(w http.ResponseWriter, r *http.Request) {
 		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
 		Cookies:     sql.NullString{String: req.Cookies, Valid: true},
 		ProxyID:     proxyID,
+		LoopCount:   sql.NullInt64{Int64: loopCount, Valid: true},
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -426,6 +450,11 @@ func (h *FlowHandler) UpdateStep(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	loopCount := req.LoopCount
+	if loopCount < 1 {
+		loopCount = 1
+	}
+
 	step, err := h.queries.UpdateFlowStep(r.Context(), repository.UpdateFlowStepParams{
 		ID:          stepID,
 		RequestID:   reqID,
@@ -441,6 +470,7 @@ func (h *FlowHandler) UpdateStep(w http.ResponseWriter, r *http.Request) {
 		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
 		Cookies:     sql.NullString{String: req.Cookies, Valid: true},
 		ProxyID:     proxyID,
+		LoopCount:   sql.NullInt64{Int64: loopCount, Valid: true},
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())

@@ -23,6 +23,7 @@ export interface FlowStep {
   body: string;
   bodyType: string;
   proxyId?: number | null;
+  loopCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,4 +45,6 @@ export interface StepResult {
   extractedVars: Record<string, string>;
   skipped: boolean;
   skipReason?: string;
+  iteration?: number;
+  loopCount?: number;
 }

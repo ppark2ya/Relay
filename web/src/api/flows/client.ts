@@ -16,8 +16,10 @@ export const deleteFlow = (id: number) => api.delete(`flows/${id}`);
 export const duplicateFlow = (id: number) =>
   api.post(`flows/${id}/duplicate`).json<Flow>();
 
-export const runFlow = (id: number) =>
-  api.post(`flows/${id}/run`).json<FlowResult>();
+export const runFlow = (id: number, stepIds?: number[]) =>
+  api.post(`flows/${id}/run`, {
+    json: stepIds && stepIds.length > 0 ? { stepIds } : {}
+  }).json<FlowResult>();
 
 export const getFlowSteps = (flowId: number) =>
   api.get(`flows/${flowId}/steps`).json<FlowStep[]>();
