@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useUpdateCollection } from '../api/collections';
-import { useCreateRequest, useDeleteRequest, useDuplicateRequest } from '../api/requests';
-import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow } from '../api/flows';
+import { useCreateRequest, useDeleteRequest, useDuplicateRequest, useUpdateRequest } from '../api/requests';
+import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useUpdateFlow } from '../api/flows';
 import { useHistory, useDeleteHistory } from '../api/history';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, Collection, Flow, History } from '../types';
@@ -80,8 +80,10 @@ function CollectionTree({
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [lastAutoExpanded, setLastAutoExpanded] = useState<number | undefined>(undefined);
   const [editingCollectionId, setEditingCollectionId] = useState<number | null>(null);
+  const [editingRequestId, setEditingRequestId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const updateCollection = useUpdateCollection();
+  const updateRequest = useUpdateRequest();
 
   // Render-time state adjustment (React recommended pattern)
   if (selectedRequestId && selectedRequestId !== lastAutoExpanded) {
@@ -214,7 +216,46 @@ function CollectionTree({
                   }`}
                 >
                   <MethodBadge method={request.method} />
-                  <span className="flex-1 text-sm truncate dark:text-gray-200">{request.name}</span>
+                  {editingRequestId === request.id ? (
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const trimmed = editName.trim();
+                          if (trimmed && trimmed !== request.name) {
+                            updateRequest.mutate({ id: request.id, data: { ...request, name: trimmed } });
+                          }
+                          setEditingRequestId(null);
+                        }
+                        if (e.key === 'Escape') {
+                          setEditingRequestId(null);
+                        }
+                      }}
+                      onBlur={() => {
+                        const trimmed = editName.trim();
+                        if (trimmed && trimmed !== request.name) {
+                          updateRequest.mutate({ id: request.id, data: { ...request, name: trimmed } });
+                        }
+                        setEditingRequestId(null);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                      className="flex-1 text-sm bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
+                    />
+                  ) : (
+                    <span
+                      className="flex-1 text-sm truncate dark:text-gray-200"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setEditingRequestId(request.id);
+                        setEditName(request.name);
+                      }}
+                    >
+                      {request.name}
+                    </span>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); onDuplicateRequest(request.id); }}
                     className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
@@ -274,6 +315,9 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const [showNewCollection, setShowNewCollection] = useState(false);
   const [newFlowName, setNewFlowName] = useState('');
   const [showNewFlow, setShowNewFlow] = useState(false);
+  const [editingFlowId, setEditingFlowId] = useState<number | null>(null);
+  const [editFlowName, setEditFlowName] = useState('');
+  const updateFlow = useUpdateFlow();
   const [expandedDateGroups, setExpandedDateGroups] = useState<Set<string>>(new Set(['Today', 'Yesterday']));
 
   const dateGroups = useMemo(() => groupHistoryByDate(history), [history]);
@@ -399,7 +443,46 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                   >
                     <div className="flex items-center">
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate dark:text-gray-200">{flow.name}</div>
+                        {editingFlowId === flow.id ? (
+                          <input
+                            type="text"
+                            value={editFlowName}
+                            onChange={(e) => setEditFlowName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const trimmed = editFlowName.trim();
+                                if (trimmed && trimmed !== flow.name) {
+                                  updateFlow.mutate({ id: flow.id, data: { name: trimmed, description: flow.description || '' } });
+                                }
+                                setEditingFlowId(null);
+                              }
+                              if (e.key === 'Escape') {
+                                setEditingFlowId(null);
+                              }
+                            }}
+                            onBlur={() => {
+                              const trimmed = editFlowName.trim();
+                              if (trimmed && trimmed !== flow.name) {
+                                updateFlow.mutate({ id: flow.id, data: { name: trimmed, description: flow.description || '' } });
+                              }
+                              setEditingFlowId(null);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                            className="w-full text-sm font-medium bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
+                          />
+                        ) : (
+                          <div
+                            className="text-sm font-medium truncate dark:text-gray-200"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setEditingFlowId(flow.id);
+                              setEditFlowName(flow.name);
+                            }}
+                          >
+                            {flow.name}
+                          </div>
+                        )}
                         <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{flow.description || 'No description'}</div>
                       </div>
                       <button
