@@ -527,6 +527,32 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     [cookieItems]
   );
 
+  // Detect unsaved changes by comparing current form state with server data
+  const hasChanges = useMemo(() => {
+    if (!fullRequestData || isFromHistory) return false;
+
+    const savedBodyType = normalizeBodyType(fullRequestData.bodyType || 'none');
+
+    const currentBody = bodyType === 'graphql'
+      ? buildGraphqlBody()
+      : bodyType === 'form-urlencoded'
+      ? buildFormBody(formItems)
+      : bodyType === 'formdata'
+      ? JSON.stringify(formDataItems.map(({ key, value, type, enabled }) => ({ key, value, type, enabled })))
+      : body;
+
+    return (
+      name !== fullRequestData.name ||
+      method !== fullRequestData.method ||
+      url !== fullRequestData.url ||
+      bodyType !== savedBodyType ||
+      currentBody !== (fullRequestData.body || '') ||
+      getHeadersJsonForSave() !== (fullRequestData.headers || '{}') ||
+      getCookiesJsonForSave() !== (fullRequestData.cookies || '{}') ||
+      (proxyId ?? null) !== (fullRequestData.proxyId ?? null)
+    );
+  }, [fullRequestData, isFromHistory, name, method, url, bodyType, body, formItems, formDataItems, graphqlVariables, headerItems, cookieItems, proxyId]);
+
   if (!request) {
     return (
       <EmptyState
@@ -576,10 +602,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         ) : (
           <h2
             onClick={() => setIsEditingName(true)}
-            className="text-lg font-medium cursor-pointer hover:text-blue-600 dark:text-gray-100"
+            className="text-lg font-medium cursor-pointer hover:text-blue-600 dark:text-gray-100 flex items-center gap-1.5"
             title="Click to edit name"
           >
             {name}
+            {hasChanges && (
+              <span className="w-2 h-2 rounded-full bg-blue-500" title="Unsaved changes" />
+            )}
           </h2>
         )}
       </div>

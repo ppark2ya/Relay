@@ -81,7 +81,7 @@ test.describe('Form Data Body Type', () => {
 
     // Add first text field
     await page.getByText('+ Add Field').click();
-    const keyInputs = page.getByPlaceholder('Field name');
+    const keyInputs = page.getByPlaceholder('Key');
     const valueInputs = page.getByPlaceholder('Value');
     await keyInputs.first().fill('username');
     await valueInputs.first().fill('testuser');
@@ -104,9 +104,9 @@ test.describe('Form Data Body Type', () => {
     await expectFormDataChecked(page);
 
     // Verify fields are still there
-    await expect(page.getByPlaceholder('Field name').first()).toHaveValue('username');
+    await expect(page.getByPlaceholder('Key').first()).toHaveValue('username');
     await expect(page.getByPlaceholder('Value').first()).toHaveValue('testuser');
-    await expect(page.getByPlaceholder('Field name').nth(1)).toHaveValue('email');
+    await expect(page.getByPlaceholder('Key').nth(1)).toHaveValue('email');
     await expect(page.getByPlaceholder('Value').nth(1)).toHaveValue('test@example.com');
   });
 
@@ -159,7 +159,7 @@ test.describe('Form Data Body Type', () => {
 
     // Add a field
     await page.getByText('+ Add Field').click();
-    await page.getByPlaceholder('Field name').first().fill('key1');
+    await page.getByPlaceholder('Key').first().fill('key1');
 
     // Checkbox should be checked by default
     const checkbox = page.locator('input[type="checkbox"]').first();
@@ -170,7 +170,7 @@ test.describe('Form Data Body Type', () => {
     await expect(checkbox).not.toBeChecked();
 
     // The field name input should have opacity-50 class (disabled styling)
-    await expect(page.getByPlaceholder('Field name').first()).toHaveClass(/opacity-50/);
+    await expect(page.getByPlaceholder('Key').first()).toHaveClass(/opacity-50/);
   });
 
   test('should remove a field', async ({ page }) => {
@@ -191,20 +191,20 @@ test.describe('Form Data Body Type', () => {
 
     // Add two fields
     await page.getByText('+ Add Field').click();
-    await page.getByPlaceholder('Field name').first().fill('keep');
+    await page.getByPlaceholder('Key').first().fill('keep');
     await page.getByText('+ Add Field').click();
-    await page.getByPlaceholder('Field name').nth(1).fill('remove');
+    await page.getByPlaceholder('Key').nth(1).fill('remove');
 
     // Verify two fields exist
-    await expect(page.getByPlaceholder('Field name')).toHaveCount(2);
+    await expect(page.getByPlaceholder('Key')).toHaveCount(2);
 
     // Click delete button on second field (the X button)
     const deleteButtons = page.locator('button:has(svg path[d="M6 18L18 6M6 6l12 12"])');
     await deleteButtons.nth(1).click();
 
     // Should only have one field left
-    await expect(page.getByPlaceholder('Field name')).toHaveCount(1);
-    await expect(page.getByPlaceholder('Field name').first()).toHaveValue('keep');
+    await expect(page.getByPlaceholder('Key')).toHaveCount(1);
+    await expect(page.getByPlaceholder('Key').first()).toHaveValue('keep');
   });
 
   test('should execute formdata request with text fields and get response', async ({ page }) => {
@@ -225,7 +225,7 @@ test.describe('Form Data Body Type', () => {
 
     // Add a text field
     await page.getByText('+ Add Field').click();
-    await page.getByPlaceholder('Field name').first().fill('greeting');
+    await page.getByPlaceholder('Key').first().fill('greeting');
     await page.getByPlaceholder('Value').first().fill('hello');
 
     // Click Send
