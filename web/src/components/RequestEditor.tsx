@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useUpdateRequest, useExecuteRequest, useExecuteAdhoc, useExecuteRequestWithFiles, useExecuteAdhocWithFiles, useRequest } from '../api/requests';
 import { useEnvironments } from '../api/environments';
 import { useProxies } from '../api/proxies';
+import { uploadFile, deleteFile } from '../api/files';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult, WSConnectionStatus } from '../types';
 import { TabNav, KeyValueEditor, FormDataEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
@@ -359,7 +360,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         : bodyType === 'form-urlencoded'
         ? buildFormBody(formItems)
         : bodyType === 'formdata'
-        ? JSON.stringify(formDataItems.map(({ key, value, type, enabled }) => ({ key, value, type, enabled })))
+        ? JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize }) =>
+            ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}) })))
         : body;
 
       updateRequest.mutate({
@@ -453,9 +455,37 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     // Use multipart upload for formdata body type
     if (bodyType === 'formdata') {
       const enabledItems = formDataItems.filter(i => i.enabled);
-      const hasFiles = enabledItems.some(i => i.type === 'file' && i.file);
+      const hasRuntimeFiles = enabledItems.some(i => i.type === 'file' && i.file);
+      const allFilesHaveIds = enabledItems
+        .filter(i => i.type === 'file')
+        .every(i => i.fileId);
 
-      if (hasFiles || enabledItems.length > 0) {
+      // If all file items have fileIds (persisted), use JSON execute — backend loads from disk
+      if (!hasRuntimeFiles && allFilesHaveIds && enabledItems.length > 0) {
+        const formDataBody = JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize }) =>
+          ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}) })));
+        if (isFromHistory) {
+          executeAdhoc.mutate({
+            data: { method, url, headers: headersJson, body: formDataBody, proxyId: proxyIdForExec },
+            signal: controller.signal,
+          }, {
+            onSuccess: (result) => onExecute(result),
+            onSettled,
+          });
+        } else {
+          executeRequest.mutate({
+            id: request.id,
+            overrides: { method, url, headers: headersJson, body: formDataBody, bodyType: 'formdata', proxyId: proxyIdForExec },
+            signal: controller.signal,
+          }, {
+            onSuccess: (result) => onExecute(result),
+            onSettled,
+          });
+        }
+        return;
+      }
+
+      if (hasRuntimeFiles || enabledItems.length > 0) {
         if (isFromHistory) {
           executeAdhocWithFiles.mutate({
             items: formDataItems,
@@ -538,7 +568,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       : bodyType === 'form-urlencoded'
       ? buildFormBody(formItems)
       : bodyType === 'formdata'
-      ? JSON.stringify(formDataItems.map(({ key, value, type, enabled }) => ({ key, value, type, enabled })))
+      ? JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize }) =>
+          ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}) })))
       : body;
 
     return (
@@ -963,6 +994,27 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
               <FormDataEditor
                 items={formDataItems}
                 onChange={setFormDataItems}
+                onFileUpload={async (index, file) => {
+                  // Set the File object immediately for UI feedback
+                  setFormDataItems(prev => {
+                    const next = [...prev];
+                    next[index] = { ...next[index], file, value: file.name };
+                    return next;
+                  });
+                  try {
+                    const uploaded = await uploadFile(file);
+                    setFormDataItems(prev => {
+                      const next = [...prev];
+                      next[index] = { ...next[index], file: undefined, fileId: uploaded.id, fileSize: uploaded.size, value: uploaded.originalName };
+                      return next;
+                    });
+                  } catch {
+                    // Upload failed, keep the local File object as fallback
+                  }
+                }}
+                onFileRemove={async (_index, fileId) => {
+                  try { await deleteFile(fileId); } catch { /* ignore */ }
+                }}
               />
             )}
             {bodyType !== 'none' && bodyType !== 'graphql' && bodyType !== 'form-urlencoded' && bodyType !== 'formdata' && (

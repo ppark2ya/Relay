@@ -28,6 +28,7 @@ import {
 import { useRequests } from '../api/requests';
 import { useProxies } from '../api/proxies';
 import { useClickOutside } from '../hooks/useClickOutside';
+import { uploadFile, deleteFile } from '../api/files';
 import type { Flow, FlowStep, FlowResult, StepResult } from '../types';
 import { MethodBadge, EmptyState, FormField, INPUT_CLASS, CodeEditor, KeyValueEditor, FormDataEditor } from './ui';
 import type { FormDataItem } from './ui';
@@ -439,6 +440,25 @@ function SortableStep({
                   <FormDataEditor
                     items={edit.formDataItems}
                     onChange={items => onEditChange(step.id, 'formDataItems', items)}
+                    onFileUpload={async (index, file) => {
+                      // Set the File object immediately for UI feedback
+                      const tempItems = [...edit.formDataItems];
+                      tempItems[index] = { ...tempItems[index], file, value: file.name };
+                      onEditChange(step.id, 'formDataItems', tempItems);
+                      try {
+                        const uploaded = await uploadFile(file);
+                        onEditChange(step.id, 'formDataItems', (() => {
+                          const next = [...tempItems];
+                          next[index] = { ...next[index], file: undefined, fileId: uploaded.id, fileSize: uploaded.size, value: uploaded.originalName };
+                          return next;
+                        })());
+                      } catch {
+                        // Upload failed, keep the local File object as fallback
+                      }
+                    }}
+                    onFileRemove={async (_index, fileId) => {
+                      try { await deleteFile(fileId); } catch { /* ignore */ }
+                    }}
                   />
                 )}
                 {edit.bodyType !== 'none' && edit.bodyType !== 'graphql' && edit.bodyType !== 'form-urlencoded' && edit.bodyType !== 'formdata' && (
@@ -904,7 +924,8 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     } else if (edit.bodyType === 'form-urlencoded') {
       bodyToSave = buildFormBody(edit.formItems);
     } else if (edit.bodyType === 'formdata') {
-      bodyToSave = JSON.stringify(edit.formDataItems.map(({ key, value, type, enabled }) => ({ key, value, type, enabled })));
+      bodyToSave = JSON.stringify(edit.formDataItems.map(({ key, value, type, enabled, fileId, fileSize }) =>
+        ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}) })));
     }
 
     updateStep.mutate({

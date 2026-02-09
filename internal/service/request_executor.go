@@ -22,12 +22,14 @@ import (
 type RequestExecutor struct {
 	queries          *repository.Queries
 	variableResolver *VariableResolver
+	fileStorage      *FileStorage
 }
 
-func NewRequestExecutor(queries *repository.Queries, vr *VariableResolver) *RequestExecutor {
+func NewRequestExecutor(queries *repository.Queries, vr *VariableResolver, fs *FileStorage) *RequestExecutor {
 	return &RequestExecutor{
 		queries:          queries,
 		variableResolver: vr,
+		fileStorage:      fs,
 	}
 }
 
@@ -142,10 +144,12 @@ func (re *RequestExecutor) ExecuteRequest(ctx context.Context, req repository.Re
 }
 
 type formDataItem struct {
-	Key     string `json:"key"`
-	Value   string `json:"value"`
-	Type    string `json:"type"`
-	Enabled bool   `json:"enabled"`
+	Key      string `json:"key"`
+	Value    string `json:"value"`
+	Type     string `json:"type"`
+	Enabled  bool   `json:"enabled"`
+	FileID   *int64 `json:"fileId,omitempty"`
+	FileSize *int64 `json:"fileSize,omitempty"`
 }
 
 func (re *RequestExecutor) buildFormDataBody(ctx context.Context, bodyStr string, runtimeVars map[string]string, formFiles map[int]FormDataFile) (io.Reader, string, error) {
@@ -163,6 +167,17 @@ func (re *RequestExecutor) buildFormDataBody(ctx context.Context, bodyStr string
 		}
 		if item.Type == "file" {
 			fd, ok := formFiles[i]
+			if !ok && item.FileID != nil && re.fileStorage != nil {
+				// Load from disk via fileId
+				uploaded, err := re.queries.GetUploadedFile(ctx, *item.FileID)
+				if err == nil {
+					data, err := re.fileStorage.Load(uploaded.StoredName)
+					if err == nil {
+						fd = FormDataFile{Filename: uploaded.OriginalName, Data: data}
+						ok = true
+					}
+				}
+			}
 			if !ok {
 				continue
 			}

@@ -23,7 +23,7 @@ func setupIsolationTestServer(t *testing.T, mockTarget *httptest.Server) *httpte
 	db, q := testutil.SetupTestDBWithConn(t)
 
 	vr := service.NewVariableResolver(q)
-	re := service.NewRequestExecutor(q, vr)
+	re := service.NewRequestExecutor(q, vr, nil)
 	fr := service.NewFlowRunner(q, re, vr)
 
 	wsH := handler.NewWorkspaceHandler(q)

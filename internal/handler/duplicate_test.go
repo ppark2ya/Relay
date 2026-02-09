@@ -23,7 +23,7 @@ func setupDuplicateTestServer(t *testing.T) *httptest.Server {
 	db, q := testutil.SetupTestDBWithConn(t)
 
 	vr := service.NewVariableResolver(q)
-	re := service.NewRequestExecutor(q, vr)
+	re := service.NewRequestExecutor(q, vr, nil)
 	fr := service.NewFlowRunner(q, re, vr)
 
 	collH := handler.NewCollectionHandler(q, db)

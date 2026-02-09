@@ -26,7 +26,7 @@ func TestExecuteRequest_GET(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
@@ -66,7 +66,7 @@ func TestExecuteRequest_POSTWithBody(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
@@ -101,7 +101,7 @@ func TestExecuteAdhoc(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	result, err := re.ExecuteAdhoc(context.Background(), "GET", ts.URL, "", "", nil, nil)
 	if err != nil {
@@ -126,7 +126,7 @@ func TestExecute_WithOverrides(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
@@ -160,7 +160,7 @@ func TestExecuteRequest_VarSubstitution(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
@@ -189,7 +189,7 @@ func TestExecuteRequest_VarSubstitution(t *testing.T) {
 func TestExecuteRequest_InvalidURL(t *testing.T) {
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
@@ -220,7 +220,7 @@ func TestExecuteRequest_HistorySaved(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	ctx := context.Background()
 	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
@@ -307,7 +307,7 @@ func TestExecuteFormData_TextFields(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	items := `[{"key":"name","value":"relay","type":"text","enabled":true},{"key":"version","value":"1.0","type":"text","enabled":true}]`
 
@@ -356,7 +356,7 @@ func TestExecuteFormData_WithFiles(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	items := `[{"key":"title","value":"my doc","type":"text","enabled":true},{"key":"attachment","value":"test.txt","type":"file","enabled":true}]`
 	formFiles := map[int]FormDataFile{
@@ -411,7 +411,7 @@ func TestExecuteFormData_DisabledFieldsSkipped(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	items := `[{"key":"active","value":"yes","type":"text","enabled":true},{"key":"hidden","value":"no","type":"text","enabled":false}]`
 
@@ -454,7 +454,7 @@ func TestExecuteFormData_VarSubstitution(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	items := `[{"key":"greeting","value":"Hello {{user}}","type":"text","enabled":true}]`
 
@@ -495,7 +495,7 @@ func TestExecuteAdhocFormData(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 
 	itemsJSON := `[{"key":"field1","value":"val1","type":"text","enabled":true},{"key":"doc","value":"readme.md","type":"file","enabled":true}]`
 	formFiles := map[int]FormDataFile{

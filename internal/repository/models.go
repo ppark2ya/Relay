@@ -106,6 +106,16 @@ type RequestHistory struct {
 	WorkspaceID     int64          `json:"workspace_id"`
 }
 
+type UploadedFile struct {
+	ID           int64        `json:"id"`
+	WorkspaceID  int64        `json:"workspace_id"`
+	OriginalName string       `json:"original_name"`
+	StoredName   string       `json:"stored_name"`
+	ContentType  string       `json:"content_type"`
+	Size         int64        `json:"size"`
+	CreatedAt    sql.NullTime `json:"created_at"`
+}
+
 type Workspace struct {
 	ID        int64        `json:"id"`
 	Name      string       `json:"name"`

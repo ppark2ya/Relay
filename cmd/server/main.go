@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"relay/internal/handler"
 	"relay/internal/middleware"
@@ -43,8 +44,18 @@ func main() {
 	// Initialize repository and services
 	queries := repository.New(db)
 
+	// File storage setup
+	uploadDir := os.Getenv("UPLOAD_DIR")
+	if uploadDir == "" {
+		uploadDir = filepath.Join(filepath.Dir(dbPath), "uploads")
+	}
+	fileStorage, err := service.NewFileStorage(uploadDir)
+	if err != nil {
+		log.Fatal("Failed to initialize file storage:", err)
+	}
+
 	variableResolver := service.NewVariableResolver(queries)
-	requestExecutor := service.NewRequestExecutor(queries, variableResolver)
+	requestExecutor := service.NewRequestExecutor(queries, variableResolver, fileStorage)
 	flowRunner := service.NewFlowRunner(queries, requestExecutor, variableResolver)
 
 	wsRelay := service.NewWebSocketRelay(queries, variableResolver)
@@ -57,6 +68,7 @@ func main() {
 	proxyHandler := handler.NewProxyHandler(queries)
 	flowHandler := handler.NewFlowHandler(queries, flowRunner, db)
 	historyHandler := handler.NewHistoryHandler(queries)
+	fileHandler := handler.NewFileHandler(queries, fileStorage)
 	wsHandler := handler.NewWebSocketHandler(wsRelay)
 
 	// Setup router
@@ -126,6 +138,11 @@ func main() {
 		r.Post("/flows/{id}/steps", flowHandler.CreateStep)
 		r.Put("/flows/{id}/steps/{stepId}", flowHandler.UpdateStep)
 		r.Delete("/flows/{id}/steps/{stepId}", flowHandler.DeleteStep)
+
+		// Files
+		r.Post("/files/upload", fileHandler.Upload)
+		r.Get("/files/{id}", fileHandler.Get)
+		r.Delete("/files/{id}", fileHandler.Delete)
 
 		// WebSocket Relay
 		r.Get("/ws/relay", wsHandler.Relay)

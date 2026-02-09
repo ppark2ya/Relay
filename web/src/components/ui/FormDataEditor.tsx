@@ -6,11 +6,15 @@ export interface FormDataItem {
   type: 'text' | 'file';
   enabled: boolean;
   file?: File;
+  fileId?: number;
+  fileSize?: number;
 }
 
 interface FormDataEditorProps {
   items: FormDataItem[];
   onChange: (items: FormDataItem[]) => void;
+  onFileUpload?: (index: number, file: File) => void;
+  onFileRemove?: (index: number, fileId: number) => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -19,7 +23,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function FileInput({ item, onChange }: { item: FormDataItem; onChange: (file: File) => void }) {
+function FileInput({ item, onChange, onRemove }: { item: FormDataItem; onChange: (file: File) => void; onRemove?: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -43,6 +47,21 @@ function FileInput({ item, onChange }: { item: FormDataItem; onChange: (file: Fi
         <span className="text-sm text-gray-600 dark:text-gray-300 truncate">
           {item.file.name} ({formatFileSize(item.file.size)})
         </span>
+      ) : item.fileId ? (
+        <span className="text-sm text-gray-600 dark:text-gray-300 truncate flex items-center gap-1">
+          {item.value} {item.fileSize != null && `(${formatFileSize(item.fileSize)})`}
+          {onRemove && (
+            <button
+              onClick={e => { e.stopPropagation(); onRemove(); }}
+              className="p-0.5 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+              title="Remove saved file"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </span>
       ) : (
         <span className="text-sm text-gray-400 dark:text-gray-500">
           No file selected
@@ -56,11 +75,16 @@ const CELL_BORDER = 'border-l border-gray-200 dark:border-gray-700';
 const ROW_BORDER = 'border-t border-gray-200 dark:border-gray-700';
 const GRID_COLS = { gridTemplateColumns: '2.5rem 1fr 5rem 2fr 2.25rem' };
 
-export function FormDataEditor({ items, onChange }: FormDataEditorProps) {
+export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: FormDataEditorProps) {
   const handleChange = (index: number, field: keyof FormDataItem, val: string | boolean | File) => {
     const newItems = [...items];
     if (field === 'type') {
-      newItems[index] = { ...newItems[index], type: val as 'text' | 'file', value: '', file: undefined };
+      const oldItem = newItems[index];
+      // If switching away from file type and there's a saved fileId, notify parent to delete
+      if (oldItem.type === 'file' && oldItem.fileId && onFileRemove) {
+        onFileRemove(index, oldItem.fileId);
+      }
+      newItems[index] = { ...newItems[index], type: val as 'text' | 'file', value: '', file: undefined, fileId: undefined, fileSize: undefined };
     } else {
       newItems[index] = { ...newItems[index], [field]: val };
     }
@@ -68,13 +92,33 @@ export function FormDataEditor({ items, onChange }: FormDataEditorProps) {
   };
 
   const handleFileChange = (index: number, file: File) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], file, value: file.name };
-    onChange(newItems);
+    if (onFileUpload) {
+      // Delegate to parent for upload
+      onFileUpload(index, file);
+    } else {
+      // Fallback: just set the File object locally
+      const newItems = [...items];
+      newItems[index] = { ...newItems[index], file, value: file.name };
+      onChange(newItems);
+    }
   };
 
   const handleRemove = (index: number) => {
+    const item = items[index];
+    if (item.fileId && onFileRemove) {
+      onFileRemove(index, item.fileId);
+    }
     onChange(items.filter((_, i) => i !== index));
+  };
+
+  const handleFileRemove = (index: number) => {
+    const item = items[index];
+    if (item.fileId && onFileRemove) {
+      onFileRemove(index, item.fileId);
+    }
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], file: undefined, fileId: undefined, fileSize: undefined, value: '' };
+    onChange(newItems);
   };
 
   const handleAdd = () => {
@@ -131,7 +175,11 @@ export function FormDataEditor({ items, onChange }: FormDataEditorProps) {
               </div>
               <div className={`${ROW_BORDER} ${CELL_BORDER} min-w-0`}>
                 {item.type === 'file' ? (
-                  <FileInput item={item} onChange={file => handleFileChange(index, file)} />
+                  <FileInput
+                    item={item}
+                    onChange={file => handleFileChange(index, file)}
+                    onRemove={() => handleFileRemove(index)}
+                  />
                 ) : (
                   <input
                     type="text"

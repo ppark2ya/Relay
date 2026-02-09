@@ -42,7 +42,7 @@ func TestFlowRunner_SingleStep(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 	fr := NewFlowRunner(q, re, vr)
 
 	flowID := createFlowWithSteps(t, q, []repository.CreateFlowStepParams{
@@ -75,7 +75,7 @@ func TestFlowRunner_MultipleStepsSequential(t *testing.T) {
 
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 	fr := NewFlowRunner(q, re, vr)
 
 	flowID := createFlowWithSteps(t, q, []repository.CreateFlowStepParams{
@@ -101,7 +101,7 @@ func TestFlowRunner_MultipleStepsSequential(t *testing.T) {
 func TestExtractVariables_String(t *testing.T) {
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 	fr := NewFlowRunner(q, re, vr)
 
 	body := `{"title":"hello","id":42}`
@@ -119,7 +119,7 @@ func TestExtractVariables_String(t *testing.T) {
 func TestExtractVariables_Number(t *testing.T) {
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 	fr := NewFlowRunner(q, re, vr)
 
 	body := `{"id":42,"name":"test"}`
@@ -138,7 +138,7 @@ func TestExtractVariables_Number(t *testing.T) {
 func TestExtractVariables_NonJSON(t *testing.T) {
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 	fr := NewFlowRunner(q, re, vr)
 
 	body := "plain text response"
@@ -156,7 +156,7 @@ func TestExtractVariables_NonJSON(t *testing.T) {
 func TestEvaluateCondition_VarExists(t *testing.T) {
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 	fr := NewFlowRunner(q, re, vr)
 
 	met, err := fr.evaluateCondition("{{token}}", map[string]string{"token": "abc"})
@@ -171,7 +171,7 @@ func TestEvaluateCondition_VarExists(t *testing.T) {
 func TestFlowRunner_StepWithNoURL(t *testing.T) {
 	q := testutil.SetupTestDB(t)
 	vr := NewVariableResolver(q)
-	re := NewRequestExecutor(q, vr)
+	re := NewRequestExecutor(q, vr, nil)
 	fr := NewFlowRunner(q, re, vr)
 
 	ctx := context.Background()
