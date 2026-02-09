@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -517,5 +518,204 @@ func TestExecuteAdhocFormData(t *testing.T) {
 	}
 	if string(receivedFiles["doc"]) != "# README" {
 		t.Errorf("file 'doc': got %q, want %q", string(receivedFiles["doc"]), "# README")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FormData with persisted fileId (disk-loaded files)
+// ---------------------------------------------------------------------------
+
+func TestExecuteFormData_WithPersistedFileID(t *testing.T) {
+	var receivedFields map[string]string
+	var receivedFiles map[string][]byte
+	var receivedFilenames map[string]string
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedFields, receivedFiles, receivedFilenames = parseMultipartFields(t, r)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer ts.Close()
+
+	q := testutil.SetupTestDB(t)
+	vr := NewVariableResolver(q)
+
+	// Set up file storage with a temp directory
+	dir := t.TempDir()
+	fileStorage, err := NewFileStorage(dir)
+	if err != nil {
+		t.Fatalf("NewFileStorage: %v", err)
+	}
+
+	re := NewRequestExecutor(q, vr, fileStorage)
+
+	// Store a file to disk and create DB record
+	ctx := context.Background()
+	storedName, size, err := fileStorage.Store(strings.NewReader("persisted file content"))
+	if err != nil {
+		t.Fatalf("Store: %v", err)
+	}
+
+	uploaded, err := q.CreateUploadedFile(ctx, repository.CreateUploadedFileParams{
+		WorkspaceID:  1,
+		OriginalName: "report.pdf",
+		StoredName:   storedName,
+		ContentType:  "application/pdf",
+		Size:         size,
+	})
+	if err != nil {
+		t.Fatalf("CreateUploadedFile: %v", err)
+	}
+
+	// Body JSON includes fileId instead of runtime file
+	items := fmt.Sprintf(
+		`[{"key":"title","value":"my report","type":"text","enabled":true},{"key":"doc","value":"report.pdf","type":"file","enabled":true,"fileId":%d,"fileSize":%d}]`,
+		uploaded.ID, uploaded.Size,
+	)
+
+	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
+		Name:        "formdata-persisted",
+		Method:      "POST",
+		Url:         ts.URL,
+		Body:        sql.NullString{String: items, Valid: true},
+		BodyType:    sql.NullString{String: "formdata", Valid: true},
+		WorkspaceID: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateRequest: %v", err)
+	}
+
+	// Execute WITHOUT runtime FormDataFiles — backend should load from disk via fileId
+	result, err := re.Execute(ctx, req.ID, nil, nil)
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	if result.StatusCode != 200 {
+		t.Errorf("status: got %d, want 200", result.StatusCode)
+	}
+	if receivedFields["title"] != "my report" {
+		t.Errorf("field 'title': got %q, want %q", receivedFields["title"], "my report")
+	}
+	if string(receivedFiles["doc"]) != "persisted file content" {
+		t.Errorf("file 'doc': got %q, want %q", string(receivedFiles["doc"]), "persisted file content")
+	}
+	if receivedFilenames["doc"] != "report.pdf" {
+		t.Errorf("filename: got %q, want %q", receivedFilenames["doc"], "report.pdf")
+	}
+}
+
+func TestExecuteFormData_RuntimeFileOverridesPersistedFileID(t *testing.T) {
+	var receivedFiles map[string][]byte
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, receivedFiles, _ = parseMultipartFields(t, r)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer ts.Close()
+
+	q := testutil.SetupTestDB(t)
+	vr := NewVariableResolver(q)
+
+	dir := t.TempDir()
+	fileStorage, err := NewFileStorage(dir)
+	if err != nil {
+		t.Fatalf("NewFileStorage: %v", err)
+	}
+	re := NewRequestExecutor(q, vr, fileStorage)
+
+	// Store a file to disk
+	ctx := context.Background()
+	storedName, size, _ := fileStorage.Store(strings.NewReader("old content"))
+	uploaded, _ := q.CreateUploadedFile(ctx, repository.CreateUploadedFileParams{
+		WorkspaceID:  1,
+		OriginalName: "file.txt",
+		StoredName:   storedName,
+		ContentType:  "text/plain",
+		Size:         size,
+	})
+
+	items := fmt.Sprintf(
+		`[{"key":"doc","value":"file.txt","type":"file","enabled":true,"fileId":%d}]`,
+		uploaded.ID,
+	)
+
+	req, _ := q.CreateRequest(ctx, repository.CreateRequestParams{
+		Name:        "formdata-override",
+		Method:      "POST",
+		Url:         ts.URL,
+		Body:        sql.NullString{String: items, Valid: true},
+		BodyType:    sql.NullString{String: "formdata", Valid: true},
+		WorkspaceID: 1,
+	})
+
+	// Runtime file takes priority over persisted fileId
+	runtimeFiles := map[int]FormDataFile{
+		0: {Filename: "file.txt", Data: []byte("new content")},
+	}
+
+	result, err := re.Execute(ctx, req.ID, nil, &RequestOverrides{
+		BodyType:      "formdata",
+		FormDataFiles: runtimeFiles,
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	if string(receivedFiles["doc"]) != "new content" {
+		t.Errorf("runtime file should override persisted: got %q, want %q", string(receivedFiles["doc"]), "new content")
+	}
+}
+
+func TestExecuteFormData_FileIDWithNilStorage(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The file field with fileId should be skipped when fileStorage is nil
+		fields, files, _ := parseMultipartFields(t, r)
+		if _, ok := files["doc"]; ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("should not have file"))
+			return
+		}
+		if fields["title"] != "test" {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("missing title"))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer ts.Close()
+
+	q := testutil.SetupTestDB(t)
+	vr := NewVariableResolver(q)
+	re := NewRequestExecutor(q, vr, nil) // nil fileStorage
+
+	// Body JSON has fileId but no runtime file and no fileStorage
+	items := `[{"key":"title","value":"test","type":"text","enabled":true},{"key":"doc","value":"ghost.pdf","type":"file","enabled":true,"fileId":999}]`
+
+	ctx := context.Background()
+	req, _ := q.CreateRequest(ctx, repository.CreateRequestParams{
+		Name:        "formdata-nil-storage",
+		Method:      "POST",
+		Url:         ts.URL,
+		Body:        sql.NullString{String: items, Valid: true},
+		BodyType:    sql.NullString{String: "formdata", Valid: true},
+		WorkspaceID: 1,
+	})
+
+	result, err := re.Execute(ctx, req.ID, nil, nil)
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	if result.StatusCode != 200 {
+		t.Errorf("status: got %d, want 200", result.StatusCode)
 	}
 }
