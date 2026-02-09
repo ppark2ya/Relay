@@ -68,7 +68,7 @@ func main() {
 	proxyHandler := handler.NewProxyHandler(queries)
 	flowHandler := handler.NewFlowHandler(queries, flowRunner, db)
 	historyHandler := handler.NewHistoryHandler(queries)
-	fileHandler := handler.NewFileHandler(queries, fileStorage)
+	fileHandler := handler.NewFileHandler(db, queries, fileStorage)
 	wsHandler := handler.NewWebSocketHandler(wsRelay)
 
 	// Setup router
@@ -141,6 +141,7 @@ func main() {
 
 		// Files
 		r.Post("/files/upload", fileHandler.Upload)
+		r.Post("/files/cleanup", fileHandler.Cleanup)
 		r.Get("/files/{id}", fileHandler.Get)
 		r.Delete("/files/{id}", fileHandler.Delete)
 

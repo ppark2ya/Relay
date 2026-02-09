@@ -7,3 +7,6 @@ VALUES (?, ?, ?, ?, ?) RETURNING *;
 
 -- name: DeleteUploadedFile :exec
 DELETE FROM uploaded_files WHERE id = ?;
+
+-- name: ListAllUploadedFiles :many
+SELECT id, stored_name FROM uploaded_files;

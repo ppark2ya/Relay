@@ -21,13 +21,13 @@ import (
 func setupFileTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
-	_, q := testutil.SetupTestDBWithConn(t)
+	db, q := testutil.SetupTestDBWithConn(t)
 	dir := t.TempDir()
 	fs, err := service.NewFileStorage(dir)
 	if err != nil {
 		t.Fatalf("NewFileStorage: %v", err)
 	}
-	fh := handler.NewFileHandler(q, fs)
+	fh := handler.NewFileHandler(db, q, fs)
 
 	r := chi.NewRouter()
 	r.Use(middleware.WorkspaceID)

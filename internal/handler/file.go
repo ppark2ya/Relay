@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"database/sql"
+	"encoding/json"
 	"net/http"
 
 	"relay/internal/middleware"
@@ -9,12 +11,13 @@ import (
 )
 
 type FileHandler struct {
+	db          *sql.DB
 	queries     *repository.Queries
 	fileStorage *service.FileStorage
 }
 
-func NewFileHandler(queries *repository.Queries, fileStorage *service.FileStorage) *FileHandler {
-	return &FileHandler{queries: queries, fileStorage: fileStorage}
+func NewFileHandler(db *sql.DB, queries *repository.Queries, fileStorage *service.FileStorage) *FileHandler {
+	return &FileHandler{db: db, queries: queries, fileStorage: fileStorage}
 }
 
 type UploadedFileResponse struct {
@@ -115,4 +118,21 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *FileHandler) Cleanup(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DryRun bool `json:"dryRun"`
+	}
+	if r.Body != nil {
+		json.NewDecoder(r.Body).Decode(&req)
+	}
+
+	result, err := service.CleanupOrphanFiles(r.Context(), h.db, h.queries, h.fileStorage, req.DryRun)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Cleanup failed: "+err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, result)
 }

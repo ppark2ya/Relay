@@ -70,3 +70,35 @@ func (q *Queries) GetUploadedFile(ctx context.Context, id int64) (UploadedFile, 
 	)
 	return i, err
 }
+
+const listAllUploadedFiles = `-- name: ListAllUploadedFiles :many
+SELECT id, stored_name FROM uploaded_files
+`
+
+type ListAllUploadedFilesRow struct {
+	ID         int64  `json:"id"`
+	StoredName string `json:"stored_name"`
+}
+
+func (q *Queries) ListAllUploadedFiles(ctx context.Context) ([]ListAllUploadedFilesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllUploadedFiles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllUploadedFilesRow{}
+	for rows.Next() {
+		var i ListAllUploadedFilesRow
+		if err := rows.Scan(&i.ID, &i.StoredName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

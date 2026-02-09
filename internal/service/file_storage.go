@@ -48,3 +48,17 @@ func (fs *FileStorage) Delete(storedName string) error {
 	filePath := filepath.Join(fs.baseDir, storedName)
 	return os.Remove(filePath)
 }
+
+func (fs *FileStorage) ListDir() ([]string, error) {
+	entries, err := os.ReadDir(fs.baseDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read upload directory: %w", err)
+	}
+	var names []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	return names, nil
+}
