@@ -67,8 +67,9 @@ export async function configureStep(
     await page.getByRole('button', { name: opts.bodyType, exact: true }).click();
   }
   if (opts.body !== undefined) {
-    // Body uses CodeMirror editor, not a plain textarea
-    const bodyEditor = page.locator('.cm-content[contenteditable="true"]');
+    // Body uses CodeMirror editor - target the first one (body editor, not pre/post script)
+    // Find by placeholder text which contains typical body content hint
+    const bodyEditor = page.locator('.cm-content[aria-placeholder*="key"]').first();
     await bodyEditor.click();
     await bodyEditor.fill(opts.body);
   }

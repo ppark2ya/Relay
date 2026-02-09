@@ -8,6 +8,7 @@ import { useWorkspaceContext } from '../hooks/useWorkspace';
 import { EnvironmentEditor } from './EnvironmentEditor';
 import { ProxyEditor } from './ProxyEditor';
 import { WorkspaceEditor } from './WorkspaceEditor';
+import { DSLGuide } from './DSLGuide';
 import { StatusDot } from './ui';
 
 export function Header() {
@@ -29,6 +30,7 @@ export function Header() {
   const [showWsEditor, setShowWsEditor] = useState(false);
   const [showEnvEditor, setShowEnvEditor] = useState(false);
   const [showProxyEditor, setShowProxyEditor] = useState(false);
+  const [showDSLGuide, setShowDSLGuide] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   const closeWsDropdown = useCallback(() => setShowWsDropdown(false), []);
@@ -55,6 +57,17 @@ export function Header() {
       </div>
 
       <div className="flex-1" />
+
+      {/* DSL Guide */}
+      <button
+        onClick={() => setShowDSLGuide(true)}
+        className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-indigo-500 dark:text-indigo-400"
+        title="Flow Script DSL Guide"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        </svg>
+      </button>
 
       {/* Theme Toggle */}
       <button
@@ -224,6 +237,12 @@ export function Header() {
         onClose={() => setShowWsEditor(false)}
         currentWorkspaceId={currentWorkspaceId}
         onSwitchWorkspace={switchWorkspace}
+      />
+
+      {/* DSL Guide Modal */}
+      <DSLGuide
+        isOpen={showDSLGuide}
+        onClose={() => setShowDSLGuide(false)}
       />
     </header>
   );

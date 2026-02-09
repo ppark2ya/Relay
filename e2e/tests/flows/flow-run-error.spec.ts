@@ -111,7 +111,7 @@ test.describe('Flow Run Error Handling', () => {
     const content = stepCard.locator('.rounded-lg.border').first();
     await expect(content).toHaveClass(/bg-green-50/);
 
-    // Should show 200 badge
-    await expect(stepCard.getByText('200', { exact: false })).toBeVisible();
+    // Should show 200 badge (look for the status badge specifically by its rounded-full class)
+    await expect(stepCard.locator('.rounded-full.text-xs:has-text("200")')).toBeVisible();
   });
 });

@@ -92,7 +92,10 @@ CREATE TABLE IF NOT EXISTS flow_steps (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     workspace_id INTEGER NOT NULL DEFAULT 1 REFERENCES workspaces(id) ON DELETE CASCADE,
-    loop_count INTEGER DEFAULT 1
+    loop_count INTEGER DEFAULT 1,
+    pre_script TEXT DEFAULT '',
+    post_script TEXT DEFAULT '',
+    continue_on_error INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS request_history (

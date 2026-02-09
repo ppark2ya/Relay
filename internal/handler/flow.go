@@ -33,20 +33,23 @@ type FlowResponse struct {
 }
 
 type FlowStepRequest struct {
-	RequestID   *int64 `json:"requestId"`
-	StepOrder   int64  `json:"stepOrder"`
-	DelayMs     int64  `json:"delayMs"`
-	ExtractVars string `json:"extractVars"`
-	Condition   string `json:"condition"`
-	Name        string `json:"name"`
-	Method      string `json:"method"`
-	URL         string `json:"url"`
-	Headers     string `json:"headers"`
-	Body        string `json:"body"`
-	BodyType    string `json:"bodyType"`
-	Cookies     string `json:"cookies"`
-	ProxyID     *int64 `json:"proxyId"`
-	LoopCount   int64  `json:"loopCount"`
+	RequestID       *int64 `json:"requestId"`
+	StepOrder       int64  `json:"stepOrder"`
+	DelayMs         int64  `json:"delayMs"`
+	ExtractVars     string `json:"extractVars"`
+	Condition       string `json:"condition"`
+	Name            string `json:"name"`
+	Method          string `json:"method"`
+	URL             string `json:"url"`
+	Headers         string `json:"headers"`
+	Body            string `json:"body"`
+	BodyType        string `json:"bodyType"`
+	Cookies         string `json:"cookies"`
+	ProxyID         *int64 `json:"proxyId"`
+	LoopCount       int64  `json:"loopCount"`
+	PreScript       string `json:"preScript"`
+	PostScript      string `json:"postScript"`
+	ContinueOnError bool   `json:"continueOnError"`
 }
 
 type RunFlowRequest struct {
@@ -54,24 +57,27 @@ type RunFlowRequest struct {
 }
 
 type FlowStepResponse struct {
-	ID          int64  `json:"id"`
-	FlowID      int64  `json:"flowId"`
-	RequestID   *int64 `json:"requestId"`
-	StepOrder   int64  `json:"stepOrder"`
-	DelayMs     int64  `json:"delayMs"`
-	ExtractVars string `json:"extractVars"`
-	Condition   string `json:"condition"`
-	Name        string `json:"name"`
-	Method      string `json:"method"`
-	URL         string `json:"url"`
-	Headers     string `json:"headers"`
-	Body        string `json:"body"`
-	BodyType    string `json:"bodyType"`
-	Cookies     string `json:"cookies"`
-	ProxyID     *int64 `json:"proxyId"`
-	LoopCount   int64  `json:"loopCount"`
-	CreatedAt   string `json:"createdAt"`
-	UpdatedAt   string `json:"updatedAt"`
+	ID              int64  `json:"id"`
+	FlowID          int64  `json:"flowId"`
+	RequestID       *int64 `json:"requestId"`
+	StepOrder       int64  `json:"stepOrder"`
+	DelayMs         int64  `json:"delayMs"`
+	ExtractVars     string `json:"extractVars"`
+	Condition       string `json:"condition"`
+	Name            string `json:"name"`
+	Method          string `json:"method"`
+	URL             string `json:"url"`
+	Headers         string `json:"headers"`
+	Body            string `json:"body"`
+	BodyType        string `json:"bodyType"`
+	Cookies         string `json:"cookies"`
+	ProxyID         *int64 `json:"proxyId"`
+	LoopCount       int64  `json:"loopCount"`
+	PreScript       string `json:"preScript"`
+	PostScript      string `json:"postScript"`
+	ContinueOnError bool   `json:"continueOnError"`
+	CreatedAt       string `json:"createdAt"`
+	UpdatedAt       string `json:"updatedAt"`
 }
 
 func toFlowStepResponse(s repository.FlowStep) FlowStepResponse {
@@ -89,24 +95,27 @@ func toFlowStepResponse(s repository.FlowStep) FlowStepResponse {
 		loopCount = 1
 	}
 	return FlowStepResponse{
-		ID:          s.ID,
-		FlowID:      s.FlowID,
-		RequestID:   reqID,
-		StepOrder:   s.StepOrder,
-		DelayMs:     s.DelayMs.Int64,
-		ExtractVars: s.ExtractVars.String,
-		Condition:   s.Condition.String,
-		Name:        s.Name,
-		Method:      s.Method,
-		URL:         s.Url,
-		Headers:     s.Headers.String,
-		Body:        s.Body.String,
-		BodyType:    s.BodyType.String,
-		Cookies:     s.Cookies.String,
-		ProxyID:     proxyID,
-		LoopCount:   loopCount,
-		CreatedAt:   formatTime(s.CreatedAt),
-		UpdatedAt:   formatTime(s.UpdatedAt),
+		ID:              s.ID,
+		FlowID:          s.FlowID,
+		RequestID:       reqID,
+		StepOrder:       s.StepOrder,
+		DelayMs:         s.DelayMs.Int64,
+		ExtractVars:     s.ExtractVars.String,
+		Condition:       s.Condition.String,
+		Name:            s.Name,
+		Method:          s.Method,
+		URL:             s.Url,
+		Headers:         s.Headers.String,
+		Body:            s.Body.String,
+		BodyType:        s.BodyType.String,
+		Cookies:         s.Cookies.String,
+		ProxyID:         proxyID,
+		LoopCount:       loopCount,
+		PreScript:       s.PreScript.String,
+		PostScript:      s.PostScript.String,
+		ContinueOnError: s.ContinueOnError.Int64 == 1,
+		CreatedAt:       formatTime(s.CreatedAt),
+		UpdatedAt:       formatTime(s.UpdatedAt),
 	}
 }
 
@@ -290,21 +299,24 @@ func (h *FlowHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 
 	for _, s := range steps {
 		_, err := txQueries.CreateFlowStep(r.Context(), repository.CreateFlowStepParams{
-			FlowID:      newFlow.ID,
-			RequestID:   s.RequestID,
-			StepOrder:   s.StepOrder,
-			DelayMs:     s.DelayMs,
-			ExtractVars: s.ExtractVars,
-			Condition:   s.Condition,
-			Name:        s.Name,
-			Method:      s.Method,
-			Url:         s.Url,
-			Headers:     s.Headers,
-			Body:        s.Body,
-			BodyType:    s.BodyType,
-			Cookies:     s.Cookies,
-			ProxyID:     s.ProxyID,
-			LoopCount:   s.LoopCount,
+			FlowID:          newFlow.ID,
+			RequestID:       s.RequestID,
+			StepOrder:       s.StepOrder,
+			DelayMs:         s.DelayMs,
+			ExtractVars:     s.ExtractVars,
+			Condition:       s.Condition,
+			Name:            s.Name,
+			Method:          s.Method,
+			Url:             s.Url,
+			Headers:         s.Headers,
+			Body:            s.Body,
+			BodyType:        s.BodyType,
+			Cookies:         s.Cookies,
+			ProxyID:         s.ProxyID,
+			LoopCount:       s.LoopCount,
+			PreScript:       s.PreScript,
+			PostScript:      s.PostScript,
+			ContinueOnError: s.ContinueOnError,
 		})
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
@@ -397,22 +409,30 @@ func (h *FlowHandler) CreateStep(w http.ResponseWriter, r *http.Request) {
 		loopCount = 1
 	}
 
+	var continueOnError int64
+	if req.ContinueOnError {
+		continueOnError = 1
+	}
+
 	step, err := h.queries.CreateFlowStep(r.Context(), repository.CreateFlowStepParams{
-		FlowID:      flowID,
-		RequestID:   reqID,
-		StepOrder:   req.StepOrder,
-		DelayMs:     sql.NullInt64{Int64: req.DelayMs, Valid: true},
-		ExtractVars: sql.NullString{String: req.ExtractVars, Valid: true},
-		Condition:   sql.NullString{String: req.Condition, Valid: req.Condition != ""},
-		Name:        req.Name,
-		Method:      req.Method,
-		Url:         req.URL,
-		Headers:     sql.NullString{String: req.Headers, Valid: true},
-		Body:        sql.NullString{String: req.Body, Valid: true},
-		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
-		Cookies:     sql.NullString{String: req.Cookies, Valid: true},
-		ProxyID:     proxyID,
-		LoopCount:   sql.NullInt64{Int64: loopCount, Valid: true},
+		FlowID:          flowID,
+		RequestID:       reqID,
+		StepOrder:       req.StepOrder,
+		DelayMs:         sql.NullInt64{Int64: req.DelayMs, Valid: true},
+		ExtractVars:     sql.NullString{String: req.ExtractVars, Valid: true},
+		Condition:       sql.NullString{String: req.Condition, Valid: req.Condition != ""},
+		Name:            req.Name,
+		Method:          req.Method,
+		Url:             req.URL,
+		Headers:         sql.NullString{String: req.Headers, Valid: true},
+		Body:            sql.NullString{String: req.Body, Valid: true},
+		BodyType:        sql.NullString{String: req.BodyType, Valid: true},
+		Cookies:         sql.NullString{String: req.Cookies, Valid: true},
+		ProxyID:         proxyID,
+		LoopCount:       sql.NullInt64{Int64: loopCount, Valid: true},
+		PreScript:       sql.NullString{String: req.PreScript, Valid: req.PreScript != ""},
+		PostScript:      sql.NullString{String: req.PostScript, Valid: req.PostScript != ""},
+		ContinueOnError: sql.NullInt64{Int64: continueOnError, Valid: true},
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -455,22 +475,30 @@ func (h *FlowHandler) UpdateStep(w http.ResponseWriter, r *http.Request) {
 		loopCount = 1
 	}
 
+	var continueOnError int64
+	if req.ContinueOnError {
+		continueOnError = 1
+	}
+
 	step, err := h.queries.UpdateFlowStep(r.Context(), repository.UpdateFlowStepParams{
-		ID:          stepID,
-		RequestID:   reqID,
-		StepOrder:   req.StepOrder,
-		DelayMs:     sql.NullInt64{Int64: req.DelayMs, Valid: true},
-		ExtractVars: sql.NullString{String: req.ExtractVars, Valid: true},
-		Condition:   sql.NullString{String: req.Condition, Valid: req.Condition != ""},
-		Name:        req.Name,
-		Method:      req.Method,
-		Url:         req.URL,
-		Headers:     sql.NullString{String: req.Headers, Valid: true},
-		Body:        sql.NullString{String: req.Body, Valid: true},
-		BodyType:    sql.NullString{String: req.BodyType, Valid: true},
-		Cookies:     sql.NullString{String: req.Cookies, Valid: true},
-		ProxyID:     proxyID,
-		LoopCount:   sql.NullInt64{Int64: loopCount, Valid: true},
+		ID:              stepID,
+		RequestID:       reqID,
+		StepOrder:       req.StepOrder,
+		DelayMs:         sql.NullInt64{Int64: req.DelayMs, Valid: true},
+		ExtractVars:     sql.NullString{String: req.ExtractVars, Valid: true},
+		Condition:       sql.NullString{String: req.Condition, Valid: req.Condition != ""},
+		Name:            req.Name,
+		Method:          req.Method,
+		Url:             req.URL,
+		Headers:         sql.NullString{String: req.Headers, Valid: true},
+		Body:            sql.NullString{String: req.Body, Valid: true},
+		BodyType:        sql.NullString{String: req.BodyType, Valid: true},
+		Cookies:         sql.NullString{String: req.Cookies, Valid: true},
+		ProxyID:         proxyID,
+		LoopCount:       sql.NullInt64{Int64: loopCount, Valid: true},
+		PreScript:       sql.NullString{String: req.PreScript, Valid: req.PreScript != ""},
+		PostScript:      sql.NullString{String: req.PostScript, Valid: req.PostScript != ""},
+		ContinueOnError: sql.NullInt64{Int64: continueOnError, Valid: true},
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())

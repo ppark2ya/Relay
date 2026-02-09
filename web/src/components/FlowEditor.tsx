@@ -55,6 +55,9 @@ interface StepEditState {
   condition: string;
   proxyId: number | null;
   loopCount: number;
+  preScript: string;
+  postScript: string;
+  continueOnError: boolean;
 }
 
 function parseFormBody(bodyStr: string): Array<{ key: string; value: string; enabled: boolean }> {
@@ -119,6 +122,9 @@ function stepToEditState(step: FlowStep): StepEditState {
     condition: step.condition || '',
     proxyId: step.proxyId ?? null,
     loopCount: step.loopCount || 1,
+    preScript: step.preScript || '',
+    postScript: step.postScript || '',
+    continueOnError: step.continueOnError || false,
   };
 }
 
@@ -134,7 +140,7 @@ interface SortableStepProps {
   expandedStepId: number | null;
   editState: StepEditState | undefined;
   stepResults: StepResult[];
-  onEditChange: (stepId: number, field: keyof StepEditState, value: string | number | Array<{ key: string; value: string; enabled: boolean }> | FormDataItem[]) => void;
+  onEditChange: (stepId: number, field: keyof StepEditState, value: string | number | boolean | Array<{ key: string; value: string; enabled: boolean }> | FormDataItem[]) => void;
   onSaveStep: (stepId: number) => void;
   updateStepPending: boolean;
   proxies: Array<{ id: number; name: string; url: string; isActive: boolean }>;
@@ -262,6 +268,14 @@ function SortableStep({
             {step.loopCount > 1 && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-700">
                 ×{step.loopCount}
+              </span>
+            )}
+            {(step.preScript || step.postScript) && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700" title={`${step.preScript ? 'Pre-script' : ''}${step.preScript && step.postScript ? ' + ' : ''}${step.postScript ? 'Post-script' : ''}`}>
+                <svg className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+                Script
               </span>
             )}
             <span className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1">{step.url}</span>
@@ -541,6 +555,77 @@ function SortableStep({
                 />
               </FormField>
 
+              {/* Pre-Script */}
+              <FormField label={
+                <span className="flex items-center gap-1">
+                  Pre-Script
+                  <span className="relative group/prescript">
+                    <svg className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="absolute bottom-full left-0 mb-1.5 hidden group-hover/prescript:block w-72 px-3 py-2 text-xs text-gray-100 bg-gray-800 dark:bg-gray-700 rounded-md shadow-lg z-50 font-normal leading-relaxed">
+                      요청 실행 전에 실행되는 스크립트입니다. 변수 설정, 흐름 제어를 수행할 수 있습니다. DSL Guide에서 문법을 확인하세요.
+                    </span>
+                  </span>
+                </span>
+              }>
+                <CodeEditor
+                  value={edit.preScript}
+                  onChange={val => onEditChange(step.id, 'preScript', val)}
+                  language="json"
+                  placeholder='{"setVariables": [{"name": "counter", "operation": "increment"}]}'
+                  height="80px"
+                />
+              </FormField>
+
+              {/* Post-Script */}
+              <FormField label={
+                <span className="flex items-center gap-1">
+                  Post-Script
+                  <span className="relative group/postscript">
+                    <svg className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="absolute bottom-full left-0 mb-1.5 hidden group-hover/postscript:block w-72 px-3 py-2 text-xs text-gray-100 bg-gray-800 dark:bg-gray-700 rounded-md shadow-lg z-50 font-normal leading-relaxed">
+                      요청 실행 후에 실행되는 스크립트입니다. 응답 검증(assertions), 변수 추출, 흐름 제어를 수행할 수 있습니다.
+                    </span>
+                  </span>
+                </span>
+              }>
+                <CodeEditor
+                  value={edit.postScript}
+                  onChange={val => onEditChange(step.id, 'postScript', val)}
+                  language="json"
+                  placeholder='{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'
+                  height="80px"
+                />
+              </FormField>
+
+              {/* Continue On Error */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id={`continueOnError-${step.id}`}
+                  checked={edit.continueOnError}
+                  onChange={e => onEditChange(step.id, 'continueOnError', e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                />
+                <label
+                  htmlFor={`continueOnError-${step.id}`}
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1"
+                >
+                  Continue on Error
+                  <span className="relative group/continue">
+                    <svg className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="absolute bottom-full left-0 mb-1.5 hidden group-hover/continue:block w-64 px-3 py-2 text-xs text-gray-100 bg-gray-800 dark:bg-gray-700 rounded-md shadow-lg z-50 font-normal leading-relaxed">
+                      이 스텝에서 오류가 발생해도 Flow 실행을 계속합니다. 비활성화하면 오류 시 즉시 중단됩니다.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
               {/* Save Button */}
               <div className="flex justify-end pt-2">
                 <button
@@ -620,7 +705,10 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
       edit.extractVars !== (step.extractVars === '{}' ? '' : (step.extractVars || '')) ||
       edit.condition !== (step.condition || '') ||
       edit.proxyId !== (step.proxyId ?? null) ||
-      edit.loopCount !== (step.loopCount || 1)
+      edit.loopCount !== (step.loopCount || 1) ||
+      edit.preScript !== (step.preScript || '') ||
+      edit.postScript !== (step.postScript || '') ||
+      edit.continueOnError !== (step.continueOnError || false)
     );
   }, [editStates, steps]);
 
@@ -687,6 +775,9 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
             condition: step.condition,
             proxyId: step.proxyId === null ? -1 : step.proxyId,
             loopCount: step.loopCount,
+            preScript: step.preScript,
+            postScript: step.postScript,
+            continueOnError: step.continueOnError,
           },
         });
       }
@@ -723,6 +814,9 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           body: '',
           bodyType: 'none',
           loopCount: 1,
+          preScript: '',
+          postScript: '',
+          continueOnError: false,
         },
       });
       setShowAddMenu(false);
@@ -749,6 +843,9 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           body: req.body || '',
           bodyType: req.bodyType || 'none',
           loopCount: 1,
+          preScript: '',
+          postScript: '',
+          continueOnError: false,
         },
       });
       setShowRequestDropdown(false);
@@ -782,7 +879,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     }
   };
 
-  const handleEditChange = (stepId: number, field: keyof StepEditState, value: string | number | Array<{ key: string; value: string; enabled: boolean }> | FormDataItem[]) => {
+  const handleEditChange = (stepId: number, field: keyof StepEditState, value: string | number | boolean | Array<{ key: string; value: string; enabled: boolean }> | FormDataItem[]) => {
     setEditStates(prev => ({
       ...prev,
       [stepId]: { ...prev[stepId], [field]: value },
@@ -827,6 +924,9 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
         bodyType: edit.bodyType,
         proxyId: edit.proxyId === null ? -1 : edit.proxyId,
         loopCount: edit.loopCount,
+        preScript: edit.preScript,
+        postScript: edit.postScript,
+        continueOnError: edit.continueOnError,
       },
     }, {
       onSuccess: (updatedStep) => {
@@ -1111,9 +1211,40 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                         <span className="text-xs text-gray-500 dark:text-gray-400">{stepResult.executeResult.durationMs}ms</span>
                       </>
                     )}
+                    {/* Show assertion results if available */}
+                    {stepResult.postScriptResult && (stepResult.postScriptResult.assertionsPassed > 0 || stepResult.postScriptResult.assertionsFailed > 0) && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${
+                        stepResult.postScriptResult.assertionsFailed > 0
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                          : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                      }`}>
+                        {stepResult.postScriptResult.assertionsPassed}/{stepResult.postScriptResult.assertionsPassed + stepResult.postScriptResult.assertionsFailed} assertions
+                      </span>
+                    )}
+                    {/* Show flow action if not next */}
+                    {stepResult.postScriptResult && stepResult.postScriptResult.flowAction !== 'next' && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                        {stepResult.postScriptResult.flowAction}
+                        {stepResult.postScriptResult.gotoStepName && ` → ${stepResult.postScriptResult.gotoStepName}`}
+                      </span>
+                    )}
                   </div>
                   {stepResult.executeResult.error && (
                     <div className="mt-1 text-xs text-red-600 dark:text-red-400">{stepResult.executeResult.error}</div>
+                  )}
+                  {/* Show assertion errors */}
+                  {stepResult.postScriptResult?.errors && stepResult.postScriptResult.errors.length > 0 && (
+                    <div className="mt-1 text-xs text-red-600 dark:text-red-400">
+                      {stepResult.postScriptResult.errors.map((err, i) => (
+                        <div key={i}>{err}</div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Show extracted variables */}
+                  {Object.keys(stepResult.extractedVars || {}).length > 0 && (
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Variables: {Object.entries(stepResult.extractedVars).map(([k, v]) => `${k}=${v}`).join(', ')}
+                    </div>
                   )}
                 </div>
               ))}

@@ -37,25 +37,28 @@ type Flow struct {
 }
 
 type FlowStep struct {
-	ID          int64          `json:"id"`
-	FlowID      int64          `json:"flow_id"`
-	RequestID   sql.NullInt64  `json:"request_id"`
-	StepOrder   int64          `json:"step_order"`
-	DelayMs     sql.NullInt64  `json:"delay_ms"`
-	ExtractVars sql.NullString `json:"extract_vars"`
-	Condition   sql.NullString `json:"condition"`
-	Name        string         `json:"name"`
-	Method      string         `json:"method"`
-	Url         string         `json:"url"`
-	Headers     sql.NullString `json:"headers"`
-	Body        sql.NullString `json:"body"`
-	BodyType    sql.NullString `json:"body_type"`
-	Cookies     sql.NullString `json:"cookies"`
-	ProxyID     sql.NullInt64  `json:"proxy_id"`
-	CreatedAt   sql.NullTime   `json:"created_at"`
-	UpdatedAt   sql.NullTime   `json:"updated_at"`
-	WorkspaceID int64          `json:"workspace_id"`
-	LoopCount   sql.NullInt64  `json:"loop_count"`
+	ID              int64          `json:"id"`
+	FlowID          int64          `json:"flow_id"`
+	RequestID       sql.NullInt64  `json:"request_id"`
+	StepOrder       int64          `json:"step_order"`
+	DelayMs         sql.NullInt64  `json:"delay_ms"`
+	ExtractVars     sql.NullString `json:"extract_vars"`
+	Condition       sql.NullString `json:"condition"`
+	Name            string         `json:"name"`
+	Method          string         `json:"method"`
+	Url             string         `json:"url"`
+	Headers         sql.NullString `json:"headers"`
+	Body            sql.NullString `json:"body"`
+	BodyType        sql.NullString `json:"body_type"`
+	Cookies         sql.NullString `json:"cookies"`
+	ProxyID         sql.NullInt64  `json:"proxy_id"`
+	CreatedAt       sql.NullTime   `json:"created_at"`
+	UpdatedAt       sql.NullTime   `json:"updated_at"`
+	WorkspaceID     int64          `json:"workspace_id"`
+	LoopCount       sql.NullInt64  `json:"loop_count"`
+	PreScript       sql.NullString `json:"pre_script"`
+	PostScript      sql.NullString `json:"post_script"`
+	ContinueOnError sql.NullInt64  `json:"continue_on_error"`
 }
 
 type Proxy struct {

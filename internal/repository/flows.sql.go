@@ -36,26 +36,30 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, e
 
 const createFlowStep = `-- name: CreateFlowStep :one
 INSERT INTO flow_steps (flow_id, request_id, step_order, delay_ms, extract_vars, condition,
-                        name, method, url, headers, body, body_type, cookies, proxy_id, loop_count)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, loop_count
+                        name, method, url, headers, body, body_type, cookies, proxy_id, loop_count,
+                        pre_script, post_script, continue_on_error)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, loop_count, pre_script, post_script, continue_on_error
 `
 
 type CreateFlowStepParams struct {
-	FlowID      int64          `json:"flow_id"`
-	RequestID   sql.NullInt64  `json:"request_id"`
-	StepOrder   int64          `json:"step_order"`
-	DelayMs     sql.NullInt64  `json:"delay_ms"`
-	ExtractVars sql.NullString `json:"extract_vars"`
-	Condition   sql.NullString `json:"condition"`
-	Name        string         `json:"name"`
-	Method      string         `json:"method"`
-	Url         string         `json:"url"`
-	Headers     sql.NullString `json:"headers"`
-	Body        sql.NullString `json:"body"`
-	BodyType    sql.NullString `json:"body_type"`
-	Cookies     sql.NullString `json:"cookies"`
-	ProxyID     sql.NullInt64  `json:"proxy_id"`
-	LoopCount   sql.NullInt64  `json:"loop_count"`
+	FlowID          int64          `json:"flow_id"`
+	RequestID       sql.NullInt64  `json:"request_id"`
+	StepOrder       int64          `json:"step_order"`
+	DelayMs         sql.NullInt64  `json:"delay_ms"`
+	ExtractVars     sql.NullString `json:"extract_vars"`
+	Condition       sql.NullString `json:"condition"`
+	Name            string         `json:"name"`
+	Method          string         `json:"method"`
+	Url             string         `json:"url"`
+	Headers         sql.NullString `json:"headers"`
+	Body            sql.NullString `json:"body"`
+	BodyType        sql.NullString `json:"body_type"`
+	Cookies         sql.NullString `json:"cookies"`
+	ProxyID         sql.NullInt64  `json:"proxy_id"`
+	LoopCount       sql.NullInt64  `json:"loop_count"`
+	PreScript       sql.NullString `json:"pre_script"`
+	PostScript      sql.NullString `json:"post_script"`
+	ContinueOnError sql.NullInt64  `json:"continue_on_error"`
 }
 
 func (q *Queries) CreateFlowStep(ctx context.Context, arg CreateFlowStepParams) (FlowStep, error) {
@@ -75,6 +79,9 @@ func (q *Queries) CreateFlowStep(ctx context.Context, arg CreateFlowStepParams) 
 		arg.Cookies,
 		arg.ProxyID,
 		arg.LoopCount,
+		arg.PreScript,
+		arg.PostScript,
+		arg.ContinueOnError,
 	)
 	var i FlowStep
 	err := row.Scan(
@@ -97,6 +104,9 @@ func (q *Queries) CreateFlowStep(ctx context.Context, arg CreateFlowStepParams) 
 		&i.UpdatedAt,
 		&i.WorkspaceID,
 		&i.LoopCount,
+		&i.PreScript,
+		&i.PostScript,
+		&i.ContinueOnError,
 	)
 	return i, err
 }
@@ -147,7 +157,7 @@ func (q *Queries) GetFlow(ctx context.Context, id int64) (Flow, error) {
 }
 
 const getFlowStep = `-- name: GetFlowStep :one
-SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, loop_count FROM flow_steps WHERE id = ? LIMIT 1
+SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, loop_count, pre_script, post_script, continue_on_error FROM flow_steps WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
@@ -173,12 +183,15 @@ func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
 		&i.UpdatedAt,
 		&i.WorkspaceID,
 		&i.LoopCount,
+		&i.PreScript,
+		&i.PostScript,
+		&i.ContinueOnError,
 	)
 	return i, err
 }
 
 const listFlowSteps = `-- name: ListFlowSteps :many
-SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, loop_count FROM flow_steps WHERE flow_id = ? ORDER BY step_order
+SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, loop_count, pre_script, post_script, continue_on_error FROM flow_steps WHERE flow_id = ? ORDER BY step_order
 `
 
 func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, error) {
@@ -210,6 +223,9 @@ func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, 
 			&i.UpdatedAt,
 			&i.WorkspaceID,
 			&i.LoopCount,
+			&i.PreScript,
+			&i.PostScript,
+			&i.ContinueOnError,
 		); err != nil {
 			return nil, err
 		}
@@ -298,26 +314,32 @@ UPDATE flow_steps SET
     cookies = ?,
     proxy_id = ?,
     loop_count = ?,
+    pre_script = ?,
+    post_script = ?,
+    continue_on_error = ?,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = ? RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, loop_count
+WHERE id = ? RETURNING id, flow_id, request_id, step_order, delay_ms, extract_vars, condition, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, loop_count, pre_script, post_script, continue_on_error
 `
 
 type UpdateFlowStepParams struct {
-	RequestID   sql.NullInt64  `json:"request_id"`
-	StepOrder   int64          `json:"step_order"`
-	DelayMs     sql.NullInt64  `json:"delay_ms"`
-	ExtractVars sql.NullString `json:"extract_vars"`
-	Condition   sql.NullString `json:"condition"`
-	Name        string         `json:"name"`
-	Method      string         `json:"method"`
-	Url         string         `json:"url"`
-	Headers     sql.NullString `json:"headers"`
-	Body        sql.NullString `json:"body"`
-	BodyType    sql.NullString `json:"body_type"`
-	Cookies     sql.NullString `json:"cookies"`
-	ProxyID     sql.NullInt64  `json:"proxy_id"`
-	LoopCount   sql.NullInt64  `json:"loop_count"`
-	ID          int64          `json:"id"`
+	RequestID       sql.NullInt64  `json:"request_id"`
+	StepOrder       int64          `json:"step_order"`
+	DelayMs         sql.NullInt64  `json:"delay_ms"`
+	ExtractVars     sql.NullString `json:"extract_vars"`
+	Condition       sql.NullString `json:"condition"`
+	Name            string         `json:"name"`
+	Method          string         `json:"method"`
+	Url             string         `json:"url"`
+	Headers         sql.NullString `json:"headers"`
+	Body            sql.NullString `json:"body"`
+	BodyType        sql.NullString `json:"body_type"`
+	Cookies         sql.NullString `json:"cookies"`
+	ProxyID         sql.NullInt64  `json:"proxy_id"`
+	LoopCount       sql.NullInt64  `json:"loop_count"`
+	PreScript       sql.NullString `json:"pre_script"`
+	PostScript      sql.NullString `json:"post_script"`
+	ContinueOnError sql.NullInt64  `json:"continue_on_error"`
+	ID              int64          `json:"id"`
 }
 
 func (q *Queries) UpdateFlowStep(ctx context.Context, arg UpdateFlowStepParams) (FlowStep, error) {
@@ -336,6 +358,9 @@ func (q *Queries) UpdateFlowStep(ctx context.Context, arg UpdateFlowStepParams) 
 		arg.Cookies,
 		arg.ProxyID,
 		arg.LoopCount,
+		arg.PreScript,
+		arg.PostScript,
+		arg.ContinueOnError,
 		arg.ID,
 	)
 	var i FlowStep
@@ -359,6 +384,9 @@ func (q *Queries) UpdateFlowStep(ctx context.Context, arg UpdateFlowStepParams) 
 		&i.UpdatedAt,
 		&i.WorkspaceID,
 		&i.LoopCount,
+		&i.PreScript,
+		&i.PostScript,
+		&i.ContinueOnError,
 	)
 	return i, err
 }

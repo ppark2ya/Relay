@@ -19,6 +19,7 @@ func Run(db *sql.DB) error {
 	migrateWorkspaces(db)
 	migrateBinaryResponse(db)
 	migrateLoopCount(db)
+	migrateFlowScripts(db)
 
 	return nil
 }
@@ -252,4 +253,17 @@ func migrateBinaryResponse(db *sql.DB) {
 
 func migrateLoopCount(db *sql.DB) {
 	db.Exec("ALTER TABLE flow_steps ADD COLUMN loop_count INTEGER DEFAULT 1")
+}
+
+func migrateFlowScripts(db *sql.DB) {
+	stmts := []string{
+		"ALTER TABLE flow_steps ADD COLUMN pre_script TEXT DEFAULT ''",
+		"ALTER TABLE flow_steps ADD COLUMN post_script TEXT DEFAULT ''",
+		"ALTER TABLE flow_steps ADD COLUMN continue_on_error INTEGER DEFAULT 0",
+	}
+	for _, s := range stmts {
+		db.Exec(s) // Ignore "duplicate column" errors
+	}
+	// Create index for step name lookups (for goto by name)
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_flow_steps_name ON flow_steps(flow_id, name)")
 }

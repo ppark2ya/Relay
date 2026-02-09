@@ -15,6 +15,7 @@ type FlowRunner struct {
 	queries          *repository.Queries
 	requestExecutor  *RequestExecutor
 	variableResolver *VariableResolver
+	scriptExecutor   *ScriptExecutor
 }
 
 func NewFlowRunner(queries *repository.Queries, re *RequestExecutor, vr *VariableResolver) *FlowRunner {
@@ -22,19 +23,22 @@ func NewFlowRunner(queries *repository.Queries, re *RequestExecutor, vr *Variabl
 		queries:          queries,
 		requestExecutor:  re,
 		variableResolver: vr,
+		scriptExecutor:   NewScriptExecutor(vr),
 	}
 }
 
 type StepResult struct {
-	StepID        int64             `json:"stepId"`
-	RequestID     *int64            `json:"requestId"`
-	RequestName   string            `json:"requestName"`
-	ExecuteResult *ExecuteResult    `json:"executeResult"`
-	ExtractedVars map[string]string `json:"extractedVars"`
-	Skipped       bool              `json:"skipped"`
-	SkipReason    string            `json:"skipReason,omitempty"`
-	Iteration     int64             `json:"iteration,omitempty"`
-	LoopCount     int64             `json:"loopCount,omitempty"`
+	StepID           int64             `json:"stepId"`
+	RequestID        *int64            `json:"requestId"`
+	RequestName      string            `json:"requestName"`
+	ExecuteResult    *ExecuteResult    `json:"executeResult"`
+	ExtractedVars    map[string]string `json:"extractedVars"`
+	Skipped          bool              `json:"skipped"`
+	SkipReason       string            `json:"skipReason,omitempty"`
+	Iteration        int64             `json:"iteration,omitempty"`
+	LoopCount        int64             `json:"loopCount,omitempty"`
+	PreScriptResult  *ScriptResult     `json:"preScriptResult,omitempty"`
+	PostScriptResult *ScriptResult     `json:"postScriptResult,omitempty"`
 }
 
 type FlowResult struct {
@@ -70,13 +74,34 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 		selectedSet[id] = true
 	}
 
+	// Build step name -> index map for goto resolution
+	stepNameToIndex := make(map[string]int)
+	stepOrderToIndex := make(map[int]int)
+	for i, step := range steps {
+		if step.Name != "" {
+			stepNameToIndex[step.Name] = i
+		}
+		stepOrderToIndex[int(step.StepOrder)] = i
+	}
+
 	// Runtime variables accumulated during flow execution
 	runtimeVars := make(map[string]string)
 	startTime := time.Now()
 
-	for _, step := range steps {
+	// Track execution limits
+	gotoJumps := 0
+	totalIterations := 0
+	maxGotoJumps := 100
+	maxIterations := 1000
+
+	// Use index-based iteration for goto support
+	stepIndex := 0
+	for stepIndex < len(steps) {
+		step := steps[stepIndex]
+
 		// Skip step if not in selected list (when selection is provided)
 		if len(selectedStepIDs) > 0 && !selectedSet[step.ID] {
+			stepIndex++
 			continue
 		}
 
@@ -91,7 +116,16 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 		}
 
 		// Loop execution
-		for iteration := int64(1); iteration <= loopCount; iteration++ {
+		iteration := int64(1)
+		for iteration <= loopCount {
+			totalIterations++
+			if totalIterations > maxIterations {
+				result.Success = false
+				result.Error = "Maximum iteration limit reached"
+				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				return result, nil
+			}
+
 			// Add iteration info to runtime vars
 			runtimeVars["__iteration__"] = strconv.FormatInt(iteration, 10)
 			runtimeVars["__loopCount__"] = strconv.FormatInt(loopCount, 10)
@@ -103,6 +137,34 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 				ExtractedVars: make(map[string]string),
 				Iteration:     iteration,
 				LoopCount:     loopCount,
+			}
+
+			// Build script context
+			scriptCtx := &ScriptContext{
+				RuntimeVars: runtimeVars,
+				StepName:    step.Name,
+				StepOrder:   int(step.StepOrder),
+				FlowName:    flow.Name,
+				Iteration:   iteration,
+				LoopCount:   loopCount,
+			}
+
+			// Execute pre-script
+			if step.PreScript.Valid && step.PreScript.String != "" {
+				preResult := fr.scriptExecutor.Execute(step.PreScript.String, scriptCtx)
+				stepResult.PreScriptResult = preResult
+
+				// Apply updated variables
+				for k, v := range preResult.UpdatedVars {
+					runtimeVars[k] = v
+				}
+
+				// Handle pre-script flow control
+				if preResult.FlowAction == FlowActionStop {
+					result.Steps = append(result.Steps, stepResult)
+					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					return result, nil
+				}
 			}
 
 			// Build request from step's inline fields
@@ -133,6 +195,7 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 					stepResult.Skipped = true
 					stepResult.SkipReason = "Condition not met"
 					result.Steps = append(result.Steps, stepResult)
+					iteration++
 					continue
 				}
 			}
@@ -147,15 +210,25 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 			if err != nil {
 				stepResult.ExecuteResult = &ExecuteResult{Error: err.Error()}
 				result.Steps = append(result.Steps, stepResult)
-				result.Success = false
-				result.Error = err.Error()
-				result.TotalTimeMs = time.Since(startTime).Milliseconds()
-				return result, nil
+				if !step.ContinueOnError.Valid || step.ContinueOnError.Int64 == 0 {
+					result.Success = false
+					result.Error = err.Error()
+					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					return result, nil
+				}
+				iteration++
+				continue
 			}
 			stepResult.ExecuteResult = execResult
 
-			// Extract variables from response
-			if step.ExtractVars.Valid && step.ExtractVars.String != "" {
+			// Update script context with response
+			scriptCtx.StatusCode = execResult.StatusCode
+			scriptCtx.ResponseBody = execResult.Body
+			scriptCtx.Headers = execResult.Headers
+			scriptCtx.DurationMs = execResult.DurationMs
+
+			// Extract variables from response (legacy extractVars)
+			if step.ExtractVars.Valid && step.ExtractVars.String != "" && step.ExtractVars.String != "{}" {
 				extracted, err := fr.extractVariables(execResult.Body, step.ExtractVars.String)
 				if err == nil {
 					stepResult.ExtractedVars = extracted
@@ -165,16 +238,95 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 				}
 			}
 
+			// Execute post-script
+			flowAction := FlowActionNext
+			gotoStepName := ""
+			gotoStepOrder := 0
+
+			if step.PostScript.Valid && step.PostScript.String != "" {
+				postResult := fr.scriptExecutor.Execute(step.PostScript.String, scriptCtx)
+				stepResult.PostScriptResult = postResult
+
+				// Apply updated variables
+				for k, v := range postResult.UpdatedVars {
+					runtimeVars[k] = v
+					scriptCtx.RuntimeVars[k] = v
+				}
+
+				// Merge script extracted vars into result
+				for k, v := range postResult.UpdatedVars {
+					stepResult.ExtractedVars[k] = v
+				}
+
+				flowAction = postResult.FlowAction
+				gotoStepName = postResult.GotoStepName
+				gotoStepOrder = postResult.GotoStepOrder
+
+				// Check assertions
+				if !postResult.Success && (!step.ContinueOnError.Valid || step.ContinueOnError.Int64 == 0) {
+					result.Steps = append(result.Steps, stepResult)
+					result.Success = false
+					if len(postResult.Errors) > 0 {
+						result.Error = postResult.Errors[0]
+					}
+					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					return result, nil
+				}
+			}
+
 			result.Steps = append(result.Steps, stepResult)
 
 			// Check if request failed
-			if execResult.Error != "" {
+			if execResult.Error != "" && (!step.ContinueOnError.Valid || step.ContinueOnError.Int64 == 0) {
 				result.Success = false
 				result.Error = execResult.Error
 				result.TotalTimeMs = time.Since(startTime).Milliseconds()
 				return result, nil
 			}
+
+			// Handle flow control from post-script
+			switch flowAction {
+			case FlowActionStop:
+				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				return result, nil
+
+			case FlowActionRepeat:
+				// Don't increment iteration, repeat current step
+				continue
+
+			case FlowActionGoto:
+				gotoJumps++
+				if gotoJumps > maxGotoJumps {
+					result.Success = false
+					result.Error = "Maximum goto jump limit reached"
+					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					return result, nil
+				}
+
+				// Find target step
+				targetIndex := -1
+				if gotoStepName != "" {
+					if idx, ok := stepNameToIndex[gotoStepName]; ok {
+						targetIndex = idx
+					}
+				} else if gotoStepOrder > 0 {
+					if idx, ok := stepOrderToIndex[gotoStepOrder]; ok {
+						targetIndex = idx
+					}
+				}
+
+				if targetIndex >= 0 {
+					stepIndex = targetIndex
+					iteration = 1 // Reset iteration for the new step
+					continue
+				}
+				// If target not found, fall through to next step
+			}
+
+			iteration++
 		}
+
+		stepIndex++
 	}
 
 	result.TotalTimeMs = time.Since(startTime).Milliseconds()
