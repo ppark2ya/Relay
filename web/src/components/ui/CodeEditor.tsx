@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { xml } from '@codemirror/lang-xml';
@@ -57,14 +57,14 @@ const darkHighlightTheme = syntaxHighlighting(HighlightStyle.define([
 ]));
 
 const darkEditorTheme = EditorView.theme({
-  '&': { backgroundColor: '#1f2937' },
-  '.cm-gutters': { backgroundColor: '#1f2937', borderRight: '1px solid #374151' },
-  '.cm-activeLineGutter': { backgroundColor: '#374151' },
-  '.cm-activeLine': { backgroundColor: '#374151' },
+  '&': { backgroundColor: '#374151' },
+  '.cm-gutters': { backgroundColor: '#374151', borderRight: '1px solid #4b5563' },
+  '.cm-activeLineGutter': { backgroundColor: '#4b5563' },
+  '.cm-activeLine': { backgroundColor: '#4b5563' },
   '.cm-cursor': { borderLeftColor: '#e5e7eb' },
-  '.cm-selectionBackground': { backgroundColor: '#374151 !important' },
+  '.cm-selectionBackground': { backgroundColor: '#4b5563 !important' },
   '.cm-content': { color: '#e5e7eb' },
-  '.cm-placeholder': { color: '#6b7280' },
+  '.cm-placeholder': { color: '#9ca3af' },
 }, { dark: true });
 
 interface CodeEditorProps {
@@ -84,7 +84,15 @@ export function CodeEditor({
   height = '120px',
   readOnly = false,
 }: CodeEditorProps) {
-  const isDark = document.documentElement.classList.contains('dark');
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   const extensions = useMemo(() => {
     const exts = [
