@@ -152,7 +152,7 @@ export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: 
                   className="w-4 h-4 rounded border-gray-300"
                 />
               </div>
-              <div className={`${ROW_BORDER} ${CELL_BORDER} min-w-0`}>
+              <div className={`${ROW_BORDER} ${CELL_BORDER} min-w-0 flex items-center`}>
                 <input
                   type="text"
                   value={item.key}
@@ -161,7 +161,7 @@ export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: 
                   className={inputClass(item)}
                 />
               </div>
-              <div className={`${ROW_BORDER} ${CELL_BORDER}`}>
+              <div className={`${ROW_BORDER} ${CELL_BORDER} flex items-center`}>
                 <select
                   value={item.type}
                   onChange={e => handleChange(index, 'type', e.target.value)}
@@ -173,7 +173,7 @@ export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: 
                   <option value="file">File</option>
                 </select>
               </div>
-              <div className={`${ROW_BORDER} ${CELL_BORDER} min-w-0`}>
+              <div className={`${ROW_BORDER} ${CELL_BORDER} min-w-0 flex items-center`}>
                 {item.type === 'file' ? (
                   <FileInput
                     item={item}

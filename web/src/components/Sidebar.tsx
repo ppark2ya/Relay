@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection } from '../api/collections';
+import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useUpdateCollection } from '../api/collections';
 import { useCreateRequest, useDeleteRequest, useDuplicateRequest } from '../api/requests';
 import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow } from '../api/flows';
 import { useHistory, useDeleteHistory } from '../api/history';
@@ -79,6 +79,9 @@ function CollectionTree({
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [lastAutoExpanded, setLastAutoExpanded] = useState<number | undefined>(undefined);
+  const [editingCollectionId, setEditingCollectionId] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const updateCollection = useUpdateCollection();
 
   // Render-time state adjustment (React recommended pattern)
   if (selectedRequestId && selectedRequestId !== lastAutoExpanded) {
@@ -119,7 +122,46 @@ function CollectionTree({
             <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
             </svg>
-            <span className="flex-1 text-sm truncate dark:text-gray-200">{collection.name}</span>
+            {editingCollectionId === collection.id ? (
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const trimmed = editName.trim();
+                    if (trimmed && trimmed !== collection.name) {
+                      updateCollection.mutate({ id: collection.id, data: { name: trimmed } });
+                    }
+                    setEditingCollectionId(null);
+                  }
+                  if (e.key === 'Escape') {
+                    setEditingCollectionId(null);
+                  }
+                }}
+                onBlur={() => {
+                  const trimmed = editName.trim();
+                  if (trimmed && trimmed !== collection.name) {
+                    updateCollection.mutate({ id: collection.id, data: { name: trimmed } });
+                  }
+                  setEditingCollectionId(null);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                autoFocus
+                className="flex-1 text-sm bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
+              />
+            ) : (
+              <span
+                className="flex-1 text-sm truncate dark:text-gray-200"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setEditingCollectionId(collection.id);
+                  setEditName(collection.name);
+                }}
+              >
+                {collection.name}
+              </span>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); onCreateRequest(collection.id); }}
               className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
@@ -127,6 +169,19 @@ function CollectionTree({
             >
               <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingCollectionId(collection.id);
+                setEditName(collection.name);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+              title="Rename Collection"
+            >
+              <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
             </button>
             <button
