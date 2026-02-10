@@ -80,10 +80,11 @@ test.describe('Request Execute', () => {
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText('200')).toBeVisible({ timeout: 30_000 });
 
-    // Click Headers tab in the response viewer (the second "Headers" button on the page)
-    await page.getByRole('button', { name: 'Headers' }).nth(1).click();
+    // Click Headers tab in the response viewer
+    // nth(0) = RequestEditor Headers tab, nth(1) = sidebar item "GET Headers Check", nth(2) = ResponseViewer Headers tab
+    await page.getByRole('button', { name: 'Headers', exact: true }).last().click();
 
-    // Should show Content-Type header
-    await expect(page.getByText('Content-Type', { exact: true })).toBeVisible();
+    // Should show Content-Type header (case may vary)
+    await expect(page.getByText('Content-Type', { exact: true }).or(page.getByText('content-type', { exact: true }))).toBeVisible();
   });
 });

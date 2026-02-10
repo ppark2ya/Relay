@@ -29,14 +29,15 @@ test.describe('Request Editor', () => {
     await expandCollection(page, 'Editor Collection');
     await selectRequest(page, 'Test Request');
 
-    // Click method button to open dropdown
-    await page.getByRole('button', { name: /^GET/ }).first().click();
+    // Click method button to open dropdown (scoped to main area, not sidebar)
+    const main = page.locator('main');
+    await main.getByRole('button', { name: /^GET/ }).first().click();
 
     // Select POST from dropdown
-    await page.getByRole('button', { name: 'POST' }).click();
+    await main.getByRole('button', { name: 'POST' }).click();
 
     // Method button should now show POST
-    await expect(page.getByRole('button', { name: /^POST/ }).first()).toBeVisible();
+    await expect(main.getByRole('button', { name: /^POST/ }).first()).toBeVisible();
   });
 
   test('should input URL and persist after save + reload', async ({ page }) => {
