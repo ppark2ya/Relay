@@ -53,7 +53,7 @@ export function WebSocketPanel({ messages, isConnected, onSend, onClear }: WebSo
               placeholder={isConnected ? 'Type a message... (Enter to send)' : 'Connect first to send messages'}
               disabled={!isConnected}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm dark:bg-gray-700 dark:text-gray-100 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs dark:bg-gray-700 dark:text-gray-100 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -85,7 +85,7 @@ export function WebSocketPanel({ messages, isConnected, onSend, onClear }: WebSo
       {/* Message Log */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Messages</span>
+          <span className="text-xs font-medium text-gray-700 dark:text-gray-200">Messages</span>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400">{messages.length}</span>
             <button
@@ -98,14 +98,14 @@ export function WebSocketPanel({ messages, isConnected, onSend, onClear }: WebSo
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {messages.length === 0 ? (
-            <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-8">
+            <div className="text-center text-gray-400 dark:text-gray-500 text-xs py-8">
               No messages yet. Connect and start sending.
             </div>
           ) : (
             messages.map(msg => (
               <div
                 key={msg.id}
-                className={`px-3 py-1.5 rounded text-sm font-mono ${
+                className={`px-3 py-1.5 rounded text-xs font-mono ${
                   msg.type === 'sent'
                     ? 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-400'
                     : msg.type === 'received'

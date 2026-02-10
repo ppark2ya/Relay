@@ -106,7 +106,7 @@ function ElapsedTimer() {
     return () => clearInterval(interval);
   }, [start]);
 
-  return <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums">{elapsed.toFixed(1)}s</span>;
+  return <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums">{elapsed.toFixed(1)}s</span>;
 }
 
 function parseSetCookies(setCookieHeaders: string[]): Array<{ key: string; value: string; enabled: boolean }> {
@@ -140,11 +140,11 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
         <svg className="w-10 h-10 text-blue-500 animate-pulse mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
         </svg>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Sending request...</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sending request...</p>
         <ElapsedTimer />
         <button
           onClick={onCancel}
-          className="mt-4 px-4 py-1.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border border-red-300 dark:border-red-700 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+          className="mt-4 px-4 py-1.5 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border border-red-300 dark:border-red-700 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
         >
           Cancel Request
         </button>
@@ -178,7 +178,7 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
           </div>
           <p className="text-red-800 dark:text-red-300">{response.error}</p>
           {response.resolvedUrl && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               Requested URL: {response.resolvedUrl}
             </p>
           )}
@@ -202,10 +202,10 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
         <span className={`px-2 py-0.5 rounded font-medium ${getStatusColor(response.statusCode)}`}>
           {response.statusCode}
         </span>
-        <span className="text-sm text-gray-500 dark:text-gray-400">
+        <span className="text-xs text-gray-500 dark:text-gray-400">
           {response.durationMs}ms
         </span>
-        <span className="text-sm text-gray-500 dark:text-gray-400">
+        <span className="text-xs text-gray-500 dark:text-gray-400">
           {formatSize(bodySize)}
         </span>
         {isJson && (
@@ -260,7 +260,7 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
                 />
                 <button
                   onClick={handleDownload}
-                  className="px-4 py-2 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                  className="px-4 py-2 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                 >
                   Download Image ({formatSize(bodySize)})
                 </button>
@@ -275,11 +275,11 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
                 <svg className="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
-                <p className="text-lg font-medium mb-1">Binary Response</p>
-                <p className="text-sm mb-4">{formatSize(bodySize)} &middot; {contentType || 'unknown type'}</p>
+                <p className="text-base font-medium mb-1">Binary Response</p>
+                <p className="text-xs mb-4">{formatSize(bodySize)} &middot; {contentType || 'unknown type'}</p>
                 <button
                   onClick={handleDownload}
-                  className="px-4 py-2 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                  className="px-4 py-2 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                 >
                   Download File
                 </button>
@@ -300,7 +300,7 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
             );
           }
           return (
-            <pre className="text-sm font-mono whitespace-pre-wrap break-words dark:text-gray-200">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-words dark:text-gray-200">
               {response.body}
             </pre>
           );
@@ -314,14 +314,14 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
                 // For Set-Cookie, show all values from multiValueHeaders
                 if (key === 'Set-Cookie' && setCookieValues.length > 0) {
                   return setCookieValues.map((val, i) => (
-                    <div key={`${key}-${i}`} className="flex gap-4 text-sm">
+                    <div key={`${key}-${i}`} className="flex gap-4 text-xs">
                       <span className="font-medium text-gray-700 dark:text-gray-200 min-w-[200px]">{key}</span>
                       <span className="text-gray-600 dark:text-gray-300">{val}</span>
                     </div>
                   ));
                 }
                 return (
-                  <div key={key} className="flex gap-4 text-sm">
+                  <div key={key} className="flex gap-4 text-xs">
                     <span className="font-medium text-gray-700 dark:text-gray-200 min-w-[200px]">{key}</span>
                     <span className="text-gray-600 dark:text-gray-300">{value}</span>
                   </div>
@@ -331,7 +331,7 @@ export function ResponseViewer({ response, isLoading, onCancel, onImportCookies 
                 <div className="pt-3 border-t border-gray-200 dark:border-gray-700 mt-3">
                   <button
                     onClick={() => onImportCookies(parseSetCookies(setCookieValues))}
-                    className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                    className="px-3 py-1.5 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                   >
                     Import {setCookieValues.length} cookie{setCookieValues.length > 1 ? 's' : ''}
                   </button>

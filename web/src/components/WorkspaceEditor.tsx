@@ -145,7 +145,7 @@ export function WorkspaceEditor({ isOpen, onClose, currentWorkspaceId, onSwitchW
               <button
                 key={ws.id}
                 onClick={() => setSelectedWorkspace(ws)}
-                className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 ${
                   selectedWs?.id === ws.id ? 'bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
@@ -154,7 +154,7 @@ export function WorkspaceEditor({ isOpen, onClose, currentWorkspaceId, onSwitchW
               </button>
             ))}
             {workspaces.length === 0 && (
-              <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+              <div className="px-3 py-4 text-xs text-gray-500 dark:text-gray-400 text-center">
                 No workspaces yet
               </div>
             )}
@@ -171,17 +171,17 @@ export function WorkspaceEditor({ isOpen, onClose, currentWorkspaceId, onSwitchW
                     type="text"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                     placeholder="Workspace name"
                   />
                   {isCurrent ? (
-                    <span className="px-3 py-2 text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-md whitespace-nowrap">
+                    <span className="px-3 py-2 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-md whitespace-nowrap">
                       Current
                     </span>
                   ) : (
                     <button
                       onClick={handleSwitch}
-                      className="px-3 py-2 text-sm text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-600 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 whitespace-nowrap"
+                      className="px-3 py-2 text-xs text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-600 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 whitespace-nowrap"
                     >
                       Switch
                     </button>
@@ -194,7 +194,7 @@ export function WorkspaceEditor({ isOpen, onClose, currentWorkspaceId, onSwitchW
                 <button
                   onClick={handleDelete}
                   disabled={selectedWs.id === 1}
-                  className="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="px-3 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md disabled:opacity-30 disabled:cursor-not-allowed"
                   title={selectedWs.id === 1 ? 'Cannot delete the Default workspace' : undefined}
                 >
                   Delete Workspace
@@ -202,7 +202,7 @@ export function WorkspaceEditor({ isOpen, onClose, currentWorkspaceId, onSwitchW
                 <button
                   onClick={handleSave}
                   disabled={updateWorkspace.isPending}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   {updateWorkspace.isPending ? 'Saving...' : 'Save Changes'}
                 </button>

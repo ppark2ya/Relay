@@ -19,7 +19,7 @@ export function TabNav({ tabs, activeTab, onTabChange, className = '', tabClassN
         <button
           key={tab.key}
           onClick={() => onTabChange(tab.key)}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+          className={`px-4 py-2 text-xs font-medium border-b-2 -mb-px ${
             activeTab === tab.key
               ? 'text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400'
               : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-200'

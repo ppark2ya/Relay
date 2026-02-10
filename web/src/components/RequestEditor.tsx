@@ -629,7 +629,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
       {/* History banner */}
       {isFromHistory && (
-        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700 text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -652,13 +652,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 setIsEditingName(false);
               }
             }}
-            className="text-lg font-medium px-2 py-1 border border-blue-500 rounded focus:outline-none dark:bg-gray-700 dark:text-gray-100"
+            className="text-base font-medium px-2 py-1 border border-blue-500 rounded focus:outline-none dark:bg-gray-700 dark:text-gray-100"
             autoFocus
           />
         ) : (
           <h2
             onClick={() => setIsEditingName(true)}
-            className="text-lg font-medium cursor-pointer hover:text-blue-600 dark:text-gray-100 flex items-center gap-1.5"
+            className="text-base font-medium cursor-pointer hover:text-blue-600 dark:text-gray-100 flex items-center gap-1.5"
             title="Click to edit name"
           >
             {name}
@@ -700,13 +700,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           value={url}
           onChange={e => handleUrlChange(e.target.value)}
           placeholder="Enter URL or paste text (use {{variable}} for env vars)"
-          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm dark:bg-gray-700 dark:text-gray-100"
+          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs dark:bg-gray-700 dark:text-gray-100"
         />
         {/* Proxy Selector */}
         <div className="relative" ref={proxySelectorRef}>
           <button
             onClick={() => setShowProxySelector(!showProxySelector)}
-            className={`h-full px-3 py-2 border rounded-md flex items-center gap-1.5 text-sm ${
+            className={`h-full px-3 py-2 border rounded-md flex items-center gap-1.5 text-xs ${
               proxyId === null
                 ? activeGlobalProxy
                   ? 'border-green-300 text-green-700 hover:bg-green-50 dark:border-green-600 dark:text-green-400 dark:hover:bg-green-900/30'
@@ -737,7 +737,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           {showProxySelector && (
             <div className="absolute top-full right-0 mt-1 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-20">
               <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-t-lg">
-                <span className="text-sm font-medium dark:text-gray-200">Proxy</span>
+                <span className="text-xs font-medium dark:text-gray-200">Proxy</span>
               </div>
               <div className="max-h-48 overflow-y-auto">
                 {/* Global (inherit) */}
@@ -747,7 +747,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 >
                   <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium dark:text-gray-200">Global (inherit)</div>
+                    <div className="text-xs font-medium dark:text-gray-200">Global (inherit)</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {activeGlobalProxy ? activeGlobalProxy.name : 'No proxy active'}
                     </div>
@@ -765,7 +765,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 >
                   <span className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium dark:text-gray-200">No Proxy (direct)</div>
+                    <div className="text-xs font-medium dark:text-gray-200">No Proxy (direct)</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Bypass global proxy</div>
                   </div>
                   {proxyId === 0 && (
@@ -783,7 +783,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                   >
                     <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium dark:text-gray-200">{p.name}</div>
+                      <div className="text-xs font-medium dark:text-gray-200">{p.name}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{p.url}</div>
                     </div>
                     {proxyId === p.id && (
@@ -815,7 +815,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
             <div className="absolute top-full right-0 mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-20">
               <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-t-lg">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium dark:text-gray-200">
+                  <span className="text-xs font-medium dark:text-gray-200">
                     {activeEnv ? activeEnv.name : 'No Environment'}
                   </span>
                   {activeEnv && (
@@ -845,7 +845,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <div className="p-4 text-center text-xs text-gray-500 dark:text-gray-400">
                     {activeEnv ? 'No variables defined' : 'Select an environment to use variables'}
                   </div>
                 )}
@@ -856,7 +856,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         {method === 'WS' && ws ? (
           <>
             {/* WS Status */}
-            <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
               <span className={`w-2 h-2 rounded-full ${ws.status === 'connected' ? 'bg-green-500' : ws.status === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-gray-400'}`} />
               {ws.status === 'connected' ? 'Connected' : ws.status === 'connecting' ? 'Connecting...' : 'Disconnected'}
             </div>
@@ -969,7 +969,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
 
         {activeTab === 'body' && method !== 'WS' && (
           <div className="space-y-2">
-            <div className="flex gap-4 text-sm">
+            <div className="flex gap-4 text-xs">
               {['none', 'json', 'text', 'xml', 'form-urlencoded', 'formdata', 'graphql'].map(type => (
                 <label key={type} className="flex items-center gap-1 dark:text-gray-200">
                   <input

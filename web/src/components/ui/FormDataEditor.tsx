@@ -39,16 +39,16 @@ function FileInput({ item, onChange, onRemove }: { item: FormDataItem; onChange:
       />
       <button
         onClick={() => inputRef.current?.click()}
-        className="px-2 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600"
+        className="px-2 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs dark:bg-gray-700 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600"
       >
         Choose File
       </button>
       {item.file ? (
-        <span className="text-sm text-gray-600 dark:text-gray-300 truncate">
+        <span className="text-xs text-gray-600 dark:text-gray-300 truncate">
           {item.file.name} ({formatFileSize(item.file.size)})
         </span>
       ) : item.fileId ? (
-        <span className="text-sm text-gray-600 dark:text-gray-300 truncate flex items-center gap-1">
+        <span className="text-xs text-gray-600 dark:text-gray-300 truncate flex items-center gap-1">
           {item.value} {item.fileSize != null && `(${formatFileSize(item.fileSize)})`}
           {onRemove && (
             <button
@@ -63,7 +63,7 @@ function FileInput({ item, onChange, onRemove }: { item: FormDataItem; onChange:
           )}
         </span>
       ) : (
-        <span className="text-sm text-gray-400 dark:text-gray-500">
+        <span className="text-xs text-gray-400 dark:text-gray-500">
           No file selected
         </span>
       )}
@@ -126,7 +126,7 @@ export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: 
   };
 
   const inputClass = (item: FormDataItem) =>
-    `w-full px-3 py-1.5 text-sm bg-transparent outline-none dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
+    `w-full px-3 py-1.5 text-xs bg-transparent outline-none dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
       !item.enabled ? 'opacity-50' : ''
     }`;
 
@@ -165,7 +165,7 @@ export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: 
                 <select
                   value={item.type}
                   onChange={e => handleChange(index, 'type', e.target.value)}
-                  className={`w-full px-2 py-1.5 text-sm bg-transparent outline-none dark:text-gray-100 cursor-pointer ${
+                  className={`w-full px-2 py-1.5 text-xs bg-transparent outline-none dark:text-gray-100 cursor-pointer ${
                     !item.enabled ? 'opacity-50' : ''
                   }`}
                 >
@@ -206,7 +206,7 @@ export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: 
       </div>
       <button
         onClick={handleAdd}
-        className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+        className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
       >
         + Add Field
       </button>

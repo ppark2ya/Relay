@@ -123,7 +123,7 @@ export function CodeEditor({
         foldGutter: false,
         highlightActiveLine: !readOnly,
       }}
-      className="border border-gray-300 dark:border-gray-600 rounded text-sm overflow-hidden"
+      className="border border-gray-300 dark:border-gray-600 rounded text-xs overflow-hidden"
       theme={isDark ? 'dark' : 'light'}
     />
   );

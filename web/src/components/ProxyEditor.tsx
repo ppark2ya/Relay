@@ -179,7 +179,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
               <button
                 key={proxy.id}
                 onClick={() => setSelectedProxy(proxy)}
-                className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 ${
                   selectedProxy?.id === proxy.id ? 'bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
@@ -188,7 +188,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
               </button>
             ))}
             {proxies.length === 0 && (
-              <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+              <div className="px-3 py-4 text-xs text-gray-500 dark:text-gray-400 text-center">
                 No proxies yet
               </div>
             )}
@@ -207,20 +207,20 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                       type="text"
                       value={name}
                       onChange={e => setName(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                       placeholder="Proxy name"
                     />
                     {!selectedProxy.isActive ? (
                       <button
                         onClick={handleActivate}
-                        className="px-3 py-2 text-sm text-green-600 dark:text-green-400 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/30 whitespace-nowrap"
+                        className="px-3 py-2 text-xs text-green-600 dark:text-green-400 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/30 whitespace-nowrap"
                       >
                         Set Active
                       </button>
                     ) : (
                       <button
                         onClick={handleDeactivate}
-                        className="px-3 py-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 hover:border-red-300 whitespace-nowrap"
+                        className="px-3 py-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 hover:border-red-300 whitespace-nowrap"
                       >
                         Active
                       </button>
@@ -234,7 +234,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                     type="text"
                     value={url}
                     onChange={e => setUrl(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                     placeholder="http://proxy.example.com:8080"
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -247,12 +247,12 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
                   <button
                     onClick={handleTest}
                     disabled={testProxy.isPending || !url.trim()}
-                    className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 disabled:opacity-50"
+                    className="px-4 py-2 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 disabled:opacity-50"
                   >
                     {testProxy.isPending ? 'Testing...' : 'Test Connection'}
                   </button>
                   {testResult && (
-                    <div className={`mt-2 px-3 py-2 rounded-md text-sm ${
+                    <div className={`mt-2 px-3 py-2 rounded-md text-xs ${
                       testResult.success ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                     }`}>
                       {testResult.message}
@@ -265,14 +265,14 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
               <div className="mt-auto p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <button
                   onClick={handleDelete}
-                  className="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md"
+                  className="px-3 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md"
                 >
                   Delete Proxy
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={updateProxy.isPending}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   {updateProxy.isPending ? 'Saving...' : 'Save Changes'}
                 </button>

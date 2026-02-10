@@ -270,7 +270,7 @@ function SortableStep({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
             </svg>
           </div>
-          <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-sm font-medium ${
+          <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-xs font-medium ${
             isStepError ? 'bg-red-500' : isStepSuccess ? 'bg-green-500' : isStepSkipped ? 'bg-gray-400' : 'bg-blue-600'
           }`}>
             {isStepError ? (
@@ -403,7 +403,7 @@ function SortableStep({
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
               <div className="flex items-center gap-3">
                 <MethodBadge method={edit.method} />
-                <h3 className="text-lg font-semibold dark:text-gray-100">
+                <h3 className="text-base font-semibold dark:text-gray-100">
                   {edit.name || 'Untitled Step'}
                 </h3>
                 {hasChanges && (
@@ -414,7 +414,7 @@ function SortableStep({
                 <button
                   onClick={() => onSaveStep(step.id)}
                   disabled={updateStepPending}
-                  className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
                 >
                   {updateStepPending ? 'Saving...' : 'Save Step'}
                 </button>
@@ -431,7 +431,7 @@ function SortableStep({
 
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto px-6 py-5">
-              <div className="space-y-4 text-sm">
+              <div className="space-y-4 text-xs">
                 {/* 2-column grid for short fields */}
                 <div className="grid grid-cols-2 gap-4">
                   {/* Name */}
@@ -451,7 +451,7 @@ function SortableStep({
                       <select
                         value={edit.method}
                         onChange={e => onEditChange(step.id, 'method', e.target.value)}
-                        className="px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-sm font-mono focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                        className="px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-xs font-mono focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
                       >
                         {METHODS.map(m => (
                           <option key={m} value={m}>{m}</option>
@@ -477,7 +477,7 @@ function SortableStep({
                         else if (val === '__none__') onEditChange(step.id, 'proxyId', 0);
                         else onEditChange(step.id, 'proxyId', parseInt(val));
                       }}
-                      className="px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                      className="px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-xs focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
                     >
                       <option value="__global__">Global (inherit){activeGlobalProxy ? ` — ${activeGlobalProxy.name}` : ''}</option>
                       <option value="__none__">No Proxy (direct)</option>
@@ -531,7 +531,7 @@ function SortableStep({
                       onChange={e => onEditChange(step.id, 'loopCount', Math.max(1, parseInt(e.target.value) || 1))}
                       min={1}
                       max={100}
-                      className="w-24 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                      className="w-24 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-xs focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
                     />
                   </FormField>
 
@@ -542,7 +542,7 @@ function SortableStep({
                       value={edit.delayMs}
                       onChange={e => onEditChange(step.id, 'delayMs', parseInt(e.target.value) || 0)}
                       min={0}
-                      className="w-32 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                      className="w-32 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded text-xs focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
                     />
                   </FormField>
                 </div>
@@ -835,7 +835,7 @@ pm.environment.set("userId", data.id);`
                   />
                   <label
                     htmlFor={`continueOnError-${step.id}`}
-                    className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1"
+                    className="text-xs font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1"
                   >
                     Continue on Error
                     <span className="relative group/continue">
@@ -1211,13 +1211,13 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                     setIsEditingName(false);
                   }
                 }}
-                className="text-xl font-semibold px-2 py-1 border border-blue-500 rounded focus:outline-none w-full dark:bg-gray-700 dark:text-gray-100"
+                className="text-lg font-semibold px-2 py-1 border border-blue-500 rounded focus:outline-none w-full dark:bg-gray-700 dark:text-gray-100"
                 autoFocus
               />
             ) : (
               <h2
                 onClick={() => setIsEditingName(true)}
-                className="text-xl font-semibold cursor-pointer hover:text-blue-600 dark:text-gray-100"
+                className="text-lg font-semibold cursor-pointer hover:text-blue-600 dark:text-gray-100"
                 title="Click to edit name"
               >
                 {name}
@@ -1228,7 +1228,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Add description..."
-              className="mt-1 text-sm text-gray-500 dark:text-gray-400 bg-transparent border-none focus:outline-none focus:ring-0 w-full"
+              className="mt-1 text-xs text-gray-500 dark:text-gray-400 bg-transparent border-none focus:outline-none focus:ring-0 w-full"
             />
           </div>
           <button
@@ -1271,7 +1271,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
             {steps.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 <p>No steps in this flow yet.</p>
-                <p className="text-sm">Add a blank step or copy from an existing request.</p>
+                <p className="text-xs">Add a blank step or copy from an existing request.</p>
               </div>
             ) : (
               <DndContext
@@ -1362,10 +1362,10 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                   </button>
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Select a request to copy</span>
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Select a request to copy</span>
                 </div>
                 {requests.length === 0 ? (
-                  <div className="p-4 text-sm text-gray-500 dark:text-gray-400">No requests available. Create requests first.</div>
+                  <div className="p-4 text-xs text-gray-500 dark:text-gray-400">No requests available. Create requests first.</div>
                 ) : (
                   requests.map(req => (
                     <button
@@ -1392,14 +1392,14 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold dark:text-gray-100">
                 Flow Result
-                <span className={`ml-2 text-sm ${flowResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                <span className={`ml-2 text-xs ${flowResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {flowResult.success ? 'Success' : 'Failed'}
                 </span>
               </h3>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{flowResult.totalTimeMs}ms total</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{flowResult.totalTimeMs}ms total</span>
             </div>
             {flowResult.error && (
-              <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-400">
+              <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-xs text-red-700 dark:text-red-400">
                 {flowResult.error}
               </div>
             )}
@@ -1428,7 +1428,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       <span className="text-xs text-gray-500 dark:text-gray-400">Skipped: {stepResult.skipReason}</span>
                     ) : (
                       <>
-                        <span className={`text-sm ${stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                        <span className={`text-xs ${stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                           {stepResult.executeResult.statusCode || 'Error'}
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">{stepResult.executeResult.durationMs}ms</span>

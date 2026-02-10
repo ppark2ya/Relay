@@ -152,7 +152,7 @@ function AutocompleteInput({
                 handleSelect(item);
               }}
               onMouseEnter={() => setHighlightIndex(i)}
-              className={`px-3 py-1.5 text-sm cursor-pointer ${
+              className={`px-3 py-1.5 text-xs cursor-pointer ${
                 i === highlightIndex ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
@@ -194,7 +194,7 @@ export function KeyValueEditor({
   const usedKeys = new Set(items.map(item => item.key.toLowerCase()).filter(k => k));
 
   const inputClass = (item: KeyValueItem) =>
-    `w-full px-3 py-1.5 text-sm bg-transparent outline-none dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
+    `w-full px-3 py-1.5 text-xs bg-transparent outline-none dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${
       showEnabled && !(item.enabled ?? true) ? 'opacity-50' : ''
     }`;
 
@@ -266,7 +266,7 @@ export function KeyValueEditor({
       </div>
       <button
         onClick={handleAdd}
-        className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+        className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
       >
         {addLabel}
       </button>

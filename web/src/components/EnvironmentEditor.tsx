@@ -163,7 +163,7 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
               <button
                 key={env.id}
                 onClick={() => setSelectedEnv(env)}
-                className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 ${
                   selectedEnv?.id === env.id ? 'bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
@@ -172,7 +172,7 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
               </button>
             ))}
             {environments.length === 0 && (
-              <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+              <div className="px-3 py-4 text-xs text-gray-500 dark:text-gray-400 text-center">
                 No environments yet
               </div>
             )}
@@ -189,19 +189,19 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
                     type="text"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
                     placeholder="Environment name"
                   />
                   {!selectedEnv.isActive && (
                     <button
                       onClick={handleActivate}
-                      className="px-3 py-2 text-sm text-green-600 dark:text-green-400 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/30"
+                      className="px-3 py-2 text-xs text-green-600 dark:text-green-400 border border-green-300 dark:border-green-600 rounded-md hover:bg-green-50 dark:hover:bg-green-900/30"
                     >
                       Set Active
                     </button>
                   )}
                   {selectedEnv.isActive && (
-                    <span className="px-3 py-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 rounded-md">
+                    <span className="px-3 py-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 rounded-md">
                       Active
                     </span>
                   )}
@@ -210,7 +210,7 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
 
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">Variables</h3>
+                  <h3 className="text-xs font-medium text-gray-700 dark:text-gray-200">Variables</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{{variableName}}'}</code> in requests
                   </p>
@@ -230,14 +230,14 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
               <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <button
                   onClick={handleDelete}
-                  className="px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md"
+                  className="px-3 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md"
                 >
                   Delete Environment
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={updateEnv.isPending}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   {updateEnv.isPending ? 'Saving...' : 'Save Changes'}
                 </button>
