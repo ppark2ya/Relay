@@ -124,6 +124,41 @@ test.describe('Sidebar Inline Rename - Request', () => {
     await expect(sidebar.getByText('New Request')).not.toBeVisible();
   });
 
+  test('should rename request with Cmd+S', async ({ page }) => {
+    await page.goto('/');
+    await navigateToRequests(page);
+    await createCollection(page, 'CmdS Req Col');
+    await expandCollection(page, 'CmdS Req Col');
+    await createRequestInCollection(page, 'CmdS Req Col');
+
+    const sidebar = page.getByRole('complementary');
+
+    // Click request first to load it in RequestEditor
+    await sidebar.getByText('New Request').click();
+    await page.waitForTimeout(300);
+
+    // Double-click to enter edit mode
+    await sidebar.getByText('New Request').dblclick();
+
+    const input = sidebar.locator('input[data-rename-input]');
+    await expect(input).toBeVisible();
+
+    await input.clear();
+    await input.fill('CmdS Renamed');
+    await input.press('Meta+s');
+
+    // Input should close and name should be updated
+    await expect(input).not.toBeVisible();
+    await expect(sidebar.getByText('CmdS Renamed')).toBeVisible();
+    await expect(sidebar.getByText('New Request')).not.toBeVisible();
+
+    // Reload to verify persistence
+    await page.reload();
+    await navigateToRequests(page);
+    await expandCollection(page, 'CmdS Req Col');
+    await expect(sidebar.getByText('CmdS Renamed')).toBeVisible();
+  });
+
   test('should cancel request rename on Escape', async ({ page }) => {
     await page.goto('/');
     await navigateToRequests(page);

@@ -406,6 +406,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
+        if (document.activeElement?.hasAttribute('data-rename-input')) return;
         if (request && !isFromHistory) {
           handleSave();
         }

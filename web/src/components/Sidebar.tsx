@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useUpdateCollection } from '../api/collections';
 import { useCreateRequest, useDeleteRequest, useDuplicateRequest, useUpdateRequest } from '../api/requests';
 import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useUpdateFlow } from '../api/flows';
@@ -65,6 +65,7 @@ function CollectionTree({
   onDeleteCollection,
   onDeleteRequest,
   onCreateRequest,
+  onCreateSubfolder,
   onDuplicateCollection,
   onDuplicateRequest,
 }: {
@@ -74,6 +75,7 @@ function CollectionTree({
   onDeleteCollection: (id: number) => void;
   onDeleteRequest: (id: number) => void;
   onCreateRequest: (collectionId: number) => void;
+  onCreateSubfolder: (parentId: number) => void;
   onDuplicateCollection: (id: number) => void;
   onDuplicateRequest: (id: number) => void;
 }) {
@@ -128,8 +130,19 @@ function CollectionTree({
               <input
                 type="text"
                 value={editName}
+                data-rename-input
                 onChange={(e) => setEditName(e.target.value)}
                 onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+                    e.preventDefault();
+                    e.nativeEvent.stopImmediatePropagation();
+                    const trimmed = editName.trim();
+                    if (trimmed && trimmed !== collection.name) {
+                      updateCollection.mutate({ id: collection.id, data: { name: trimmed } });
+                    }
+                    setEditingCollectionId(null);
+                    return;
+                  }
                   if (e.key === 'Enter') {
                     const trimmed = editName.trim();
                     if (trimmed && trimmed !== collection.name) {
@@ -150,11 +163,11 @@ function CollectionTree({
                 }}
                 onClick={(e) => e.stopPropagation()}
                 autoFocus
-                className="flex-1 text-sm bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
+                className="flex-1 text-xs bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
               />
             ) : (
               <span
-                className="flex-1 text-sm truncate dark:text-gray-200"
+                className="flex-1 text-xs truncate dark:text-gray-200"
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   setEditingCollectionId(collection.id);
@@ -171,6 +184,19 @@ function CollectionTree({
             >
               <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(prev => new Set(prev).add(collection.id));
+                onCreateSubfolder(collection.id);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+              title="Add Subfolder"
+            >
+              <svg className="w-4 h-4 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
               </svg>
             </button>
             <button
@@ -220,8 +246,19 @@ function CollectionTree({
                     <input
                       type="text"
                       value={editName}
+                      data-rename-input
                       onChange={(e) => setEditName(e.target.value)}
                       onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+                          e.preventDefault();
+                          e.nativeEvent.stopImmediatePropagation();
+                          const trimmed = editName.trim();
+                          if (trimmed && trimmed !== request.name) {
+                            updateRequest.mutate({ id: request.id, data: { ...request, name: trimmed } });
+                          }
+                          setEditingRequestId(null);
+                          return;
+                        }
                         if (e.key === 'Enter') {
                           const trimmed = editName.trim();
                           if (trimmed && trimmed !== request.name) {
@@ -242,11 +279,11 @@ function CollectionTree({
                       }}
                       onClick={(e) => e.stopPropagation()}
                       autoFocus
-                      className="flex-1 text-sm bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
+                      className="flex-1 text-xs bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
                     />
                   ) : (
                     <span
-                      className="flex-1 text-sm truncate dark:text-gray-200"
+                      className="flex-1 text-xs truncate dark:text-gray-200"
                       onDoubleClick={(e) => {
                         e.stopPropagation();
                         setEditingRequestId(request.id);
@@ -284,6 +321,7 @@ function CollectionTree({
                   onDeleteCollection={onDeleteCollection}
                   onDeleteRequest={onDeleteRequest}
                   onCreateRequest={onCreateRequest}
+                  onCreateSubfolder={onCreateSubfolder}
                   onDuplicateCollection={onDuplicateCollection}
                   onDuplicateRequest={onDuplicateRequest}
                 />
@@ -320,6 +358,50 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const updateFlow = useUpdateFlow();
   const [expandedDateGroups, setExpandedDateGroups] = useState<Set<string>>(new Set(['Today', 'Yesterday']));
 
+  // Resizable sidebar
+  const MIN_WIDTH = 220;
+  const MAX_WIDTH = 480;
+  const DEFAULT_WIDTH = 288;
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('sidebarWidth');
+    if (saved) {
+      const n = parseInt(saved, 10);
+      if (n >= MIN_WIDTH && n <= MAX_WIDTH) return n;
+    }
+    return DEFAULT_WIDTH;
+  });
+  const isResizing = useRef(false);
+
+  useEffect(() => {
+    localStorage.setItem('sidebarWidth', String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (ev.clientX - startX)));
+      setSidebarWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      isResizing.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [sidebarWidth]);
+
   const dateGroups = useMemo(() => groupHistoryByDate(history), [history]);
 
   const toggleDateGroup = (label: string) => {
@@ -354,6 +436,10 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     });
   };
 
+  const handleCreateSubfolder = (parentId: number) => {
+    createCollection.mutate({ name: 'New Folder', parentId });
+  };
+
   const handleCreateFlow = () => {
     if (newFlowName.trim()) {
       createFlow.mutate({ name: newFlowName.trim(), description: '' }, {
@@ -375,7 +461,12 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   };
 
   return (
-    <aside className="w-64 min-w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
+    <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden" style={{ width: sidebarWidth, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH }}>
+      {/* Resize handle */}
+      <div
+        onMouseDown={handleResizeStart}
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400 active:bg-blue-500 z-10 transition-colors"
+      />
       {/* View Tabs */}
       <TabNav
         tabs={[
@@ -410,6 +501,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
               onDeleteCollection={id => deleteCollection.mutate(id)}
               onDeleteRequest={id => deleteRequest.mutate(id)}
               onCreateRequest={handleCreateRequest}
+              onCreateSubfolder={handleCreateSubfolder}
               onDuplicateCollection={id => duplicateCollection.mutate(id)}
               onDuplicateRequest={id => duplicateRequest.mutate(id)}
             />
@@ -431,7 +523,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
             </div>
             <div className="space-y-1">
               {flows.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400 p-2">No flows created yet</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 p-2">No flows created yet</p>
               ) : (
                 flows.map(flow => (
                   <div
@@ -447,8 +539,19 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                           <input
                             type="text"
                             value={editFlowName}
+                            data-rename-input
                             onChange={(e) => setEditFlowName(e.target.value)}
                             onKeyDown={(e) => {
+                              if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+                                e.preventDefault();
+                                e.nativeEvent.stopImmediatePropagation();
+                                const trimmed = editFlowName.trim();
+                                if (trimmed && trimmed !== flow.name) {
+                                  updateFlow.mutate({ id: flow.id, data: { name: trimmed, description: flow.description || '' } });
+                                }
+                                setEditingFlowId(null);
+                                return;
+                              }
                               if (e.key === 'Enter') {
                                 const trimmed = editFlowName.trim();
                                 if (trimmed && trimmed !== flow.name) {
@@ -469,11 +572,11 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                             }}
                             onClick={(e) => e.stopPropagation()}
                             autoFocus
-                            className="w-full text-sm font-medium bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
+                            className="w-full text-xs font-medium bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
                           />
                         ) : (
                           <div
-                            className="text-sm font-medium truncate dark:text-gray-200"
+                            className="text-xs font-medium truncate dark:text-gray-200"
                             onDoubleClick={(e) => {
                               e.stopPropagation();
                               setEditingFlowId(flow.id);
@@ -514,7 +617,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
         {view === 'history' && (
           <div className="space-y-1">
             {history.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400 p-2">No history yet</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 p-2">No history yet</p>
             ) : (
               dateGroups.map(group => (
                 <div key={group.label}>
@@ -525,7 +628,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                     <svg className={`w-4 h-4 transition-transform text-gray-500 dark:text-gray-400 ${expandedDateGroups.has(group.label) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">{group.label}</span>
+                    <span className="flex-1 text-xs font-medium text-gray-700 dark:text-gray-200">{group.label}</span>
                     <span className="text-xs text-gray-400">{group.items.length}</span>
                   </div>
                   {expandedDateGroups.has(group.label) && (

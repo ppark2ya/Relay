@@ -1163,6 +1163,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
+        if (document.activeElement?.hasAttribute('data-rename-input')) return;
         if (flow && expandedStepId && hasStepChanges(expandedStepId)) {
           handleSaveStep(expandedStepId);
         } else if (flow) {
