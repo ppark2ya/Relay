@@ -99,83 +99,22 @@ test.describe('Sidebar Inline Rename - Collection', () => {
 });
 
 test.describe('Sidebar Inline Rename - Request', () => {
-  test('should rename request by double-clicking', async ({ page }) => {
+  test('should NOT have inline rename for requests (use RequestEditor instead)', async ({ page }) => {
     await page.goto('/');
     await navigateToRequests(page);
-    await createCollection(page, 'Req Rename Col');
-    await expandCollection(page, 'Req Rename Col');
-    await createRequestInCollection(page, 'Req Rename Col');
-
-    const sidebar = page.getByRole('complementary');
-    const requestName = sidebar.getByText('New Request');
-
-    // Double-click to enter edit mode
-    await requestName.dblclick();
-
-    const input = sidebar.locator('input.border-blue-500');
-    await expect(input).toBeVisible();
-    await expect(input).toHaveValue('New Request');
-
-    await input.clear();
-    await input.fill('Renamed Request');
-    await input.press('Enter');
-
-    await expect(sidebar.getByText('Renamed Request')).toBeVisible();
-    await expect(sidebar.getByText('New Request')).not.toBeVisible();
-  });
-
-  test('should rename request with Cmd+S', async ({ page }) => {
-    await page.goto('/');
-    await navigateToRequests(page);
-    await createCollection(page, 'CmdS Req Col');
-    await expandCollection(page, 'CmdS Req Col');
-    await createRequestInCollection(page, 'CmdS Req Col');
+    await createCollection(page, 'No Rename Col');
+    await expandCollection(page, 'No Rename Col');
+    await createRequestInCollection(page, 'No Rename Col');
 
     const sidebar = page.getByRole('complementary');
 
-    // Click request first to load it in RequestEditor
-    await sidebar.getByText('New Request').click();
-    await page.waitForTimeout(300);
-
-    // Double-click to enter edit mode
+    // Double-click should NOT enter edit mode
     await sidebar.getByText('New Request').dblclick();
-
-    const input = sidebar.locator('input[data-rename-input]');
-    await expect(input).toBeVisible();
-
-    await input.clear();
-    await input.fill('CmdS Renamed');
-    await input.press('Meta+s');
-
-    // Input should close and name should be updated
+    const input = sidebar.locator('input.border-blue-500');
     await expect(input).not.toBeVisible();
-    await expect(sidebar.getByText('CmdS Renamed')).toBeVisible();
-    await expect(sidebar.getByText('New Request')).not.toBeVisible();
 
-    // Reload to verify persistence
-    await page.reload();
-    await navigateToRequests(page);
-    await expandCollection(page, 'CmdS Req Col');
-    await expect(sidebar.getByText('CmdS Renamed')).toBeVisible();
-  });
-
-  test('should cancel request rename on Escape', async ({ page }) => {
-    await page.goto('/');
-    await navigateToRequests(page);
-    await createCollection(page, 'Esc Req Col');
-    await expandCollection(page, 'Esc Req Col');
-    await createRequestInCollection(page, 'Esc Req Col');
-
-    const sidebar = page.getByRole('complementary');
-    await sidebar.getByText('New Request').dblclick();
-
-    const input = sidebar.locator('input.border-blue-500');
-    await input.clear();
-    await input.fill('Discarded Name');
-    await input.press('Escape');
-
+    // Name should still be displayed as text
     await expect(sidebar.getByText('New Request')).toBeVisible();
-    await expect(sidebar.getByText('Discarded Name')).not.toBeVisible();
   });
 });
 

@@ -28,7 +28,7 @@ test.describe('Flow CRUD', () => {
     await page.getByRole('heading', { name: 'Original Name' }).click();
 
     // Clear and type new name
-    const nameInput = page.locator('input.text-xl');
+    const nameInput = page.locator('input.text-lg');
     await nameInput.clear();
     await nameInput.fill('Updated Name');
     await nameInput.press('Enter');

@@ -1163,7 +1163,13 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
-        if (document.activeElement?.hasAttribute('data-rename-input')) return;
+        // If a sidebar rename input is focused, blur it to trigger onBlur save and skip handleSave
+        // Use e.target (stable) instead of document.activeElement (changes after blur)
+        const target = e.target;
+        if (target instanceof HTMLInputElement && target.hasAttribute('data-rename-input')) {
+          target.blur();
+          return;
+        }
         if (flow && expandedStepId && hasStepChanges(expandedStepId)) {
           handleSaveStep(expandedStepId);
         } else if (flow) {
