@@ -406,7 +406,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
-        if (document.activeElement?.hasAttribute('data-rename-input')) return;
+        // If a sidebar rename input is focused, blur it to trigger onBlur save and skip handleSave
+        // Use e.target (stable) instead of document.activeElement (changes after blur)
+        const target = e.target;
+        if (target instanceof HTMLInputElement && target.hasAttribute('data-rename-input')) {
+          target.blur();
+          return;
+        }
         if (request && !isFromHistory) {
           handleSave();
         }
@@ -674,7 +680,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         <div className="relative" ref={methodDropdownRef}>
           <button
             onClick={() => setShowMethodDropdown(!showMethodDropdown)}
-            className={`w-28 px-3 py-2 rounded-l-md text-white font-medium ${METHOD_BG_COLORS[method]} flex items-center justify-between gap-1`}
+            className={`w-28 px-3 py-2 rounded-l-md text-xs text-white font-medium ${METHOD_BG_COLORS[method]} flex items-center justify-between gap-1`}
           >
             {method}
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -687,7 +693,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 <button
                   key={m}
                   onClick={() => { setMethod(m); setShowMethodDropdown(false); }}
-                  className={`block w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 font-medium ${METHOD_TEXT_COLORS[m]} ${method === m ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
+                  className={`block w-full px-4 py-2 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-700 font-medium ${METHOD_TEXT_COLORS[m]} ${method === m ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
                 >
                   {m}
                 </button>
@@ -880,7 +886,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                   ws.connect(url, JSON.stringify(headersObj), proxyId, request?.id, subprotocols);
                 }
               }}
-              className={`px-4 py-2 font-medium rounded-md text-white ${
+              className={`px-4 py-2 text-xs font-medium rounded-md text-white ${
                 ws.status === 'connected' || ws.status === 'connecting'
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-green-600 hover:bg-green-700'
@@ -892,14 +898,14 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         ) : isExecuting ? (
           <button
             onClick={handleCancel}
-            className="px-6 py-2 bg-red-600 text-white font-medium rounded-md hover:bg-red-700"
+            className="px-6 py-2 text-xs bg-red-600 text-white font-medium rounded-md hover:bg-red-700"
           >
             Cancel
           </button>
         ) : (
           <button
             onClick={handleExecute}
-            className="px-6 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
+            className="px-6 py-2 text-xs bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
           >
             Send
           </button>
@@ -908,7 +914,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           <button
             onClick={handleSave}
             disabled={updateRequest.isPending}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200"
+            className="px-4 py-2 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200"
           >
             Save
           </button>
