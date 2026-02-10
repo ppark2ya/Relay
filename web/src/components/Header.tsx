@@ -62,7 +62,7 @@ export function Header() {
       <button
         onClick={() => setShowDSLGuide(true)}
         className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-indigo-500 dark:text-indigo-400"
-        title="Flow Script DSL Guide"
+        title="Flow Script Guide"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
