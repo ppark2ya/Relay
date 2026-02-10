@@ -12,3 +12,9 @@ UPDATE workspaces SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETU
 
 -- name: DeleteWorkspace :exec
 DELETE FROM workspaces WHERE id = ?;
+
+-- name: GetWorkspaceVariables :one
+SELECT variables FROM workspaces WHERE id = ?;
+
+-- name: UpdateWorkspaceVariables :one
+UPDATE workspaces SET variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *;

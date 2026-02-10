@@ -9,12 +9,13 @@ import (
 )
 
 type Collection struct {
-	ID          int64         `json:"id"`
-	Name        string        `json:"name"`
-	ParentID    sql.NullInt64 `json:"parent_id"`
-	CreatedAt   sql.NullTime  `json:"created_at"`
-	UpdatedAt   sql.NullTime  `json:"updated_at"`
-	WorkspaceID int64         `json:"workspace_id"`
+	ID          int64          `json:"id"`
+	Name        string         `json:"name"`
+	ParentID    sql.NullInt64  `json:"parent_id"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	WorkspaceID int64          `json:"workspace_id"`
+	Variables   sql.NullString `json:"variables"`
 }
 
 type Environment struct {
@@ -117,8 +118,9 @@ type UploadedFile struct {
 }
 
 type Workspace struct {
-	ID        int64        `json:"id"`
-	Name      string       `json:"name"`
-	CreatedAt sql.NullTime `json:"created_at"`
-	UpdatedAt sql.NullTime `json:"updated_at"`
+	ID        int64          `json:"id"`
+	Name      string         `json:"name"`
+	CreatedAt sql.NullTime   `json:"created_at"`
+	UpdatedAt sql.NullTime   `json:"updated_at"`
+	Variables sql.NullString `json:"variables"`
 }

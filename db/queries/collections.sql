@@ -18,3 +18,9 @@ UPDATE collections SET name = ?, parent_id = ?, updated_at = CURRENT_TIMESTAMP W
 
 -- name: DeleteCollection :exec
 DELETE FROM collections WHERE id = ?;
+
+-- name: GetCollectionVariables :one
+SELECT variables FROM collections WHERE id = ?;
+
+-- name: UpdateCollectionVariables :one
+UPDATE collections SET variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *;

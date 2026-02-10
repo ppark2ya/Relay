@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -249,7 +250,18 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 			gotoStepOrder := 0
 
 			if step.PostScript.Valid && step.PostScript.String != "" {
-				postResult := fr.executeScript(ctx, step.PostScript.String, scriptCtx, runtimeVars)
+				// Build request info for pm.request access
+				reqHeaders := make(map[string]string)
+				if step.Headers.Valid && step.Headers.String != "" {
+					json.Unmarshal([]byte(step.Headers.String), &reqHeaders)
+				}
+				reqInfo := &RequestInfo{
+					URL:     step.Url,
+					Method:  step.Method,
+					Headers: reqHeaders,
+					Body:    step.Body.String,
+				}
+				postResult := fr.executeScriptWithRequest(ctx, step.PostScript.String, scriptCtx, runtimeVars, reqInfo, 0)
 				stepResult.PostScriptResult = postResult
 
 				// Apply updated variables
@@ -391,8 +403,21 @@ func (fr *FlowRunner) isJavaScript(script string) bool {
 	return !strings.HasPrefix(script, "{")
 }
 
+// RequestInfo holds request context for scripts
+type RequestInfo struct {
+	URL     string
+	Method  string
+	Headers map[string]string
+	Body    string
+}
+
 // executeScript runs either DSL or JavaScript script based on content
 func (fr *FlowRunner) executeScript(ctx context.Context, scriptContent string, dslCtx *ScriptContext, runtimeVars map[string]string) *ScriptResult {
+	return fr.executeScriptWithRequest(ctx, scriptContent, dslCtx, runtimeVars, nil, 0)
+}
+
+// executeScriptWithRequest runs script with full request context
+func (fr *FlowRunner) executeScriptWithRequest(ctx context.Context, scriptContent string, dslCtx *ScriptContext, runtimeVars map[string]string, reqInfo *RequestInfo, collectionID int64) *ScriptResult {
 	scriptContent = strings.TrimSpace(scriptContent)
 	if scriptContent == "" {
 		return &ScriptResult{
@@ -403,7 +428,10 @@ func (fr *FlowRunner) executeScript(ctx context.Context, scriptContent string, d
 	}
 
 	if fr.isJavaScript(scriptContent) {
-		// JavaScript mode
+		// JavaScript mode with request context
+		if reqInfo != nil {
+			return fr.executeJavaScriptWithRequest(ctx, scriptContent, dslCtx, runtimeVars, reqInfo.URL, reqInfo.Method, reqInfo.Headers, reqInfo.Body, collectionID)
+		}
 		return fr.executeJavaScript(ctx, scriptContent, dslCtx, runtimeVars)
 	}
 
@@ -413,6 +441,11 @@ func (fr *FlowRunner) executeScript(ctx context.Context, scriptContent string, d
 
 // executeJavaScript runs JavaScript using goja
 func (fr *FlowRunner) executeJavaScript(ctx context.Context, script string, dslCtx *ScriptContext, runtimeVars map[string]string) *ScriptResult {
+	return fr.executeJavaScriptWithRequest(ctx, script, dslCtx, runtimeVars, "", "", nil, "", 0)
+}
+
+// executeJavaScriptWithRequest runs JavaScript with full request context
+func (fr *FlowRunner) executeJavaScriptWithRequest(ctx context.Context, script string, dslCtx *ScriptContext, runtimeVars map[string]string, reqURL, reqMethod string, reqHeaders map[string]string, reqBody string, collectionID int64) *ScriptResult {
 	wsID := middleware.GetWorkspaceID(ctx)
 
 	// Get environment vars
@@ -426,22 +459,48 @@ func (fr *FlowRunner) executeJavaScript(ctx context.Context, script string, dslC
 		}
 	}
 
+	// Get workspace (global) variables
+	globalVars := make(map[string]string)
+	wsVars, err := fr.queries.GetWorkspaceVariables(ctx, wsID)
+	if err == nil && wsVars.Valid && wsVars.String != "" {
+		json.Unmarshal([]byte(wsVars.String), &globalVars)
+	}
+
+	// Get collection variables
+	collectionVars := make(map[string]string)
+	if collectionID > 0 {
+		colVars, err := fr.queries.GetCollectionVariables(ctx, collectionID)
+		if err == nil && colVars.Valid && colVars.String != "" {
+			json.Unmarshal([]byte(colVars.String), &collectionVars)
+		}
+	}
+
 	// Build JS context
 	jsCtx := &JSScriptContext{
-		RuntimeVars:      runtimeVars,
-		EnvVars:          envVars,
-		StatusCode:       dslCtx.StatusCode,
-		ResponseBody:     dslCtx.ResponseBody,
-		Headers:          dslCtx.Headers,
-		DurationMs:       dslCtx.DurationMs,
-		StepName:         dslCtx.StepName,
-		StepOrder:        dslCtx.StepOrder,
-		FlowName:         dslCtx.FlowName,
-		Iteration:        dslCtx.Iteration,
-		LoopCount:        dslCtx.LoopCount,
-		WorkspaceID:      wsID,
-		ActiveEnvID:      activeEnvID,
-		PendingEnvWrites: make(map[string]string),
+		RuntimeVars:             runtimeVars,
+		EnvVars:                 envVars,
+		StatusCode:              dslCtx.StatusCode,
+		ResponseBody:            dslCtx.ResponseBody,
+		Headers:                 dslCtx.Headers,
+		DurationMs:              dslCtx.DurationMs,
+		StepName:                dslCtx.StepName,
+		StepOrder:               dslCtx.StepOrder,
+		FlowName:                dslCtx.FlowName,
+		Iteration:               dslCtx.Iteration,
+		LoopCount:               dslCtx.LoopCount,
+		WorkspaceID:             wsID,
+		ActiveEnvID:             activeEnvID,
+		PendingEnvWrites:        make(map[string]string),
+		GlobalVars:              globalVars,
+		PendingGlobalWrites:     make(map[string]string),
+		CollectionID:            collectionID,
+		CollectionVars:          collectionVars,
+		PendingCollectionWrites: make(map[string]string),
+		RequestURL:              reqURL,
+		RequestMethod:           reqMethod,
+		RequestHeaders:          reqHeaders,
+		RequestBody:             reqBody,
+		HTTPClientFunc:          fr.createHTTPClientFunc(ctx),
 	}
 
 	// Execute JavaScript
@@ -450,6 +509,16 @@ func (fr *FlowRunner) executeJavaScript(ctx context.Context, script string, dslC
 	// Persist environment variable changes to DB
 	if len(jsResult.UpdatedEnvVars) > 0 && activeEnvID > 0 {
 		fr.persistEnvironmentVariables(ctx, activeEnvID, envVars, jsResult.UpdatedEnvVars)
+	}
+
+	// Persist global (workspace) variable changes to DB
+	if len(jsResult.UpdatedGlobalVars) > 0 {
+		fr.persistWorkspaceVariables(ctx, wsID, globalVars, jsResult.UpdatedGlobalVars)
+	}
+
+	// Persist collection variable changes to DB
+	if len(jsResult.UpdatedCollectionVars) > 0 && collectionID > 0 {
+		fr.persistCollectionVariables(ctx, collectionID, collectionVars, jsResult.UpdatedCollectionVars)
 	}
 
 	// Convert to ScriptResult for compatibility
@@ -465,15 +534,56 @@ func (fr *FlowRunner) executeJavaScript(ctx context.Context, script string, dslC
 	}
 }
 
+// createHTTPClientFunc creates a function for pm.sendRequest
+func (fr *FlowRunner) createHTTPClientFunc(ctx context.Context) func(method, url string, headers map[string]string, body string) (int, string, map[string]string, error) {
+	return func(method, url string, headers map[string]string, body string) (int, string, map[string]string, error) {
+		// Create a temporary request for execution
+		req := repository.Request{
+			Method: method,
+			Url:    url,
+		}
+
+		// Set headers as JSON
+		if len(headers) > 0 {
+			headersJSON, _ := json.Marshal(headers)
+			req.Headers = sql.NullString{String: string(headersJSON), Valid: true}
+		}
+
+		// Set body
+		if body != "" {
+			req.Body = sql.NullString{String: body, Valid: true}
+			if headers["Content-Type"] == "" {
+				req.BodyType = sql.NullString{String: "json", Valid: true}
+			}
+		}
+
+		// Execute the request
+		result, err := fr.requestExecutor.ExecuteRequest(ctx, req, nil)
+		if err != nil {
+			return 0, "", nil, err
+		}
+
+		if result.Error != "" {
+			return result.StatusCode, result.Body, result.Headers, fmt.Errorf("%s", result.Error)
+		}
+
+		return result.StatusCode, result.Body, result.Headers, nil
+	}
+}
+
 // persistEnvironmentVariables saves updated variables to the database
 func (fr *FlowRunner) persistEnvironmentVariables(ctx context.Context, envID int64, existingVars, newVars map[string]string) error {
-	// Merge existing and new vars
+	// Merge existing and new vars (empty string means delete)
 	merged := make(map[string]string)
 	for k, v := range existingVars {
 		merged[k] = v
 	}
 	for k, v := range newVars {
-		merged[k] = v
+		if v == "" {
+			delete(merged, k) // Delete if empty
+		} else {
+			merged[k] = v
+		}
 	}
 
 	// Serialize to JSON
@@ -485,6 +595,64 @@ func (fr *FlowRunner) persistEnvironmentVariables(ctx context.Context, envID int
 	// Update in database
 	_, err = fr.queries.UpdateEnvironmentVariables(ctx, repository.UpdateEnvironmentVariablesParams{
 		ID:        envID,
+		Variables: sql.NullString{String: string(varsJSON), Valid: true},
+	})
+	return err
+}
+
+// persistWorkspaceVariables saves workspace (global) variables to the database
+func (fr *FlowRunner) persistWorkspaceVariables(ctx context.Context, wsID int64, existingVars, newVars map[string]string) error {
+	// Merge existing and new vars (empty string means delete)
+	merged := make(map[string]string)
+	for k, v := range existingVars {
+		merged[k] = v
+	}
+	for k, v := range newVars {
+		if v == "" {
+			delete(merged, k) // Delete if empty
+		} else {
+			merged[k] = v
+		}
+	}
+
+	// Serialize to JSON
+	varsJSON, err := json.Marshal(merged)
+	if err != nil {
+		return err
+	}
+
+	// Update in database
+	_, err = fr.queries.UpdateWorkspaceVariables(ctx, repository.UpdateWorkspaceVariablesParams{
+		ID:        wsID,
+		Variables: sql.NullString{String: string(varsJSON), Valid: true},
+	})
+	return err
+}
+
+// persistCollectionVariables saves collection variables to the database
+func (fr *FlowRunner) persistCollectionVariables(ctx context.Context, collectionID int64, existingVars, newVars map[string]string) error {
+	// Merge existing and new vars (empty string means delete)
+	merged := make(map[string]string)
+	for k, v := range existingVars {
+		merged[k] = v
+	}
+	for k, v := range newVars {
+		if v == "" {
+			delete(merged, k) // Delete if empty
+		} else {
+			merged[k] = v
+		}
+	}
+
+	// Serialize to JSON
+	varsJSON, err := json.Marshal(merged)
+	if err != nil {
+		return err
+	}
+
+	// Update in database
+	_, err = fr.queries.UpdateCollectionVariables(ctx, repository.UpdateCollectionVariablesParams{
+		ID:        collectionID,
 		Variables: sql.NullString{String: string(varsJSON), Valid: true},
 	})
 	return err

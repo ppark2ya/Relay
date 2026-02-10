@@ -21,6 +21,7 @@ func Run(db *sql.DB) error {
 	migrateLoopCount(db)
 	migrateFlowScripts(db)
 	migrateUploadedFiles(db)
+	migrateWorkspaceCollectionVariables(db)
 
 	return nil
 }
@@ -280,4 +281,11 @@ func migrateUploadedFiles(db *sql.DB) {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`)
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_uploaded_files_workspace ON uploaded_files(workspace_id)")
+}
+
+func migrateWorkspaceCollectionVariables(db *sql.DB) {
+	// Add variables column to workspaces for pm.globals
+	db.Exec("ALTER TABLE workspaces ADD COLUMN variables TEXT DEFAULT '{}'")
+	// Add variables column to collections for pm.collectionVariables
+	db.Exec("ALTER TABLE collections ADD COLUMN variables TEXT DEFAULT '{}'")
 }

@@ -468,4 +468,83 @@ pm.test("Math works correctly", function() {
     // Should show stop flow action (exact match to avoid matching "Stop Flow Step")
     await expect(page.getByText('stop', { exact: true })).toBeVisible();
   });
+
+  test('should use pm.globals for workspace-wide variables', async ({ page }) => {
+    await page.goto('/');
+    await navigateToFlows(page);
+    await createFlow(page, 'JS Globals Test');
+
+    // Step 1: Set a global variable
+    await addBlankStep(page);
+    await page.getByText('Untitled Step').click();
+    await configureStep(page, {
+      name: 'Set Global',
+      method: 'GET',
+      url: `${JSON_PLACEHOLDER}/posts/1`,
+    });
+
+    await switchToJavaScriptMode(page, 'post');
+    const setScript = `var data = pm.response.json();
+pm.globals.set("globalPostId", data.id.toString());
+pm.globals.set("globalUserId", data.userId.toString());`;
+    await fillScriptEditor(page, 'post', setScript);
+    await saveStep(page);
+
+    // Collapse step 1
+    await page.getByText('Set Global').click();
+
+    // Step 2: Read the global variable
+    await addBlankStep(page);
+    await page.getByText('Untitled Step').click();
+    await configureStep(page, {
+      name: 'Read Global',
+      method: 'GET',
+      url: `${JSON_PLACEHOLDER}/posts/2`,
+    });
+
+    await switchToJavaScriptMode(page, 'post');
+    const readScript = `pm.test("Global variable is accessible", function() {
+  var postId = pm.globals.get("globalPostId");
+  var userId = pm.globals.get("globalUserId");
+  pm.expect(postId).to.equal("1");
+  pm.expect(userId).to.equal("1");
+  pm.expect(pm.globals.has("globalPostId")).to.equal(true);
+});`;
+    await fillScriptEditor(page, 'post', readScript);
+    await saveStep(page);
+
+    await runFlowAndWaitForResult(page);
+
+    // Flow should succeed
+    await expect(page.getByText('Success')).toBeVisible();
+  });
+
+  test('should access pm.request properties', async ({ page }) => {
+    await page.goto('/');
+    await navigateToFlows(page);
+    await createFlow(page, 'JS Request Access Test');
+    await addBlankStep(page);
+
+    await page.getByText('Untitled Step').click();
+    await configureStep(page, {
+      name: 'Request Access Step',
+      method: 'POST',
+      url: `${JSON_PLACEHOLDER}/posts`,
+    });
+
+    // Note: pm.request shows the request that was sent
+    await switchToJavaScriptMode(page, 'post');
+    const jsScript = `pm.test("Can access request info", function() {
+  // pm.request.url and pm.request.method should be available
+  pm.expect(pm.request.method).to.equal("POST");
+  pm.expect(pm.request.url).to.include("posts");
+});`;
+    await fillScriptEditor(page, 'post', jsScript);
+    await saveStep(page);
+
+    await runFlowAndWaitForResult(page);
+
+    // Flow should succeed
+    await expect(page.getByText('Success')).toBeVisible();
+  });
 });

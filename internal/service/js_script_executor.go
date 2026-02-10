@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -29,6 +30,25 @@ type JSScriptContext struct {
 	WorkspaceID      int64
 	ActiveEnvID      int64
 	PendingEnvWrites map[string]string // Variables to persist to DB
+
+	// Global (workspace) variables
+	GlobalVars          map[string]string
+	PendingGlobalWrites map[string]string
+
+	// Collection variables
+	CollectionID              int64
+	CollectionVars            map[string]string
+	PendingCollectionWrites   map[string]string
+
+	// Request context (for pm.request)
+	RequestURL     string
+	RequestMethod  string
+	RequestHeaders map[string]string
+	RequestBody    string
+
+	// HTTP client for pm.sendRequest
+	HTTPClientFunc func(method, url string, headers map[string]string, body string) (int, string, map[string]string, error)
+	SendRequestCount int // Track number of sendRequest calls
 }
 
 // JSScriptResult holds the result of JavaScript script execution
@@ -42,6 +62,12 @@ type JSScriptResult struct {
 	FlowAction       FlowAction        `json:"flowAction"`
 	GotoStepName     string            `json:"gotoStepName,omitempty"`
 	GotoStepOrder    int               `json:"gotoStepOrder,omitempty"`
+
+	// Global (workspace) variable updates
+	UpdatedGlobalVars map[string]string `json:"updatedGlobalVars,omitempty"`
+
+	// Collection variable updates
+	UpdatedCollectionVars map[string]string `json:"updatedCollectionVars,omitempty"`
 }
 
 // TestResult represents a single test result from pm.test()
@@ -66,12 +92,17 @@ func NewJSScriptExecutor(vr *VariableResolver) *JSScriptExecutor {
 }
 
 // Execute runs a JavaScript script and returns the result
+// MaxSendRequests is the maximum number of pm.sendRequest calls allowed per script
+const MaxSendRequests = 10
+
 func (jse *JSScriptExecutor) Execute(script string, jsCtx *JSScriptContext) *JSScriptResult {
 	result := &JSScriptResult{
-		Success:        true,
-		UpdatedEnvVars: make(map[string]string),
-		UpdatedVars:    make(map[string]string),
-		FlowAction:     FlowActionNext,
+		Success:               true,
+		UpdatedEnvVars:        make(map[string]string),
+		UpdatedVars:           make(map[string]string),
+		UpdatedGlobalVars:     make(map[string]string),
+		UpdatedCollectionVars: make(map[string]string),
+		FlowAction:            FlowActionNext,
 	}
 
 	if script == "" {
@@ -120,22 +151,58 @@ func (jse *JSScriptExecutor) Execute(script string, jsCtx *JSScriptContext) *JSS
 		jsCtx.RuntimeVars[k] = v
 	}
 
+	// Copy pending global writes
+	for k, v := range jsCtx.PendingGlobalWrites {
+		result.UpdatedGlobalVars[k] = v
+	}
+
+	// Copy pending collection writes
+	for k, v := range jsCtx.PendingCollectionWrites {
+		result.UpdatedCollectionVars[k] = v
+	}
+
 	return result
 }
 
 // resolveVariables replaces {{var}} patterns with values from context
+// Priority (highest first): RuntimeVars → PendingEnvWrites → EnvVars → PendingCollectionWrites → CollectionVars → PendingGlobalWrites → GlobalVars
 func (jse *JSScriptExecutor) resolveVariables(script string, jsCtx *JSScriptContext) string {
 	re := regexp.MustCompile(`\{\{([^}]+)\}\}`)
 	return re.ReplaceAllStringFunc(script, func(match string) string {
 		varName := strings.TrimSpace(match[2 : len(match)-2])
 
-		// Check runtime vars first
+		// Check runtime vars first (highest priority)
 		if val, ok := jsCtx.RuntimeVars[varName]; ok {
+			return val
+		}
+
+		// Check pending env writes
+		if val, ok := jsCtx.PendingEnvWrites[varName]; ok {
 			return val
 		}
 
 		// Check environment vars
 		if val, ok := jsCtx.EnvVars[varName]; ok {
+			return val
+		}
+
+		// Check pending collection writes
+		if val, ok := jsCtx.PendingCollectionWrites[varName]; ok {
+			return val
+		}
+
+		// Check collection vars
+		if val, ok := jsCtx.CollectionVars[varName]; ok {
+			return val
+		}
+
+		// Check pending global writes
+		if val, ok := jsCtx.PendingGlobalWrites[varName]; ok {
+			return val
+		}
+
+		// Check global vars (lowest priority)
+		if val, ok := jsCtx.GlobalVars[varName]; ok {
 			return val
 		}
 
@@ -152,9 +219,24 @@ func (jse *JSScriptExecutor) setupSandbox(vm *goja.Runtime) {
 
 // setupPmAPI sets up the Postman-compatible pm.* API
 func (jse *JSScriptExecutor) setupPmAPI(vm *goja.Runtime, jsCtx *JSScriptContext, result *JSScriptResult) {
-	// Initialize PendingEnvWrites if nil
+	// Initialize pending write maps if nil
 	if jsCtx.PendingEnvWrites == nil {
 		jsCtx.PendingEnvWrites = make(map[string]string)
+	}
+	if jsCtx.PendingGlobalWrites == nil {
+		jsCtx.PendingGlobalWrites = make(map[string]string)
+	}
+	if jsCtx.PendingCollectionWrites == nil {
+		jsCtx.PendingCollectionWrites = make(map[string]string)
+	}
+	if jsCtx.GlobalVars == nil {
+		jsCtx.GlobalVars = make(map[string]string)
+	}
+	if jsCtx.CollectionVars == nil {
+		jsCtx.CollectionVars = make(map[string]string)
+	}
+	if jsCtx.RuntimeVars == nil {
+		jsCtx.RuntimeVars = make(map[string]string)
 	}
 
 	// pm object
@@ -252,6 +334,146 @@ func (jse *JSScriptExecutor) setupPmAPI(vm *goja.Runtime, jsCtx *JSScriptContext
 		return goja.Undefined()
 	})
 	pm.Set("variables", variables)
+
+	// pm.globals - workspace-wide variables (persisted to DB)
+	globals := vm.NewObject()
+	globals.Set("get", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return goja.Undefined()
+		}
+		name := call.Arguments[0].String()
+
+		// Check pending writes first (for within-script consistency)
+		if val, ok := jsCtx.PendingGlobalWrites[name]; ok {
+			return vm.ToValue(val)
+		}
+
+		// Check global vars
+		if val, ok := jsCtx.GlobalVars[name]; ok {
+			return vm.ToValue(val)
+		}
+
+		return goja.Undefined()
+	})
+	globals.Set("set", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 2 {
+			return goja.Undefined()
+		}
+		name := call.Arguments[0].String()
+		value := call.Arguments[1].String()
+
+		// Store in pending writes for later DB persistence
+		jsCtx.PendingGlobalWrites[name] = value
+
+		// Also update global vars for immediate access
+		jsCtx.GlobalVars[name] = value
+
+		return goja.Undefined()
+	})
+	globals.Set("has", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return vm.ToValue(false)
+		}
+		name := call.Arguments[0].String()
+
+		// Check pending writes first - empty string means deleted
+		if val, ok := jsCtx.PendingGlobalWrites[name]; ok {
+			return vm.ToValue(val != "") // false if marked for deletion
+		}
+		if _, ok := jsCtx.GlobalVars[name]; ok {
+			return vm.ToValue(true)
+		}
+		return vm.ToValue(false)
+	})
+	globals.Set("unset", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return goja.Undefined()
+		}
+		name := call.Arguments[0].String()
+		delete(jsCtx.PendingGlobalWrites, name)
+		delete(jsCtx.GlobalVars, name)
+		// Mark for deletion by setting empty string
+		jsCtx.PendingGlobalWrites[name] = ""
+		return goja.Undefined()
+	})
+	globals.Set("clear", func(call goja.FunctionCall) goja.Value {
+		for k := range jsCtx.GlobalVars {
+			jsCtx.PendingGlobalWrites[k] = ""
+		}
+		jsCtx.GlobalVars = make(map[string]string)
+		return goja.Undefined()
+	})
+	pm.Set("globals", globals)
+
+	// pm.collectionVariables - collection-scoped variables (persisted to DB)
+	collectionVariables := vm.NewObject()
+	collectionVariables.Set("get", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return goja.Undefined()
+		}
+		name := call.Arguments[0].String()
+
+		// Check pending writes first (for within-script consistency)
+		if val, ok := jsCtx.PendingCollectionWrites[name]; ok {
+			return vm.ToValue(val)
+		}
+
+		// Check collection vars
+		if val, ok := jsCtx.CollectionVars[name]; ok {
+			return vm.ToValue(val)
+		}
+
+		return goja.Undefined()
+	})
+	collectionVariables.Set("set", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 2 {
+			return goja.Undefined()
+		}
+		name := call.Arguments[0].String()
+		value := call.Arguments[1].String()
+
+		// Store in pending writes for later DB persistence
+		jsCtx.PendingCollectionWrites[name] = value
+
+		// Also update collection vars for immediate access
+		jsCtx.CollectionVars[name] = value
+
+		return goja.Undefined()
+	})
+	collectionVariables.Set("has", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return vm.ToValue(false)
+		}
+		name := call.Arguments[0].String()
+
+		// Check pending writes first - empty string means deleted
+		if val, ok := jsCtx.PendingCollectionWrites[name]; ok {
+			return vm.ToValue(val != "") // false if marked for deletion
+		}
+		if _, ok := jsCtx.CollectionVars[name]; ok {
+			return vm.ToValue(true)
+		}
+		return vm.ToValue(false)
+	})
+	collectionVariables.Set("unset", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return goja.Undefined()
+		}
+		name := call.Arguments[0].String()
+		delete(jsCtx.PendingCollectionWrites, name)
+		delete(jsCtx.CollectionVars, name)
+		// Mark for deletion by setting empty string
+		jsCtx.PendingCollectionWrites[name] = ""
+		return goja.Undefined()
+	})
+	collectionVariables.Set("clear", func(call goja.FunctionCall) goja.Value {
+		for k := range jsCtx.CollectionVars {
+			jsCtx.PendingCollectionWrites[k] = ""
+		}
+		jsCtx.CollectionVars = make(map[string]string)
+		return goja.Undefined()
+	})
+	pm.Set("collectionVariables", collectionVariables)
 
 	// pm.response
 	response := vm.NewObject()
@@ -431,6 +653,172 @@ func (jse *JSScriptExecutor) setupPmAPI(vm *goja.Runtime, jsCtx *JSScriptContext
 		return goja.Undefined()
 	})
 	pm.Set("execution", execution)
+
+	// pm.request - access to the current request (read-only)
+	request := vm.NewObject()
+	request.Set("url", jsCtx.RequestURL)
+	request.Set("method", jsCtx.RequestMethod)
+
+	// Request headers as object with get() method
+	reqHeaders := vm.NewObject()
+	for k, v := range jsCtx.RequestHeaders {
+		reqHeaders.Set(k, vm.ToValue(v))
+	}
+	reqHeaders.Set("get", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return goja.Undefined()
+		}
+		name := call.Arguments[0].String()
+		if val, ok := jsCtx.RequestHeaders[name]; ok {
+			return vm.ToValue(val)
+		}
+		// Case-insensitive lookup
+		for k, v := range jsCtx.RequestHeaders {
+			if strings.EqualFold(k, name) {
+				return vm.ToValue(v)
+			}
+		}
+		return goja.Undefined()
+	})
+	request.Set("headers", reqHeaders)
+
+	// Request body
+	bodyObj := vm.NewObject()
+	bodyObj.Set("toString", func(call goja.FunctionCall) goja.Value {
+		return vm.ToValue(jsCtx.RequestBody)
+	})
+	request.Set("body", bodyObj)
+	pm.Set("request", request)
+
+	// pm.sendRequest - execute HTTP request from within script
+	pm.Set("sendRequest", func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) < 1 {
+			return goja.Undefined()
+		}
+
+		// Check rate limit
+		jsCtx.SendRequestCount++
+		if jsCtx.SendRequestCount > MaxSendRequests {
+			panic(vm.ToValue(fmt.Sprintf("Maximum sendRequest limit (%d) exceeded", MaxSendRequests)))
+		}
+
+		// Check if HTTPClientFunc is available
+		if jsCtx.HTTPClientFunc == nil {
+			panic(vm.ToValue("pm.sendRequest is not available in this context"))
+		}
+
+		// Parse first argument (URL string or request object)
+		arg := call.Arguments[0]
+		var url, method, body string
+		headers := make(map[string]string)
+
+		if arg.ExportType().Kind() == reflect.String {
+			// Simple URL string - defaults to GET
+			url = arg.String()
+			method = "GET"
+		} else {
+			// Request object
+			obj := arg.ToObject(vm)
+
+			urlVal := obj.Get("url")
+			if urlVal != nil && !goja.IsUndefined(urlVal) {
+				url = urlVal.String()
+			}
+
+			methodVal := obj.Get("method")
+			if methodVal != nil && !goja.IsUndefined(methodVal) {
+				method = strings.ToUpper(methodVal.String())
+			} else {
+				method = "GET"
+			}
+
+			headersVal := obj.Get("headers")
+			if headersVal != nil && !goja.IsUndefined(headersVal) {
+				headersObj := headersVal.ToObject(vm)
+				for _, key := range headersObj.Keys() {
+					val := headersObj.Get(key)
+					if val != nil && !goja.IsUndefined(val) {
+						headers[key] = val.String()
+					}
+				}
+			}
+
+			bodyVal := obj.Get("body")
+			if bodyVal != nil && !goja.IsUndefined(bodyVal) {
+				// Body can be string or object
+				if bodyVal.ExportType().Kind() == reflect.String {
+					body = bodyVal.String()
+				} else {
+					// Try to convert object to JSON string
+					bodyBytes, err := json.Marshal(bodyVal.Export())
+					if err == nil {
+						body = string(bodyBytes)
+					}
+				}
+			}
+		}
+
+		// Execute the request
+		statusCode, respBody, respHeaders, err := jsCtx.HTTPClientFunc(method, url, headers, body)
+
+		// Get callback if provided (second argument)
+		if len(call.Arguments) >= 2 {
+			callback, ok := goja.AssertFunction(call.Arguments[1])
+			if ok {
+				// Create response object for callback
+				respObj := vm.NewObject()
+				respObj.Set("code", vm.ToValue(statusCode))
+				respObj.Set("status", vm.ToValue(statusCode))
+
+				// Response body with json() method
+				respObj.Set("text", func(c goja.FunctionCall) goja.Value {
+					return vm.ToValue(respBody)
+				})
+				respObj.Set("json", func(c goja.FunctionCall) goja.Value {
+					var parsed interface{}
+					if err := json.Unmarshal([]byte(respBody), &parsed); err != nil {
+						return goja.Undefined()
+					}
+					return vm.ToValue(parsed)
+				})
+
+				// Response headers
+				respHeadersObj := vm.NewObject()
+				for k, v := range respHeaders {
+					respHeadersObj.Set(k, vm.ToValue(v))
+				}
+				respHeadersObj.Set("get", func(c goja.FunctionCall) goja.Value {
+					if len(c.Arguments) < 1 {
+						return goja.Undefined()
+					}
+					name := c.Arguments[0].String()
+					if val, ok := respHeaders[name]; ok {
+						return vm.ToValue(val)
+					}
+					for k, v := range respHeaders {
+						if strings.EqualFold(k, name) {
+							return vm.ToValue(v)
+						}
+					}
+					return goja.Undefined()
+				})
+				respObj.Set("headers", respHeadersObj)
+
+				// Create error object if error occurred
+				var errVal goja.Value
+				if err != nil {
+					errVal = vm.ToValue(err.Error())
+				} else {
+					errVal = goja.Null()
+				}
+
+				// Call the callback with (error, response)
+				_, _ = callback(goja.Undefined(), errVal, respObj)
+			}
+		}
+
+		return goja.Undefined()
+	})
 
 	vm.Set("pm", pm)
 

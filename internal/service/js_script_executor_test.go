@@ -618,3 +618,443 @@ func TestJSExecutor_EnvironmentSetReadBack(t *testing.T) {
 		t.Errorf("Expected success, got errors: %v", result.Errors)
 	}
 }
+
+func TestJSExecutor_GlobalsGetSet(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:         make(map[string]string),
+		EnvVars:             make(map[string]string),
+		GlobalVars:          map[string]string{"existingGlobal": "existing_value"},
+		PendingEnvWrites:    make(map[string]string),
+		PendingGlobalWrites: make(map[string]string),
+	}
+
+	script := `
+		// Test getting existing global
+		var existing = pm.globals.get("existingGlobal");
+		if (existing !== "existing_value") {
+			throw new Error("Expected 'existing_value', got " + existing);
+		}
+
+		// Test setting new global
+		pm.globals.set("newGlobal", "new_value");
+		var newVal = pm.globals.get("newGlobal");
+		if (newVal !== "new_value") {
+			throw new Error("Expected 'new_value', got " + newVal);
+		}
+
+		// Test has
+		if (!pm.globals.has("existingGlobal")) {
+			throw new Error("Expected existingGlobal to exist");
+		}
+		if (!pm.globals.has("newGlobal")) {
+			throw new Error("Expected newGlobal to exist after set");
+		}
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	// Check pending global writes
+	if ctx.PendingGlobalWrites["newGlobal"] != "new_value" {
+		t.Errorf("Expected newGlobal=new_value in pending writes, got %v", ctx.PendingGlobalWrites["newGlobal"])
+	}
+
+	// Check result includes updated global vars
+	if result.UpdatedGlobalVars["newGlobal"] != "new_value" {
+		t.Errorf("Expected UpdatedGlobalVars newGlobal=new_value, got %v", result.UpdatedGlobalVars["newGlobal"])
+	}
+}
+
+func TestJSExecutor_CollectionVariablesGetSet(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:             make(map[string]string),
+		EnvVars:                 make(map[string]string),
+		CollectionVars:          map[string]string{"existingCol": "col_value"},
+		PendingEnvWrites:        make(map[string]string),
+		PendingCollectionWrites: make(map[string]string),
+	}
+
+	script := `
+		// Test getting existing collection var
+		var existing = pm.collectionVariables.get("existingCol");
+		if (existing !== "col_value") {
+			throw new Error("Expected 'col_value', got " + existing);
+		}
+
+		// Test setting new collection var
+		pm.collectionVariables.set("newCol", "new_col_value");
+		var newVal = pm.collectionVariables.get("newCol");
+		if (newVal !== "new_col_value") {
+			throw new Error("Expected 'new_col_value', got " + newVal);
+		}
+
+		// Test has
+		if (!pm.collectionVariables.has("existingCol")) {
+			throw new Error("Expected existingCol to exist");
+		}
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	// Check pending collection writes
+	if ctx.PendingCollectionWrites["newCol"] != "new_col_value" {
+		t.Errorf("Expected newCol=new_col_value in pending writes, got %v", ctx.PendingCollectionWrites["newCol"])
+	}
+
+	// Check result includes updated collection vars
+	if result.UpdatedCollectionVars["newCol"] != "new_col_value" {
+		t.Errorf("Expected UpdatedCollectionVars newCol=new_col_value, got %v", result.UpdatedCollectionVars["newCol"])
+	}
+}
+
+func TestJSExecutor_VariablePriority(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:             map[string]string{"sharedVar": "runtime_value"},
+		EnvVars:                 map[string]string{"sharedVar": "env_value", "envOnly": "env_only_value"},
+		CollectionVars:          map[string]string{"sharedVar": "collection_value", "envOnly": "should_not_use", "colOnly": "col_only_value"},
+		GlobalVars:              map[string]string{"sharedVar": "global_value", "envOnly": "should_not_use", "colOnly": "should_not_use", "globalOnly": "global_only_value"},
+		PendingEnvWrites:        make(map[string]string),
+		PendingCollectionWrites: make(map[string]string),
+		PendingGlobalWrites:     make(map[string]string),
+	}
+
+	// Variable resolution priority test (in {{var}} syntax)
+	script := `
+		// Test that {{sharedVar}} uses runtime (highest priority)
+		var resolved = "{{sharedVar}}";
+		if (resolved !== "runtime_value") {
+			throw new Error("Expected runtime_value from {{sharedVar}}, got " + resolved);
+		}
+
+		// Test envOnly from env (higher than collection/global)
+		var envOnly = "{{envOnly}}";
+		if (envOnly !== "env_only_value") {
+			throw new Error("Expected env_only_value from {{envOnly}}, got " + envOnly);
+		}
+
+		// Test colOnly from collection (higher than global)
+		var colOnly = "{{colOnly}}";
+		if (colOnly !== "col_only_value") {
+			throw new Error("Expected col_only_value from {{colOnly}}, got " + colOnly);
+		}
+
+		// Test globalOnly from global (lowest priority)
+		var globalOnly = "{{globalOnly}}";
+		if (globalOnly !== "global_only_value") {
+			throw new Error("Expected global_only_value from {{globalOnly}}, got " + globalOnly);
+		}
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+}
+
+func TestJSExecutor_Request_Access(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:         make(map[string]string),
+		EnvVars:             make(map[string]string),
+		RequestURL:          "https://api.example.com/users",
+		RequestMethod:       "POST",
+		RequestHeaders:      map[string]string{"Content-Type": "application/json", "Authorization": "Bearer token123"},
+		RequestBody:         `{"name": "test"}`,
+		PendingEnvWrites:    make(map[string]string),
+		PendingGlobalWrites: make(map[string]string),
+	}
+
+	script := `
+		// Test pm.request.url
+		if (pm.request.url !== "https://api.example.com/users") {
+			throw new Error("Expected URL 'https://api.example.com/users', got " + pm.request.url);
+		}
+
+		// Test pm.request.method
+		if (pm.request.method !== "POST") {
+			throw new Error("Expected method 'POST', got " + pm.request.method);
+		}
+
+		// Test pm.request.headers.get
+		var contentType = pm.request.headers.get("Content-Type");
+		if (contentType !== "application/json") {
+			throw new Error("Expected 'application/json', got " + contentType);
+		}
+
+		// Test case-insensitive header lookup
+		var auth = pm.request.headers.get("authorization");
+		if (auth !== "Bearer token123") {
+			throw new Error("Expected 'Bearer token123', got " + auth);
+		}
+
+		// Test pm.request.body.toString()
+		var body = pm.request.body.toString();
+		if (body !== '{"name": "test"}') {
+			throw new Error("Expected body '{\"name\": \"test\"}', got " + body);
+		}
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+}
+
+func TestJSExecutor_SendRequest_URLString(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+
+	// Track if HTTP client was called
+	called := false
+	var calledMethod, calledURL string
+
+	ctx := &JSScriptContext{
+		RuntimeVars:         make(map[string]string),
+		EnvVars:             make(map[string]string),
+		PendingEnvWrites:    make(map[string]string),
+		PendingGlobalWrites: make(map[string]string),
+		HTTPClientFunc: func(method, url string, headers map[string]string, body string) (int, string, map[string]string, error) {
+			called = true
+			calledMethod = method
+			calledURL = url
+			return 200, `{"success": true}`, map[string]string{"Content-Type": "application/json"}, nil
+		},
+	}
+
+	script := `
+		pm.sendRequest("https://api.example.com/test", function(err, response) {
+			if (err) {
+				throw new Error("Unexpected error: " + err);
+			}
+			if (response.code !== 200) {
+				throw new Error("Expected status 200, got " + response.code);
+			}
+			var data = response.json();
+			if (!data.success) {
+				throw new Error("Expected success: true");
+			}
+		});
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	if !called {
+		t.Error("Expected HTTPClientFunc to be called")
+	}
+	if calledMethod != "GET" {
+		t.Errorf("Expected method GET, got %s", calledMethod)
+	}
+	if calledURL != "https://api.example.com/test" {
+		t.Errorf("Expected URL https://api.example.com/test, got %s", calledURL)
+	}
+}
+
+func TestJSExecutor_SendRequest_Object(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+
+	var calledMethod, calledURL, calledBody string
+	var calledHeaders map[string]string
+
+	ctx := &JSScriptContext{
+		RuntimeVars:         make(map[string]string),
+		EnvVars:             make(map[string]string),
+		PendingEnvWrites:    make(map[string]string),
+		PendingGlobalWrites: make(map[string]string),
+		HTTPClientFunc: func(method, url string, headers map[string]string, body string) (int, string, map[string]string, error) {
+			calledMethod = method
+			calledURL = url
+			calledHeaders = headers
+			calledBody = body
+			return 201, `{"id": 123}`, nil, nil
+		},
+	}
+
+	script := `
+		pm.sendRequest({
+			url: "https://api.example.com/users",
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-Custom": "value"
+			},
+			body: JSON.stringify({name: "Test User"})
+		}, function(err, response) {
+			if (err) {
+				throw new Error("Unexpected error: " + err);
+			}
+			if (response.code !== 201) {
+				throw new Error("Expected status 201, got " + response.code);
+			}
+			var data = response.json();
+			pm.environment.set("createdId", data.id.toString());
+		});
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	if calledMethod != "POST" {
+		t.Errorf("Expected method POST, got %s", calledMethod)
+	}
+	if calledURL != "https://api.example.com/users" {
+		t.Errorf("Expected URL https://api.example.com/users, got %s", calledURL)
+	}
+	if calledHeaders["Content-Type"] != "application/json" {
+		t.Errorf("Expected Content-Type header, got %v", calledHeaders)
+	}
+	if calledHeaders["X-Custom"] != "value" {
+		t.Errorf("Expected X-Custom header, got %v", calledHeaders)
+	}
+	if calledBody != `{"name":"Test User"}` {
+		t.Errorf("Expected body {\"name\":\"Test User\"}, got %s", calledBody)
+	}
+
+	// Check that environment was updated
+	if ctx.PendingEnvWrites["createdId"] != "123" {
+		t.Errorf("Expected createdId=123, got %v", ctx.PendingEnvWrites["createdId"])
+	}
+}
+
+func TestJSExecutor_SendRequest_RateLimit(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+
+	callCount := 0
+	ctx := &JSScriptContext{
+		RuntimeVars:         make(map[string]string),
+		EnvVars:             make(map[string]string),
+		PendingEnvWrites:    make(map[string]string),
+		PendingGlobalWrites: make(map[string]string),
+		HTTPClientFunc: func(method, url string, headers map[string]string, body string) (int, string, map[string]string, error) {
+			callCount++
+			return 200, `{}`, nil, nil
+		},
+	}
+
+	// Try to make more than MaxSendRequests
+	script := `
+		for (var i = 0; i < 15; i++) {
+			pm.sendRequest("https://api.example.com/test");
+		}
+	`
+
+	result := executor.Execute(script, ctx)
+	if result.Success {
+		t.Error("Expected failure due to rate limit")
+	}
+
+	if callCount > MaxSendRequests {
+		t.Errorf("Expected at most %d calls, got %d", MaxSendRequests, callCount)
+	}
+
+	// Check error message
+	hasRateLimitError := false
+	for _, err := range result.Errors {
+		if len(err) > 0 {
+			hasRateLimitError = true
+		}
+	}
+	if !hasRateLimitError {
+		t.Error("Expected rate limit error message")
+	}
+}
+
+func TestJSExecutor_SendRequest_NoClientFunc(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+
+	ctx := &JSScriptContext{
+		RuntimeVars:         make(map[string]string),
+		EnvVars:             make(map[string]string),
+		PendingEnvWrites:    make(map[string]string),
+		PendingGlobalWrites: make(map[string]string),
+		HTTPClientFunc:      nil, // No client func provided
+	}
+
+	script := `
+		pm.sendRequest("https://api.example.com/test");
+	`
+
+	result := executor.Execute(script, ctx)
+	if result.Success {
+		t.Error("Expected failure when HTTPClientFunc is nil")
+	}
+}
+
+func TestJSExecutor_GlobalsUnsetClear(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:         make(map[string]string),
+		EnvVars:             make(map[string]string),
+		GlobalVars:          map[string]string{"var1": "value1", "var2": "value2"},
+		PendingEnvWrites:    make(map[string]string),
+		PendingGlobalWrites: make(map[string]string),
+	}
+
+	script := `
+		// Test unset
+		pm.globals.unset("var1");
+		if (pm.globals.has("var1")) {
+			throw new Error("var1 should be unset");
+		}
+
+		// var2 should still exist
+		if (!pm.globals.has("var2")) {
+			throw new Error("var2 should still exist");
+		}
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	// Check that var1 is marked for deletion (empty string)
+	if ctx.PendingGlobalWrites["var1"] != "" {
+		t.Errorf("Expected var1 to be marked for deletion with empty string")
+	}
+}
+
+func TestJSExecutor_CollectionVariablesUnsetClear(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:             make(map[string]string),
+		EnvVars:                 make(map[string]string),
+		CollectionVars:          map[string]string{"colVar1": "value1", "colVar2": "value2"},
+		PendingEnvWrites:        make(map[string]string),
+		PendingCollectionWrites: make(map[string]string),
+	}
+
+	script := `
+		// Test unset
+		pm.collectionVariables.unset("colVar1");
+		if (pm.collectionVariables.has("colVar1")) {
+			throw new Error("colVar1 should be unset");
+		}
+
+		// colVar2 should still exist
+		if (!pm.collectionVariables.has("colVar2")) {
+			throw new Error("colVar2 should still exist");
+		}
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	// Check that colVar1 is marked for deletion (empty string)
+	if ctx.PendingCollectionWrites["colVar1"] != "" {
+		t.Errorf("Expected colVar1 to be marked for deletion with empty string")
+	}
+}

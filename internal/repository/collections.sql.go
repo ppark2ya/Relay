@@ -11,7 +11,7 @@ import (
 )
 
 const createCollection = `-- name: CreateCollection :one
-INSERT INTO collections (name, parent_id, workspace_id) VALUES (?, ?, ?) RETURNING id, name, parent_id, created_at, updated_at, workspace_id
+INSERT INTO collections (name, parent_id, workspace_id) VALUES (?, ?, ?) RETURNING id, name, parent_id, created_at, updated_at, workspace_id, variables
 `
 
 type CreateCollectionParams struct {
@@ -30,6 +30,7 @@ func (q *Queries) CreateCollection(ctx context.Context, arg CreateCollectionPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkspaceID,
+		&i.Variables,
 	)
 	return i, err
 }
@@ -44,7 +45,7 @@ func (q *Queries) DeleteCollection(ctx context.Context, id int64) error {
 }
 
 const getCollection = `-- name: GetCollection :one
-SELECT id, name, parent_id, created_at, updated_at, workspace_id FROM collections WHERE id = ? LIMIT 1
+SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables FROM collections WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetCollection(ctx context.Context, id int64) (Collection, error) {
@@ -57,12 +58,24 @@ func (q *Queries) GetCollection(ctx context.Context, id int64) (Collection, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkspaceID,
+		&i.Variables,
 	)
 	return i, err
 }
 
+const getCollectionVariables = `-- name: GetCollectionVariables :one
+SELECT variables FROM collections WHERE id = ?
+`
+
+func (q *Queries) GetCollectionVariables(ctx context.Context, id int64) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getCollectionVariables, id)
+	var variables sql.NullString
+	err := row.Scan(&variables)
+	return variables, err
+}
+
 const listChildCollections = `-- name: ListChildCollections :many
-SELECT id, name, parent_id, created_at, updated_at, workspace_id FROM collections WHERE parent_id = ? ORDER BY name
+SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables FROM collections WHERE parent_id = ? ORDER BY name
 `
 
 func (q *Queries) ListChildCollections(ctx context.Context, parentID sql.NullInt64) ([]Collection, error) {
@@ -81,6 +94,7 @@ func (q *Queries) ListChildCollections(ctx context.Context, parentID sql.NullInt
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.WorkspaceID,
+			&i.Variables,
 		); err != nil {
 			return nil, err
 		}
@@ -96,7 +110,7 @@ func (q *Queries) ListChildCollections(ctx context.Context, parentID sql.NullInt
 }
 
 const listCollections = `-- name: ListCollections :many
-SELECT id, name, parent_id, created_at, updated_at, workspace_id FROM collections WHERE workspace_id = ? ORDER BY name
+SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables FROM collections WHERE workspace_id = ? ORDER BY name
 `
 
 func (q *Queries) ListCollections(ctx context.Context, workspaceID int64) ([]Collection, error) {
@@ -115,6 +129,7 @@ func (q *Queries) ListCollections(ctx context.Context, workspaceID int64) ([]Col
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.WorkspaceID,
+			&i.Variables,
 		); err != nil {
 			return nil, err
 		}
@@ -130,7 +145,7 @@ func (q *Queries) ListCollections(ctx context.Context, workspaceID int64) ([]Col
 }
 
 const listRootCollections = `-- name: ListRootCollections :many
-SELECT id, name, parent_id, created_at, updated_at, workspace_id FROM collections WHERE parent_id IS NULL AND workspace_id = ? ORDER BY name
+SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables FROM collections WHERE parent_id IS NULL AND workspace_id = ? ORDER BY name
 `
 
 func (q *Queries) ListRootCollections(ctx context.Context, workspaceID int64) ([]Collection, error) {
@@ -149,6 +164,7 @@ func (q *Queries) ListRootCollections(ctx context.Context, workspaceID int64) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.WorkspaceID,
+			&i.Variables,
 		); err != nil {
 			return nil, err
 		}
@@ -164,7 +180,7 @@ func (q *Queries) ListRootCollections(ctx context.Context, workspaceID int64) ([
 }
 
 const updateCollection = `-- name: UpdateCollection :one
-UPDATE collections SET name = ?, parent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, parent_id, created_at, updated_at, workspace_id
+UPDATE collections SET name = ?, parent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, parent_id, created_at, updated_at, workspace_id, variables
 `
 
 type UpdateCollectionParams struct {
@@ -183,6 +199,31 @@ func (q *Queries) UpdateCollection(ctx context.Context, arg UpdateCollectionPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkspaceID,
+		&i.Variables,
+	)
+	return i, err
+}
+
+const updateCollectionVariables = `-- name: UpdateCollectionVariables :one
+UPDATE collections SET variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, parent_id, created_at, updated_at, workspace_id, variables
+`
+
+type UpdateCollectionVariablesParams struct {
+	Variables sql.NullString `json:"variables"`
+	ID        int64          `json:"id"`
+}
+
+func (q *Queries) UpdateCollectionVariables(ctx context.Context, arg UpdateCollectionVariablesParams) (Collection, error) {
+	row := q.db.QueryRowContext(ctx, updateCollectionVariables, arg.Variables, arg.ID)
+	var i Collection
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.ParentID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.Variables,
 	)
 	return i, err
 }

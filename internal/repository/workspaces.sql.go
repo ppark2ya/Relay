@@ -7,10 +7,11 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createWorkspace = `-- name: CreateWorkspace :one
-INSERT INTO workspaces (name) VALUES (?) RETURNING id, name, created_at, updated_at
+INSERT INTO workspaces (name) VALUES (?) RETURNING id, name, created_at, updated_at, variables
 `
 
 func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, error) {
@@ -21,6 +22,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, name string) (Workspace, 
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Variables,
 	)
 	return i, err
 }
@@ -35,7 +37,7 @@ func (q *Queries) DeleteWorkspace(ctx context.Context, id int64) error {
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, name, created_at, updated_at FROM workspaces WHERE id = ? LIMIT 1
+SELECT id, name, created_at, updated_at, variables FROM workspaces WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetWorkspace(ctx context.Context, id int64) (Workspace, error) {
@@ -46,12 +48,24 @@ func (q *Queries) GetWorkspace(ctx context.Context, id int64) (Workspace, error)
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Variables,
 	)
 	return i, err
 }
 
+const getWorkspaceVariables = `-- name: GetWorkspaceVariables :one
+SELECT variables FROM workspaces WHERE id = ?
+`
+
+func (q *Queries) GetWorkspaceVariables(ctx context.Context, id int64) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceVariables, id)
+	var variables sql.NullString
+	err := row.Scan(&variables)
+	return variables, err
+}
+
 const listWorkspaces = `-- name: ListWorkspaces :many
-SELECT id, name, created_at, updated_at FROM workspaces ORDER BY name
+SELECT id, name, created_at, updated_at, variables FROM workspaces ORDER BY name
 `
 
 func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
@@ -68,6 +82,7 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 			&i.Name,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Variables,
 		); err != nil {
 			return nil, err
 		}
@@ -83,7 +98,7 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 }
 
 const updateWorkspace = `-- name: UpdateWorkspace :one
-UPDATE workspaces SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, created_at, updated_at
+UPDATE workspaces SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, created_at, updated_at, variables
 `
 
 type UpdateWorkspaceParams struct {
@@ -99,6 +114,29 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Variables,
+	)
+	return i, err
+}
+
+const updateWorkspaceVariables = `-- name: UpdateWorkspaceVariables :one
+UPDATE workspaces SET variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, created_at, updated_at, variables
+`
+
+type UpdateWorkspaceVariablesParams struct {
+	Variables sql.NullString `json:"variables"`
+	ID        int64          `json:"id"`
+}
+
+func (q *Queries) UpdateWorkspaceVariables(ctx context.Context, arg UpdateWorkspaceVariablesParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceVariables, arg.Variables, arg.ID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Variables,
 	)
 	return i, err
 }
