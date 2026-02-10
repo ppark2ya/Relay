@@ -173,7 +173,7 @@ function CollectionTree({
               </span>
             )}
             <button
-              onClick={(e) => { e.stopPropagation(); onCreateRequest(collection.id); }}
+              onClick={(e) => { e.stopPropagation(); setExpanded(prev => new Set(prev).add(collection.id)); onCreateRequest(collection.id); }}
               className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
               title="Add Request"
             >
