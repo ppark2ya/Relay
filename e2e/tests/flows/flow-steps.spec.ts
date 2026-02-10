@@ -55,11 +55,8 @@ test.describe('Flow Steps', () => {
       url: `${JSON_PLACEHOLDER}/posts/1`,
     });
 
-    // Save
+    // Save (also closes the modal)
     await saveStep(page);
-
-    // Collapse step by clicking on it again
-    await page.getByText('Get Post').click();
 
     // Verify step card shows updated info
     await expect(page.getByText('Get Post')).toBeVisible();

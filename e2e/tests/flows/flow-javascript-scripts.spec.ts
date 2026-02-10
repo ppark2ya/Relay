@@ -344,9 +344,6 @@ pm.variables.set("userId", data.userId.toString());`;
     await fillScriptEditor(page, 'post', setScript);
     await saveStep(page);
 
-    // Collapse step 1
-    await page.getByText('Set Variable').click();
-
     // Step 2: Read the variable set by step 1
     await addBlankStep(page);
     await page.getByText('Untitled Step').click();
@@ -489,9 +486,6 @@ pm.globals.set("globalPostId", data.id.toString());
 pm.globals.set("globalUserId", data.userId.toString());`;
     await fillScriptEditor(page, 'post', setScript);
     await saveStep(page);
-
-    // Collapse step 1
-    await page.getByText('Set Global').click();
 
     // Step 2: Read the global variable
     await addBlankStep(page);

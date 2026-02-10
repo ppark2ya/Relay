@@ -59,7 +59,9 @@ export async function configureStep(
     await urlInput.fill(opts.url);
   }
   if (opts.headers !== undefined) {
-    const headersInput = page.getByPlaceholder('{"Content-Type": "application/json"}');
+    // Switch to Raw mode first
+    await page.getByRole('button', { name: 'Raw' }).click();
+    const headersInput = page.getByPlaceholder('{"Content-Type": {"value": "application/json", "enabled": true}}');
     await headersInput.clear();
     await headersInput.fill(opts.headers);
   }
@@ -80,11 +82,13 @@ export async function configureStep(
   }
 }
 
-/** Save the currently expanded step */
+/** Save the currently expanded step and close the modal */
 export async function saveStep(page: Page) {
   await page.getByRole('button', { name: 'Save Step' }).click();
   // Wait for save to complete (button text changes back from "Saving...")
   await expect(page.getByRole('button', { name: 'Save Step' })).toBeVisible();
+  // Close the fullscreen modal
+  await page.keyboard.press('Escape');
 }
 
 /** Run the current flow and wait for results */

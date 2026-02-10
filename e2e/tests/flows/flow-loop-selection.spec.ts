@@ -56,8 +56,8 @@ test.describe('Flow Loop and Selection Features', () => {
     // Wait a bit for save to complete
     await page.waitForTimeout(500);
 
-    // Collapse step
-    await page.getByText('Keyboard Save').click();
+    // Close the modal
+    await page.keyboard.press('Escape');
 
     // Reload page
     await page.reload();
@@ -94,7 +94,7 @@ test.describe('Flow Loop and Selection Features', () => {
     // Save
     await saveStep(page);
 
-    // Verify loop badge appears
+    // Verify loop badge appears on step card
     await expect(page.locator('span', { hasText: '×3' })).toBeVisible();
   });
 
@@ -119,9 +119,6 @@ test.describe('Flow Loop and Selection Features', () => {
 
     await saveStep(page);
 
-    // Collapse step by clicking on the step card title (more specific selector)
-    await page.locator('span.font-medium', { hasText: 'Loop Exec' }).click();
-
     // Run flow
     await runFlowAndWaitForResult(page);
 
@@ -141,13 +138,11 @@ test.describe('Flow Loop and Selection Features', () => {
     await page.getByText('Untitled Step').click();
     await configureStep(page, { name: 'Step 1', url: `${JSON_PLACEHOLDER}/posts/1` });
     await saveStep(page);
-    await page.getByText('Step 1').click(); // collapse
 
     await addBlankStep(page);
     await page.getByText('Untitled Step').click();
     await configureStep(page, { name: 'Step 2', url: `${JSON_PLACEHOLDER}/posts/2` });
     await saveStep(page);
-    await page.getByText('Step 2').click(); // collapse
 
     // Select first step using checkbox
     const checkboxes = page.locator('input[type="checkbox"]');
@@ -173,13 +168,11 @@ test.describe('Flow Loop and Selection Features', () => {
     await page.getByText('Untitled Step').click();
     await configureStep(page, { name: 'First Step', url: `${JSON_PLACEHOLDER}/posts/1` });
     await saveStep(page);
-    await page.getByText('First Step').click();
 
     await addBlankStep(page);
     await page.getByText('Untitled Step').click();
     await configureStep(page, { name: 'Second Step', url: `${JSON_PLACEHOLDER}/posts/2` });
     await saveStep(page);
-    await page.getByText('Second Step').click();
 
     // Select only the second step
     const checkboxes = page.locator('input[type="checkbox"]');

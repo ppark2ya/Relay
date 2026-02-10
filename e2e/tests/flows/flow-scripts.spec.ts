@@ -121,9 +121,6 @@ test.describe('Flow Scripts', () => {
     await page.getByLabel('Continue on Error').check();
     await saveStep(page);
 
-    // Collapse step 1
-    await page.locator('.cursor-pointer').first().click();
-
     // Step 2: Should still execute
     await addBlankStep(page);
     await page.getByText('Untitled Step').click();

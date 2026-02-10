@@ -48,8 +48,6 @@ test.describe('Flow Run Error Handling', () => {
       url: 'http://unreachable.invalid/test',
     });
     await saveStep(page);
-    // Collapse step 1
-    await page.locator('.cursor-pointer').first().click();
 
     // Step 2: good URL (won't execute due to step 1 failure)
     await addBlankStep(page);
