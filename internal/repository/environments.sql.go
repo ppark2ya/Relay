@@ -169,3 +169,27 @@ func (q *Queries) UpdateEnvironment(ctx context.Context, arg UpdateEnvironmentPa
 	)
 	return i, err
 }
+
+const updateEnvironmentVariables = `-- name: UpdateEnvironmentVariables :one
+UPDATE environments SET variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, variables, is_active, created_at, updated_at, workspace_id
+`
+
+type UpdateEnvironmentVariablesParams struct {
+	Variables sql.NullString `json:"variables"`
+	ID        int64          `json:"id"`
+}
+
+func (q *Queries) UpdateEnvironmentVariables(ctx context.Context, arg UpdateEnvironmentVariablesParams) (Environment, error) {
+	row := q.db.QueryRowContext(ctx, updateEnvironmentVariables, arg.Variables, arg.ID)
+	var i Environment
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Variables,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+	)
+	return i, err
+}

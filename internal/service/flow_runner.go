@@ -2,28 +2,33 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
+	"relay/internal/middleware"
 	"relay/internal/repository"
 
 	"github.com/PaesslerAG/jsonpath"
 )
 
 type FlowRunner struct {
-	queries          *repository.Queries
-	requestExecutor  *RequestExecutor
-	variableResolver *VariableResolver
-	scriptExecutor   *ScriptExecutor
+	queries            *repository.Queries
+	requestExecutor    *RequestExecutor
+	variableResolver   *VariableResolver
+	scriptExecutor     *ScriptExecutor
+	jsScriptExecutor   *JSScriptExecutor
 }
 
 func NewFlowRunner(queries *repository.Queries, re *RequestExecutor, vr *VariableResolver) *FlowRunner {
 	return &FlowRunner{
-		queries:          queries,
-		requestExecutor:  re,
-		variableResolver: vr,
-		scriptExecutor:   NewScriptExecutor(vr),
+		queries:            queries,
+		requestExecutor:    re,
+		variableResolver:   vr,
+		scriptExecutor:     NewScriptExecutor(vr),
+		jsScriptExecutor:   NewJSScriptExecutor(vr),
 	}
 }
 
@@ -151,7 +156,7 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 
 			// Execute pre-script
 			if step.PreScript.Valid && step.PreScript.String != "" {
-				preResult := fr.scriptExecutor.Execute(step.PreScript.String, scriptCtx)
+				preResult := fr.executeScript(ctx, step.PreScript.String, scriptCtx, runtimeVars)
 				stepResult.PreScriptResult = preResult
 
 				// Apply updated variables
@@ -244,7 +249,7 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 			gotoStepOrder := 0
 
 			if step.PostScript.Valid && step.PostScript.String != "" {
-				postResult := fr.scriptExecutor.Execute(step.PostScript.String, scriptCtx)
+				postResult := fr.executeScript(ctx, step.PostScript.String, scriptCtx, runtimeVars)
 				stepResult.PostScriptResult = postResult
 
 				// Apply updated variables
@@ -374,4 +379,113 @@ func (fr *FlowRunner) evaluateCondition(condition string, vars map[string]string
 
 	// If resolved to non-empty string, condition is met
 	return resolved != "", nil
+}
+
+// isJavaScript detects if script content is JavaScript (not JSON DSL)
+func (fr *FlowRunner) isJavaScript(script string) bool {
+	script = strings.TrimSpace(script)
+	if script == "" {
+		return false
+	}
+	// JSON DSL starts with {
+	return !strings.HasPrefix(script, "{")
+}
+
+// executeScript runs either DSL or JavaScript script based on content
+func (fr *FlowRunner) executeScript(ctx context.Context, scriptContent string, dslCtx *ScriptContext, runtimeVars map[string]string) *ScriptResult {
+	scriptContent = strings.TrimSpace(scriptContent)
+	if scriptContent == "" {
+		return &ScriptResult{
+			Success:     true,
+			UpdatedVars: make(map[string]string),
+			FlowAction:  FlowActionNext,
+		}
+	}
+
+	if fr.isJavaScript(scriptContent) {
+		// JavaScript mode
+		return fr.executeJavaScript(ctx, scriptContent, dslCtx, runtimeVars)
+	}
+
+	// JSON DSL mode - use existing executor
+	return fr.scriptExecutor.Execute(scriptContent, dslCtx)
+}
+
+// executeJavaScript runs JavaScript using goja
+func (fr *FlowRunner) executeJavaScript(ctx context.Context, script string, dslCtx *ScriptContext, runtimeVars map[string]string) *ScriptResult {
+	wsID := middleware.GetWorkspaceID(ctx)
+
+	// Get environment vars
+	envVars := make(map[string]string)
+	var activeEnvID int64
+	env, err := fr.queries.GetActiveEnvironment(ctx, wsID)
+	if err == nil {
+		activeEnvID = env.ID
+		if env.Variables.Valid {
+			json.Unmarshal([]byte(env.Variables.String), &envVars)
+		}
+	}
+
+	// Build JS context
+	jsCtx := &JSScriptContext{
+		RuntimeVars:      runtimeVars,
+		EnvVars:          envVars,
+		StatusCode:       dslCtx.StatusCode,
+		ResponseBody:     dslCtx.ResponseBody,
+		Headers:          dslCtx.Headers,
+		DurationMs:       dslCtx.DurationMs,
+		StepName:         dslCtx.StepName,
+		StepOrder:        dslCtx.StepOrder,
+		FlowName:         dslCtx.FlowName,
+		Iteration:        dslCtx.Iteration,
+		LoopCount:        dslCtx.LoopCount,
+		WorkspaceID:      wsID,
+		ActiveEnvID:      activeEnvID,
+		PendingEnvWrites: make(map[string]string),
+	}
+
+	// Execute JavaScript
+	jsResult := fr.jsScriptExecutor.Execute(script, jsCtx)
+
+	// Persist environment variable changes to DB
+	if len(jsResult.UpdatedEnvVars) > 0 && activeEnvID > 0 {
+		fr.persistEnvironmentVariables(ctx, activeEnvID, envVars, jsResult.UpdatedEnvVars)
+	}
+
+	// Convert to ScriptResult for compatibility
+	return &ScriptResult{
+		Success:          jsResult.Success,
+		Errors:           jsResult.Errors,
+		AssertionsPassed: jsResult.AssertionsPassed,
+		AssertionsFailed: jsResult.AssertionsFailed,
+		UpdatedVars:      jsResult.UpdatedVars,
+		FlowAction:       jsResult.FlowAction,
+		GotoStepName:     jsResult.GotoStepName,
+		GotoStepOrder:    jsResult.GotoStepOrder,
+	}
+}
+
+// persistEnvironmentVariables saves updated variables to the database
+func (fr *FlowRunner) persistEnvironmentVariables(ctx context.Context, envID int64, existingVars, newVars map[string]string) error {
+	// Merge existing and new vars
+	merged := make(map[string]string)
+	for k, v := range existingVars {
+		merged[k] = v
+	}
+	for k, v := range newVars {
+		merged[k] = v
+	}
+
+	// Serialize to JSON
+	varsJSON, err := json.Marshal(merged)
+	if err != nil {
+		return err
+	}
+
+	// Update in database
+	_, err = fr.queries.UpdateEnvironmentVariables(ctx, repository.UpdateEnvironmentVariablesParams{
+		ID:        envID,
+		Variables: sql.NullString{String: string(varsJSON), Valid: true},
+	})
+	return err
 }

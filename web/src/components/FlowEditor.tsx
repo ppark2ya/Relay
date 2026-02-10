@@ -41,6 +41,8 @@ interface FlowEditorProps {
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 const BODY_TYPES = ['none', 'json', 'text', 'xml', 'form-urlencoded', 'formdata', 'graphql'];
 
+type ScriptMode = 'dsl' | 'javascript';
+
 interface StepEditState {
   name: string;
   method: string;
@@ -58,7 +60,17 @@ interface StepEditState {
   loopCount: number;
   preScript: string;
   postScript: string;
+  preScriptMode: ScriptMode;
+  postScriptMode: ScriptMode;
   continueOnError: boolean;
+}
+
+// Detect if a script is JavaScript (not JSON DSL)
+function detectScriptMode(script: string): ScriptMode {
+  const trimmed = script.trim();
+  if (!trimmed) return 'dsl'; // Default for empty
+  // JSON DSL starts with {
+  return trimmed.startsWith('{') ? 'dsl' : 'javascript';
 }
 
 function parseFormBody(bodyStr: string): Array<{ key: string; value: string; enabled: boolean }> {
@@ -125,6 +137,8 @@ function stepToEditState(step: FlowStep): StepEditState {
     loopCount: step.loopCount || 1,
     preScript: step.preScript || '',
     postScript: step.postScript || '',
+    preScriptMode: detectScriptMode(step.preScript || ''),
+    postScriptMode: detectScriptMode(step.postScript || ''),
     continueOnError: step.continueOnError || false,
   };
 }
@@ -141,7 +155,7 @@ interface SortableStepProps {
   expandedStepId: number | null;
   editState: StepEditState | undefined;
   stepResults: StepResult[];
-  onEditChange: (stepId: number, field: keyof StepEditState, value: string | number | boolean | Array<{ key: string; value: string; enabled: boolean }> | FormDataItem[]) => void;
+  onEditChange: (stepId: number, field: keyof StepEditState, value: string | number | boolean | ScriptMode | Array<{ key: string; value: string; enabled: boolean }> | FormDataItem[]) => void;
   onSaveStep: (stepId: number) => void;
   updateStepPending: boolean;
   proxies: Array<{ id: number; name: string; url: string; isActive: boolean }>;
@@ -584,16 +598,42 @@ function SortableStep({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span className="absolute bottom-full left-0 mb-1.5 hidden group-hover/prescript:block w-72 px-3 py-2 text-xs text-gray-100 bg-gray-800 dark:bg-gray-700 rounded-md shadow-lg z-50 font-normal leading-relaxed">
-                      요청 실행 전에 실행되는 스크립트입니다. 변수 설정, 흐름 제어를 수행할 수 있습니다. DSL Guide에서 문법을 확인하세요.
+                      요청 실행 전에 실행되는 스크립트입니다. DSL(JSON) 또는 JavaScript를 선택하세요.
                     </span>
                   </span>
                 </span>
               }>
+                <div className="flex gap-1 mb-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onEditChange(step.id, 'preScriptMode', 'dsl')}
+                    className={`px-2 py-0.5 text-xs rounded border ${
+                      edit.preScriptMode === 'dsl'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    DSL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onEditChange(step.id, 'preScriptMode', 'javascript')}
+                    className={`px-2 py-0.5 text-xs rounded border ${
+                      edit.preScriptMode === 'javascript'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    JavaScript
+                  </button>
+                </div>
                 <CodeEditor
                   value={edit.preScript}
                   onChange={val => onEditChange(step.id, 'preScript', val)}
-                  language="json"
-                  placeholder='{"setVariables": [{"name": "counter", "operation": "increment"}]}'
+                  language={edit.preScriptMode === 'javascript' ? 'javascript' : 'json'}
+                  placeholder={edit.preScriptMode === 'javascript'
+                    ? '// Pre-request script\npm.variables.set("timestamp", Date.now().toString());'
+                    : '{"setVariables": [{"name": "counter", "operation": "increment"}]}'}
                   height="80px"
                 />
               </FormField>
@@ -607,16 +647,48 @@ function SortableStep({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span className="absolute bottom-full left-0 mb-1.5 hidden group-hover/postscript:block w-72 px-3 py-2 text-xs text-gray-100 bg-gray-800 dark:bg-gray-700 rounded-md shadow-lg z-50 font-normal leading-relaxed">
-                      요청 실행 후에 실행되는 스크립트입니다. 응답 검증(assertions), 변수 추출, 흐름 제어를 수행할 수 있습니다.
+                      요청 실행 후에 실행되는 스크립트입니다. 응답 검증, 변수 추출, 흐름 제어를 수행합니다.
                     </span>
                   </span>
                 </span>
               }>
+                <div className="flex gap-1 mb-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onEditChange(step.id, 'postScriptMode', 'dsl')}
+                    className={`px-2 py-0.5 text-xs rounded border ${
+                      edit.postScriptMode === 'dsl'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    DSL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onEditChange(step.id, 'postScriptMode', 'javascript')}
+                    className={`px-2 py-0.5 text-xs rounded border ${
+                      edit.postScriptMode === 'javascript'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    JavaScript
+                  </button>
+                </div>
                 <CodeEditor
                   value={edit.postScript}
                   onChange={val => onEditChange(step.id, 'postScript', val)}
-                  language="json"
-                  placeholder='{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'
+                  language={edit.postScriptMode === 'javascript' ? 'javascript' : 'json'}
+                  placeholder={edit.postScriptMode === 'javascript'
+                    ? `// Post-request script (Postman-compatible)
+pm.test("Status is 200", function() {
+    pm.response.to.have.status(200);
+});
+
+let data = pm.response.json();
+pm.environment.set("userId", data.id);`
+                    : '{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'}
                   height="80px"
                 />
               </FormField>
@@ -899,7 +971,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     }
   };
 
-  const handleEditChange = (stepId: number, field: keyof StepEditState, value: string | number | boolean | Array<{ key: string; value: string; enabled: boolean }> | FormDataItem[]) => {
+  const handleEditChange = (stepId: number, field: keyof StepEditState, value: string | number | boolean | ScriptMode | Array<{ key: string; value: string; enabled: boolean }> | FormDataItem[]) => {
     setEditStates(prev => ({
       ...prev,
       [stepId]: { ...prev[stepId], [field]: value },

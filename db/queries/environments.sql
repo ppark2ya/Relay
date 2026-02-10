@@ -21,3 +21,6 @@ UPDATE environments SET is_active = FALSE WHERE workspace_id = ?;
 
 -- name: ActivateEnvironment :one
 UPDATE environments SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *;
+
+-- name: UpdateEnvironmentVariables :one
+UPDATE environments SET variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *;
