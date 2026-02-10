@@ -615,10 +615,12 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
 
         {view === 'history' && (
           <div className="space-y-1">
-            {history.length === 0 ? (
-              <p className="text-xs text-gray-500 dark:text-gray-400 p-2">No history yet</p>
+            {filteredHistory.length === 0 ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400 p-2">
+                {filterQuery.trim() ? 'No matching items' : 'No history yet'}
+              </p>
             ) : (
-              dateGroups.map(group => (
+              filteredDateGroups.map(group => (
                 <div key={group.label}>
                   <div
                     onClick={() => toggleDateGroup(group.label)}

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/Sidebar';
 import { RequestEditor } from './components/RequestEditor';
@@ -11,6 +11,7 @@ import { useRequest } from './api/requests';
 import { useFlow } from './api/flows';
 import { useWebSocket } from './hooks/useWebSocket';
 import { WorkspaceContext, useWorkspaceProvider } from './hooks/useWorkspace';
+import { GlobalSearch } from './components/GlobalSearch';
 import type { Request, ExecuteResult, ScriptResult, Flow, History } from './types';
 
 const queryClient = new QueryClient();
@@ -28,6 +29,20 @@ function AppContent() {
     onCancelReady: (fn: (() => void) | null) => { cancelRef.current = fn; },
     cancel: () => cancelRef.current?.(),
   }), []);
+
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+
+  // Cmd+K / Ctrl+K global shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowGlobalSearch(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const importCookiesRef = useRef<((cookies: Array<{ key: string; value: string; enabled: boolean }>) => void) | null>(null);
 
@@ -261,6 +276,13 @@ function AppContent() {
           )}
         </main>
       </div>
+      <GlobalSearch
+        isOpen={showGlobalSearch}
+        onClose={() => setShowGlobalSearch(false)}
+        onSelectRequest={handleSelectRequest}
+        onSelectFlow={handleSelectFlow}
+        onSelectHistory={handleSelectHistory}
+      />
     </div>
   );
 }
