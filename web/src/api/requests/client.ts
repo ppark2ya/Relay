@@ -17,6 +17,9 @@ export const deleteRequest = (id: number) => api.delete(`requests/${id}`);
 export const duplicateRequest = (id: number) =>
   api.post(`requests/${id}/duplicate`).json<Request>();
 
+export const reorderRequests = (orders: { id: number; sortOrder: number; collectionId?: number | null }[]) =>
+  api.put('requests/reorder', { json: { orders } });
+
 export const executeRequest = (
   id: number,
   variables?: Record<string, string>,

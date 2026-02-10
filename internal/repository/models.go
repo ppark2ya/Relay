@@ -16,6 +16,7 @@ type Collection struct {
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
 	WorkspaceID int64          `json:"workspace_id"`
 	Variables   sql.NullString `json:"variables"`
+	SortOrder   int64          `json:"sort_order"`
 }
 
 type Environment struct {
@@ -35,6 +36,7 @@ type Flow struct {
 	CreatedAt   sql.NullTime   `json:"created_at"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
 	WorkspaceID int64          `json:"workspace_id"`
+	SortOrder   int64          `json:"sort_order"`
 }
 
 type FlowStep struct {
@@ -88,6 +90,7 @@ type Request struct {
 	WorkspaceID  int64          `json:"workspace_id"`
 	PreScript    sql.NullString `json:"pre_script"`
 	PostScript   sql.NullString `json:"post_script"`
+	SortOrder    int64          `json:"sort_order"`
 }
 
 type RequestHistory struct {

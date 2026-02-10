@@ -351,7 +351,11 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 		return result, nil
 	}
 
-	// Set headers
+	// Set default headers (overridden by user-specified headers below)
+	httpReq.Header.Set("User-Agent", "Relay/1.0")
+	httpReq.Header.Set("Accept", "*/*")
+
+	// Set user headers
 	for k, v := range resolvedHeaders {
 		httpReq.Header.Set(k, v)
 	}

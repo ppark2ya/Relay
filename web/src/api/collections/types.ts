@@ -4,6 +4,7 @@ export interface Collection {
   id: number;
   name: string;
   parentId?: number;
+  sortOrder: number;
   children?: Collection[];
   requests?: Request[];
   createdAt: string;

@@ -101,6 +101,17 @@ export const useExecuteRequestWithFiles = () => {
   });
 };
 
+export const useReorderRequests = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.reorderRequests,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.requests });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections });
+    },
+  });
+};
+
 export const useExecuteAdhocWithFiles = () => {
   const queryClient = useQueryClient();
   return useMutation({

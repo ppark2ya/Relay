@@ -4,6 +4,7 @@ export interface Flow {
   id: number;
   name: string;
   description: string;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }

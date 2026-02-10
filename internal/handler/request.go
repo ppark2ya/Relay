@@ -48,6 +48,7 @@ type RequestResponse struct {
 	BodyType     string `json:"bodyType,omitempty"`
 	Cookies      string `json:"cookies,omitempty"`
 	ProxyID      *int64 `json:"proxyId"`
+	SortOrder    int64  `json:"sortOrder"`
 	PreScript    string `json:"preScript,omitempty"`
 	PostScript   string `json:"postScript,omitempty"`
 	CreatedAt    string `json:"createdAt,omitempty"`
@@ -90,6 +91,7 @@ func toRequestResponse(req repository.Request) RequestResponse {
 		Body:       req.Body.String,
 		BodyType:   req.BodyType.String,
 		Cookies:    req.Cookies.String,
+		SortOrder:  req.SortOrder,
 		PreScript:  req.PreScript.String,
 		PostScript: req.PostScript.String,
 		CreatedAt:  formatTime(req.CreatedAt),
@@ -171,6 +173,14 @@ func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wsID := middleware.GetWorkspaceID(r.Context())
+
+	// Calculate next sort_order
+	var maxSortOrder int64
+	val, err := h.queries.GetMaxRequestSortOrder(r.Context(), collectionID)
+	if err == nil {
+		maxSortOrder, _ = val.(int64)
+	}
+
 	req, err := h.queries.CreateRequest(r.Context(), repository.CreateRequestParams{
 		CollectionID: collectionID,
 		Name:         reqBody.Name,
@@ -184,6 +194,7 @@ func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID:  wsID,
 		PreScript:    sql.NullString{String: reqBody.PreScript, Valid: reqBody.PreScript != ""},
 		PostScript:   sql.NullString{String: reqBody.PostScript, Valid: reqBody.PostScript != ""},
+		SortOrder:    maxSortOrder + 1,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -589,4 +600,46 @@ func (h *RequestHandler) executeAdhocMultipart(w http.ResponseWriter, r *http.Re
 	}
 
 	respondJSON(w, http.StatusOK, result)
+}
+
+type RequestReorderItem struct {
+	ID           int64  `json:"id"`
+	SortOrder    int64  `json:"sortOrder"`
+	CollectionID *int64 `json:"collectionId,omitempty"`
+}
+
+type RequestReorderRequest struct {
+	Orders []RequestReorderItem `json:"orders"`
+}
+
+func (h *RequestHandler) Reorder(w http.ResponseWriter, r *http.Request) {
+	var req RequestReorderRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	for _, item := range req.Orders {
+		if item.CollectionID != nil {
+			collID := sql.NullInt64{Int64: *item.CollectionID, Valid: true}
+			if err := h.queries.UpdateRequestCollectionAndSortOrder(r.Context(), repository.UpdateRequestCollectionAndSortOrderParams{
+				ID:           item.ID,
+				CollectionID: collID,
+				SortOrder:    item.SortOrder,
+			}); err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		} else {
+			if err := h.queries.UpdateRequestSortOrder(r.Context(), repository.UpdateRequestSortOrderParams{
+				ID:        item.ID,
+				SortOrder: item.SortOrder,
+			}); err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

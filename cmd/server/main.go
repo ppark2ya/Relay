@@ -91,6 +91,7 @@ func main() {
 		// Collections
 		r.Get("/collections", collectionHandler.List)
 		r.Post("/collections", collectionHandler.Create)
+		r.Put("/collections/reorder", collectionHandler.Reorder)
 		r.Get("/collections/{id}", collectionHandler.Get)
 		r.Put("/collections/{id}", collectionHandler.Update)
 		r.Delete("/collections/{id}", collectionHandler.Delete)
@@ -102,6 +103,7 @@ func main() {
 		// Requests
 		r.Get("/requests", requestHandler.List)
 		r.Post("/requests", requestHandler.Create)
+		r.Put("/requests/reorder", requestHandler.Reorder)
 		r.Get("/requests/{id}", requestHandler.Get)
 		r.Put("/requests/{id}", requestHandler.Update)
 		r.Delete("/requests/{id}", requestHandler.Delete)
@@ -129,6 +131,7 @@ func main() {
 		// Flows
 		r.Get("/flows", flowHandler.List)
 		r.Post("/flows", flowHandler.Create)
+		r.Put("/flows/reorder", flowHandler.Reorder)
 		r.Get("/flows/{id}", flowHandler.Get)
 		r.Put("/flows/{id}", flowHandler.Update)
 		r.Delete("/flows/{id}", flowHandler.Delete)

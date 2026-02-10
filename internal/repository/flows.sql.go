@@ -11,17 +11,23 @@ import (
 )
 
 const createFlow = `-- name: CreateFlow :one
-INSERT INTO flows (name, description, workspace_id) VALUES (?, ?, ?) RETURNING id, name, description, created_at, updated_at, workspace_id
+INSERT INTO flows (name, description, workspace_id, sort_order) VALUES (?, ?, ?, ?) RETURNING id, name, description, created_at, updated_at, workspace_id, sort_order
 `
 
 type CreateFlowParams struct {
 	Name        string         `json:"name"`
 	Description sql.NullString `json:"description"`
 	WorkspaceID int64          `json:"workspace_id"`
+	SortOrder   int64          `json:"sort_order"`
 }
 
 func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, error) {
-	row := q.db.QueryRowContext(ctx, createFlow, arg.Name, arg.Description, arg.WorkspaceID)
+	row := q.db.QueryRowContext(ctx, createFlow,
+		arg.Name,
+		arg.Description,
+		arg.WorkspaceID,
+		arg.SortOrder,
+	)
 	var i Flow
 	err := row.Scan(
 		&i.ID,
@@ -30,6 +36,7 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkspaceID,
+		&i.SortOrder,
 	)
 	return i, err
 }
@@ -139,7 +146,7 @@ func (q *Queries) DeleteFlowStepsByFlow(ctx context.Context, flowID int64) error
 }
 
 const getFlow = `-- name: GetFlow :one
-SELECT id, name, description, created_at, updated_at, workspace_id FROM flows WHERE id = ? LIMIT 1
+SELECT id, name, description, created_at, updated_at, workspace_id, sort_order FROM flows WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetFlow(ctx context.Context, id int64) (Flow, error) {
@@ -152,6 +159,7 @@ func (q *Queries) GetFlow(ctx context.Context, id int64) (Flow, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkspaceID,
+		&i.SortOrder,
 	)
 	return i, err
 }
@@ -188,6 +196,17 @@ func (q *Queries) GetFlowStep(ctx context.Context, id int64) (FlowStep, error) {
 		&i.ContinueOnError,
 	)
 	return i, err
+}
+
+const getMaxFlowSortOrder = `-- name: GetMaxFlowSortOrder :one
+SELECT COALESCE(MAX(sort_order), 0) AS max_sort_order FROM flows WHERE workspace_id = ?
+`
+
+func (q *Queries) GetMaxFlowSortOrder(ctx context.Context, workspaceID int64) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getMaxFlowSortOrder, workspaceID)
+	var max_sort_order interface{}
+	err := row.Scan(&max_sort_order)
+	return max_sort_order, err
 }
 
 const listFlowSteps = `-- name: ListFlowSteps :many
@@ -241,7 +260,7 @@ func (q *Queries) ListFlowSteps(ctx context.Context, flowID int64) ([]FlowStep, 
 }
 
 const listFlows = `-- name: ListFlows :many
-SELECT id, name, description, created_at, updated_at, workspace_id FROM flows WHERE workspace_id = ? ORDER BY name
+SELECT id, name, description, created_at, updated_at, workspace_id, sort_order FROM flows WHERE workspace_id = ? ORDER BY sort_order ASC, name ASC
 `
 
 func (q *Queries) ListFlows(ctx context.Context, workspaceID int64) ([]Flow, error) {
@@ -260,6 +279,7 @@ func (q *Queries) ListFlows(ctx context.Context, workspaceID int64) ([]Flow, err
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.WorkspaceID,
+			&i.SortOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -275,7 +295,7 @@ func (q *Queries) ListFlows(ctx context.Context, workspaceID int64) ([]Flow, err
 }
 
 const updateFlow = `-- name: UpdateFlow :one
-UPDATE flows SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, description, created_at, updated_at, workspace_id
+UPDATE flows SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, description, created_at, updated_at, workspace_id, sort_order
 `
 
 type UpdateFlowParams struct {
@@ -294,8 +314,23 @@ func (q *Queries) UpdateFlow(ctx context.Context, arg UpdateFlowParams) (Flow, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkspaceID,
+		&i.SortOrder,
 	)
 	return i, err
+}
+
+const updateFlowSortOrder = `-- name: UpdateFlowSortOrder :exec
+UPDATE flows SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+`
+
+type UpdateFlowSortOrderParams struct {
+	SortOrder int64 `json:"sort_order"`
+	ID        int64 `json:"id"`
+}
+
+func (q *Queries) UpdateFlowSortOrder(ctx context.Context, arg UpdateFlowSortOrderParams) error {
+	_, err := q.db.ExecContext(ctx, updateFlowSortOrder, arg.SortOrder, arg.ID)
+	return err
 }
 
 const updateFlowStep = `-- name: UpdateFlowStep :one

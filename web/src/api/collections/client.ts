@@ -15,3 +15,6 @@ export const deleteCollection = (id: number) => api.delete(`collections/${id}`);
 
 export const duplicateCollection = (id: number) =>
   api.post(`collections/${id}/duplicate`).json<Collection>();
+
+export const reorderCollections = (orders: { id: number; sortOrder: number; parentId?: number | null }[]) =>
+  api.put('collections/reorder', { json: { orders } });

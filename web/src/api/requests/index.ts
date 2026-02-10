@@ -5,6 +5,7 @@ export {
   useUpdateRequest,
   useDeleteRequest,
   useDuplicateRequest,
+  useReorderRequests,
   useExecuteRequest,
   useExecuteAdhoc,
   useExecuteRequestWithFiles,

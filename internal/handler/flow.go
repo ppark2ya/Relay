@@ -28,6 +28,7 @@ type FlowResponse struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	SortOrder   int64  `json:"sortOrder"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
 }
@@ -133,6 +134,7 @@ func (h *FlowHandler) List(w http.ResponseWriter, r *http.Request) {
 			ID:          f.ID,
 			Name:        f.Name,
 			Description: f.Description.String,
+			SortOrder:   f.SortOrder,
 			CreatedAt:   formatTime(f.CreatedAt),
 			UpdatedAt:   formatTime(f.UpdatedAt),
 		})
@@ -158,6 +160,7 @@ func (h *FlowHandler) Get(w http.ResponseWriter, r *http.Request) {
 		ID:          flow.ID,
 		Name:        flow.Name,
 		Description: flow.Description.String,
+		SortOrder:   flow.SortOrder,
 		CreatedAt:   formatTime(flow.CreatedAt),
 		UpdatedAt:   formatTime(flow.UpdatedAt),
 	})
@@ -171,10 +174,19 @@ func (h *FlowHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wsID := middleware.GetWorkspaceID(r.Context())
+
+	// Calculate next sort_order
+	var maxSortOrder int64
+	val, err := h.queries.GetMaxFlowSortOrder(r.Context(), wsID)
+	if err == nil {
+		maxSortOrder, _ = val.(int64)
+	}
+
 	flow, err := h.queries.CreateFlow(r.Context(), repository.CreateFlowParams{
 		Name:        req.Name,
 		Description: sql.NullString{String: req.Description, Valid: req.Description != ""},
 		WorkspaceID: wsID,
+		SortOrder:   maxSortOrder + 1,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -185,6 +197,7 @@ func (h *FlowHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ID:          flow.ID,
 		Name:        flow.Name,
 		Description: flow.Description.String,
+		SortOrder:   flow.SortOrder,
 		CreatedAt:   formatTime(flow.CreatedAt),
 		UpdatedAt:   formatTime(flow.UpdatedAt),
 	})
@@ -217,6 +230,7 @@ func (h *FlowHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:          flow.ID,
 		Name:        flow.Name,
 		Description: flow.Description.String,
+		SortOrder:   flow.SortOrder,
 		CreatedAt:   formatTime(flow.CreatedAt),
 		UpdatedAt:   formatTime(flow.UpdatedAt),
 	})
@@ -333,6 +347,7 @@ func (h *FlowHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 		ID:          newFlow.ID,
 		Name:        newFlow.Name,
 		Description: newFlow.Description.String,
+		SortOrder:   newFlow.SortOrder,
 		CreatedAt:   formatTime(newFlow.CreatedAt),
 		UpdatedAt:   formatTime(newFlow.UpdatedAt),
 	})
@@ -518,6 +533,35 @@ func (h *FlowHandler) DeleteStep(w http.ResponseWriter, r *http.Request) {
 	if err := h.queries.DeleteFlowStep(r.Context(), stepID); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type FlowReorderItem struct {
+	ID        int64 `json:"id"`
+	SortOrder int64 `json:"sortOrder"`
+}
+
+type FlowReorderRequest struct {
+	Orders []FlowReorderItem `json:"orders"`
+}
+
+func (h *FlowHandler) Reorder(w http.ResponseWriter, r *http.Request) {
+	var req FlowReorderRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	for _, item := range req.Orders {
+		if err := h.queries.UpdateFlowSortOrder(r.Context(), repository.UpdateFlowSortOrderParams{
+			ID:        item.ID,
+			SortOrder: item.SortOrder,
+		}); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)

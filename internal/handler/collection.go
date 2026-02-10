@@ -27,6 +27,7 @@ type CollectionResponse struct {
 	ID        int64                `json:"id"`
 	Name      string               `json:"name"`
 	ParentID  *int64               `json:"parentId"`
+	SortOrder int64                `json:"sortOrder"`
 	Children  []CollectionResponse `json:"children,omitempty"`
 	Requests  []RequestResponse    `json:"requests,omitempty"`
 	CreatedAt string               `json:"createdAt"`
@@ -57,6 +58,7 @@ func (h *CollectionHandler) List(w http.ResponseWriter, r *http.Request) {
 					Name:         req.Name,
 					Method:       req.Method,
 					URL:          req.Url,
+					SortOrder:    req.SortOrder,
 				},
 			)
 		}
@@ -70,6 +72,7 @@ func (h *CollectionHandler) List(w http.ResponseWriter, r *http.Request) {
 		resp := &CollectionResponse{
 			ID:        c.ID,
 			Name:      c.Name,
+			SortOrder: c.SortOrder,
 			Children:  []CollectionResponse{},
 			Requests:  requestsByCollection[c.ID],
 			CreatedAt: formatTime(c.CreatedAt),
@@ -94,6 +97,7 @@ func (h *CollectionHandler) List(w http.ResponseWriter, r *http.Request) {
 			ID:        coll.ID,
 			Name:      coll.Name,
 			ParentID:  coll.ParentID,
+			SortOrder: coll.SortOrder,
 			Requests:  coll.Requests,
 			Children:  []CollectionResponse{},
 			CreatedAt: coll.CreatedAt,
@@ -136,6 +140,7 @@ func (h *CollectionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	resp := CollectionResponse{
 		ID:        collection.ID,
 		Name:      collection.Name,
+		SortOrder: collection.SortOrder,
 		CreatedAt: formatTime(collection.CreatedAt),
 		UpdatedAt: formatTime(collection.UpdatedAt),
 	}
@@ -160,10 +165,26 @@ func (h *CollectionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wsID := middleware.GetWorkspaceID(r.Context())
+
+	// Calculate next sort_order
+	var maxSortOrder int64
+	if req.ParentID != nil {
+		val, err := h.queries.GetMaxChildCollectionSortOrder(r.Context(), parentID)
+		if err == nil {
+			maxSortOrder, _ = val.(int64)
+		}
+	} else {
+		val, err := h.queries.GetMaxRootCollectionSortOrder(r.Context(), wsID)
+		if err == nil {
+			maxSortOrder, _ = val.(int64)
+		}
+	}
+
 	collection, err := h.queries.CreateCollection(r.Context(), repository.CreateCollectionParams{
 		Name:        req.Name,
 		ParentID:    parentID,
 		WorkspaceID: wsID,
+		SortOrder:   maxSortOrder + 1,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -173,12 +194,13 @@ func (h *CollectionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	resp := CollectionResponse{
 		ID:        collection.ID,
 		Name:      collection.Name,
+		SortOrder: collection.SortOrder,
 		CreatedAt: formatTime(collection.CreatedAt),
 		UpdatedAt: formatTime(collection.UpdatedAt),
 	}
 	if collection.ParentID.Valid {
-		parentID := collection.ParentID.Int64
-		resp.ParentID = &parentID
+		pid := collection.ParentID.Int64
+		resp.ParentID = &pid
 	}
 
 	respondJSON(w, http.StatusCreated, resp)
@@ -195,6 +217,18 @@ func (h *CollectionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid request body")
 		return
+	}
+
+	// Cycle detection: prevent moving a collection into its own descendant
+	if req.ParentID != nil && *req.ParentID != 0 {
+		if *req.ParentID == id {
+			respondError(w, http.StatusBadRequest, "Cannot move collection into itself")
+			return
+		}
+		if h.isDescendant(r.Context(), *req.ParentID, id) {
+			respondError(w, http.StatusBadRequest, "Cannot move collection into its own descendant")
+			return
+		}
 	}
 
 	var parentID sql.NullInt64
@@ -215,15 +249,31 @@ func (h *CollectionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	resp := CollectionResponse{
 		ID:        collection.ID,
 		Name:      collection.Name,
+		SortOrder: collection.SortOrder,
 		CreatedAt: formatTime(collection.CreatedAt),
 		UpdatedAt: formatTime(collection.UpdatedAt),
 	}
 	if collection.ParentID.Valid {
-		parentID := collection.ParentID.Int64
-		resp.ParentID = &parentID
+		pid := collection.ParentID.Int64
+		resp.ParentID = &pid
 	}
 
 	respondJSON(w, http.StatusOK, resp)
+}
+
+// isDescendant checks if candidateAncestorID is a descendant of collectionID
+func (h *CollectionHandler) isDescendant(ctx context.Context, candidateID, ancestorID int64) bool {
+	current := candidateID
+	for {
+		col, err := h.queries.GetCollection(ctx, current)
+		if err != nil || !col.ParentID.Valid {
+			return false
+		}
+		if col.ParentID.Int64 == ancestorID {
+			return true
+		}
+		current = col.ParentID.Int64
+	}
 }
 
 func (h *CollectionHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
@@ -273,6 +323,7 @@ func (h *CollectionHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 	resp := CollectionResponse{
 		ID:        newColl.ID,
 		Name:      newColl.Name,
+		SortOrder: newColl.SortOrder,
 		CreatedAt: formatTime(newColl.CreatedAt),
 		UpdatedAt: formatTime(newColl.UpdatedAt),
 	}
@@ -336,6 +387,70 @@ func (h *CollectionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.queries.DeleteCollection(r.Context(), id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type ReorderItem struct {
+	ID        int64  `json:"id"`
+	SortOrder int64  `json:"sortOrder"`
+	ParentID  *int64 `json:"parentId,omitempty"`
+}
+
+type ReorderRequest struct {
+	Orders []ReorderItem `json:"orders"`
+}
+
+func (h *CollectionHandler) Reorder(w http.ResponseWriter, r *http.Request) {
+	var req ReorderRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	txQueries := h.queries.WithTx(tx)
+	for _, item := range req.Orders {
+		if item.ParentID != nil {
+			// Cycle detection
+			if *item.ParentID == item.ID {
+				respondError(w, http.StatusBadRequest, "Cannot move collection into itself")
+				return
+			}
+			if h.isDescendant(r.Context(), *item.ParentID, item.ID) {
+				respondError(w, http.StatusBadRequest, "Cannot move collection into its own descendant")
+				return
+			}
+			parentID := sql.NullInt64{Int64: *item.ParentID, Valid: true}
+			if err := txQueries.UpdateCollectionParentAndSortOrder(r.Context(), repository.UpdateCollectionParentAndSortOrderParams{
+				ID:        item.ID,
+				ParentID:  parentID,
+				SortOrder: item.SortOrder,
+			}); err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		} else {
+			if err := txQueries.UpdateCollectionSortOrder(r.Context(), repository.UpdateCollectionSortOrderParams{
+				ID:        item.ID,
+				SortOrder: item.SortOrder,
+			}); err != nil {
+				respondError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

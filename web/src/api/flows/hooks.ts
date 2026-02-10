@@ -45,6 +45,14 @@ export const useDuplicateFlow = () => {
   });
 };
 
+export const useReorderFlows = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.reorderFlows,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.flows }),
+  });
+};
+
 export const useRunFlow = () => {
   const queryClient = useQueryClient();
   return useMutation({

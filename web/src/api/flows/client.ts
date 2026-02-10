@@ -16,6 +16,9 @@ export const deleteFlow = (id: number) => api.delete(`flows/${id}`);
 export const duplicateFlow = (id: number) =>
   api.post(`flows/${id}/duplicate`).json<Flow>();
 
+export const reorderFlows = (orders: { id: number; sortOrder: number }[]) =>
+  api.put('flows/reorder', { json: { orders } });
+
 export const runFlow = (id: number, stepIds?: number[]) =>
   api.post(`flows/${id}/run`, {
     json: stepIds && stepIds.length > 0 ? { stepIds } : {}

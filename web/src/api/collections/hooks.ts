@@ -40,3 +40,11 @@ export const useDuplicateCollection = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.collections }),
   });
 };
+
+export const useReorderCollections = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.reorderCollections,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.collections }),
+  });
+};

@@ -143,6 +143,7 @@ function AppContent() {
       headers: item.requestHeaders || '{}',
       body: item.requestBody || '',
       bodyType,
+      sortOrder: 0,
     };
 
     // Build response from history data

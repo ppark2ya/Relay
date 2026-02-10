@@ -11,17 +11,23 @@ import (
 )
 
 const createCollection = `-- name: CreateCollection :one
-INSERT INTO collections (name, parent_id, workspace_id) VALUES (?, ?, ?) RETURNING id, name, parent_id, created_at, updated_at, workspace_id, variables
+INSERT INTO collections (name, parent_id, workspace_id, sort_order) VALUES (?, ?, ?, ?) RETURNING id, name, parent_id, created_at, updated_at, workspace_id, variables, sort_order
 `
 
 type CreateCollectionParams struct {
 	Name        string        `json:"name"`
 	ParentID    sql.NullInt64 `json:"parent_id"`
 	WorkspaceID int64         `json:"workspace_id"`
+	SortOrder   int64         `json:"sort_order"`
 }
 
 func (q *Queries) CreateCollection(ctx context.Context, arg CreateCollectionParams) (Collection, error) {
-	row := q.db.QueryRowContext(ctx, createCollection, arg.Name, arg.ParentID, arg.WorkspaceID)
+	row := q.db.QueryRowContext(ctx, createCollection,
+		arg.Name,
+		arg.ParentID,
+		arg.WorkspaceID,
+		arg.SortOrder,
+	)
 	var i Collection
 	err := row.Scan(
 		&i.ID,
@@ -31,6 +37,7 @@ func (q *Queries) CreateCollection(ctx context.Context, arg CreateCollectionPara
 		&i.UpdatedAt,
 		&i.WorkspaceID,
 		&i.Variables,
+		&i.SortOrder,
 	)
 	return i, err
 }
@@ -45,7 +52,7 @@ func (q *Queries) DeleteCollection(ctx context.Context, id int64) error {
 }
 
 const getCollection = `-- name: GetCollection :one
-SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables FROM collections WHERE id = ? LIMIT 1
+SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables, sort_order FROM collections WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetCollection(ctx context.Context, id int64) (Collection, error) {
@@ -59,6 +66,7 @@ func (q *Queries) GetCollection(ctx context.Context, id int64) (Collection, erro
 		&i.UpdatedAt,
 		&i.WorkspaceID,
 		&i.Variables,
+		&i.SortOrder,
 	)
 	return i, err
 }
@@ -74,8 +82,30 @@ func (q *Queries) GetCollectionVariables(ctx context.Context, id int64) (sql.Nul
 	return variables, err
 }
 
+const getMaxChildCollectionSortOrder = `-- name: GetMaxChildCollectionSortOrder :one
+SELECT COALESCE(MAX(sort_order), 0) AS max_sort_order FROM collections WHERE parent_id = ?
+`
+
+func (q *Queries) GetMaxChildCollectionSortOrder(ctx context.Context, parentID sql.NullInt64) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getMaxChildCollectionSortOrder, parentID)
+	var max_sort_order interface{}
+	err := row.Scan(&max_sort_order)
+	return max_sort_order, err
+}
+
+const getMaxRootCollectionSortOrder = `-- name: GetMaxRootCollectionSortOrder :one
+SELECT COALESCE(MAX(sort_order), 0) AS max_sort_order FROM collections WHERE workspace_id = ? AND parent_id IS NULL
+`
+
+func (q *Queries) GetMaxRootCollectionSortOrder(ctx context.Context, workspaceID int64) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getMaxRootCollectionSortOrder, workspaceID)
+	var max_sort_order interface{}
+	err := row.Scan(&max_sort_order)
+	return max_sort_order, err
+}
+
 const listChildCollections = `-- name: ListChildCollections :many
-SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables FROM collections WHERE parent_id = ? ORDER BY name
+SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables, sort_order FROM collections WHERE parent_id = ? ORDER BY sort_order ASC, name ASC
 `
 
 func (q *Queries) ListChildCollections(ctx context.Context, parentID sql.NullInt64) ([]Collection, error) {
@@ -95,6 +125,7 @@ func (q *Queries) ListChildCollections(ctx context.Context, parentID sql.NullInt
 			&i.UpdatedAt,
 			&i.WorkspaceID,
 			&i.Variables,
+			&i.SortOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -110,7 +141,7 @@ func (q *Queries) ListChildCollections(ctx context.Context, parentID sql.NullInt
 }
 
 const listCollections = `-- name: ListCollections :many
-SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables FROM collections WHERE workspace_id = ? ORDER BY name
+SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables, sort_order FROM collections WHERE workspace_id = ? ORDER BY sort_order ASC, name ASC
 `
 
 func (q *Queries) ListCollections(ctx context.Context, workspaceID int64) ([]Collection, error) {
@@ -130,6 +161,7 @@ func (q *Queries) ListCollections(ctx context.Context, workspaceID int64) ([]Col
 			&i.UpdatedAt,
 			&i.WorkspaceID,
 			&i.Variables,
+			&i.SortOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -145,7 +177,7 @@ func (q *Queries) ListCollections(ctx context.Context, workspaceID int64) ([]Col
 }
 
 const listRootCollections = `-- name: ListRootCollections :many
-SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables FROM collections WHERE parent_id IS NULL AND workspace_id = ? ORDER BY name
+SELECT id, name, parent_id, created_at, updated_at, workspace_id, variables, sort_order FROM collections WHERE parent_id IS NULL AND workspace_id = ? ORDER BY sort_order ASC, name ASC
 `
 
 func (q *Queries) ListRootCollections(ctx context.Context, workspaceID int64) ([]Collection, error) {
@@ -165,6 +197,7 @@ func (q *Queries) ListRootCollections(ctx context.Context, workspaceID int64) ([
 			&i.UpdatedAt,
 			&i.WorkspaceID,
 			&i.Variables,
+			&i.SortOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -180,7 +213,7 @@ func (q *Queries) ListRootCollections(ctx context.Context, workspaceID int64) ([
 }
 
 const updateCollection = `-- name: UpdateCollection :one
-UPDATE collections SET name = ?, parent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, parent_id, created_at, updated_at, workspace_id, variables
+UPDATE collections SET name = ?, parent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, parent_id, created_at, updated_at, workspace_id, variables, sort_order
 `
 
 type UpdateCollectionParams struct {
@@ -200,12 +233,42 @@ func (q *Queries) UpdateCollection(ctx context.Context, arg UpdateCollectionPara
 		&i.UpdatedAt,
 		&i.WorkspaceID,
 		&i.Variables,
+		&i.SortOrder,
 	)
 	return i, err
 }
 
+const updateCollectionParentAndSortOrder = `-- name: UpdateCollectionParentAndSortOrder :exec
+UPDATE collections SET parent_id = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+`
+
+type UpdateCollectionParentAndSortOrderParams struct {
+	ParentID  sql.NullInt64 `json:"parent_id"`
+	SortOrder int64         `json:"sort_order"`
+	ID        int64         `json:"id"`
+}
+
+func (q *Queries) UpdateCollectionParentAndSortOrder(ctx context.Context, arg UpdateCollectionParentAndSortOrderParams) error {
+	_, err := q.db.ExecContext(ctx, updateCollectionParentAndSortOrder, arg.ParentID, arg.SortOrder, arg.ID)
+	return err
+}
+
+const updateCollectionSortOrder = `-- name: UpdateCollectionSortOrder :exec
+UPDATE collections SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+`
+
+type UpdateCollectionSortOrderParams struct {
+	SortOrder int64 `json:"sort_order"`
+	ID        int64 `json:"id"`
+}
+
+func (q *Queries) UpdateCollectionSortOrder(ctx context.Context, arg UpdateCollectionSortOrderParams) error {
+	_, err := q.db.ExecContext(ctx, updateCollectionSortOrder, arg.SortOrder, arg.ID)
+	return err
+}
+
 const updateCollectionVariables = `-- name: UpdateCollectionVariables :one
-UPDATE collections SET variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, parent_id, created_at, updated_at, workspace_id, variables
+UPDATE collections SET variables = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, name, parent_id, created_at, updated_at, workspace_id, variables, sort_order
 `
 
 type UpdateCollectionVariablesParams struct {
@@ -224,6 +287,7 @@ func (q *Queries) UpdateCollectionVariables(ctx context.Context, arg UpdateColle
 		&i.UpdatedAt,
 		&i.WorkspaceID,
 		&i.Variables,
+		&i.SortOrder,
 	)
 	return i, err
 }

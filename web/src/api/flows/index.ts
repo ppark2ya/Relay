@@ -6,6 +6,7 @@ export {
   useUpdateFlow,
   useDeleteFlow,
   useDuplicateFlow,
+  useReorderFlows,
   useRunFlow,
   useCreateFlowStep,
   useUpdateFlowStep,

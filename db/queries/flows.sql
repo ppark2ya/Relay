@@ -2,16 +2,22 @@
 SELECT * FROM flows WHERE id = ? LIMIT 1;
 
 -- name: ListFlows :many
-SELECT * FROM flows WHERE workspace_id = ? ORDER BY name;
+SELECT * FROM flows WHERE workspace_id = ? ORDER BY sort_order ASC, name ASC;
 
 -- name: CreateFlow :one
-INSERT INTO flows (name, description, workspace_id) VALUES (?, ?, ?) RETURNING *;
+INSERT INTO flows (name, description, workspace_id, sort_order) VALUES (?, ?, ?, ?) RETURNING *;
 
 -- name: UpdateFlow :one
 UPDATE flows SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *;
 
 -- name: DeleteFlow :exec
 DELETE FROM flows WHERE id = ?;
+
+-- name: UpdateFlowSortOrder :exec
+UPDATE flows SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;
+
+-- name: GetMaxFlowSortOrder :one
+SELECT COALESCE(MAX(sort_order), 0) AS max_sort_order FROM flows WHERE workspace_id = ?;
 
 -- name: GetFlowStep :one
 SELECT * FROM flow_steps WHERE id = ? LIMIT 1;

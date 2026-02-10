@@ -11,8 +11,8 @@ import (
 )
 
 const createRequest = `-- name: CreateRequest :one
-INSERT INTO requests (collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, workspace_id, pre_script, post_script)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script
+INSERT INTO requests (collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, workspace_id, pre_script, post_script, sort_order)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script, sort_order
 `
 
 type CreateRequestParams struct {
@@ -28,6 +28,7 @@ type CreateRequestParams struct {
 	WorkspaceID  int64          `json:"workspace_id"`
 	PreScript    sql.NullString `json:"pre_script"`
 	PostScript   sql.NullString `json:"post_script"`
+	SortOrder    int64          `json:"sort_order"`
 }
 
 func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (Request, error) {
@@ -44,6 +45,7 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		arg.WorkspaceID,
 		arg.PreScript,
 		arg.PostScript,
+		arg.SortOrder,
 	)
 	var i Request
 	err := row.Scan(
@@ -62,6 +64,7 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		&i.WorkspaceID,
 		&i.PreScript,
 		&i.PostScript,
+		&i.SortOrder,
 	)
 	return i, err
 }
@@ -75,8 +78,19 @@ func (q *Queries) DeleteRequest(ctx context.Context, id int64) error {
 	return err
 }
 
+const getMaxRequestSortOrder = `-- name: GetMaxRequestSortOrder :one
+SELECT COALESCE(MAX(sort_order), 0) AS max_sort_order FROM requests WHERE collection_id = ?
+`
+
+func (q *Queries) GetMaxRequestSortOrder(ctx context.Context, collectionID sql.NullInt64) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getMaxRequestSortOrder, collectionID)
+	var max_sort_order interface{}
+	err := row.Scan(&max_sort_order)
+	return max_sort_order, err
+}
+
 const getRequest = `-- name: GetRequest :one
-SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script FROM requests WHERE id = ? LIMIT 1
+SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script, sort_order FROM requests WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetRequest(ctx context.Context, id int64) (Request, error) {
@@ -98,12 +112,13 @@ func (q *Queries) GetRequest(ctx context.Context, id int64) (Request, error) {
 		&i.WorkspaceID,
 		&i.PreScript,
 		&i.PostScript,
+		&i.SortOrder,
 	)
 	return i, err
 }
 
 const listRequests = `-- name: ListRequests :many
-SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script FROM requests WHERE workspace_id = ? ORDER BY name
+SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script, sort_order FROM requests WHERE workspace_id = ? ORDER BY sort_order ASC, name ASC
 `
 
 func (q *Queries) ListRequests(ctx context.Context, workspaceID int64) ([]Request, error) {
@@ -131,6 +146,7 @@ func (q *Queries) ListRequests(ctx context.Context, workspaceID int64) ([]Reques
 			&i.WorkspaceID,
 			&i.PreScript,
 			&i.PostScript,
+			&i.SortOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -146,7 +162,7 @@ func (q *Queries) ListRequests(ctx context.Context, workspaceID int64) ([]Reques
 }
 
 const listRequestsByCollection = `-- name: ListRequestsByCollection :many
-SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script FROM requests WHERE collection_id = ? ORDER BY name
+SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script, sort_order FROM requests WHERE collection_id = ? ORDER BY sort_order ASC, name ASC
 `
 
 func (q *Queries) ListRequestsByCollection(ctx context.Context, collectionID sql.NullInt64) ([]Request, error) {
@@ -174,6 +190,7 @@ func (q *Queries) ListRequestsByCollection(ctx context.Context, collectionID sql
 			&i.WorkspaceID,
 			&i.PreScript,
 			&i.PostScript,
+			&i.SortOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -202,7 +219,7 @@ UPDATE requests SET
     pre_script = ?,
     post_script = ?,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = ? RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script
+WHERE id = ? RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script, sort_order
 `
 
 type UpdateRequestParams struct {
@@ -252,6 +269,36 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		&i.WorkspaceID,
 		&i.PreScript,
 		&i.PostScript,
+		&i.SortOrder,
 	)
 	return i, err
+}
+
+const updateRequestCollectionAndSortOrder = `-- name: UpdateRequestCollectionAndSortOrder :exec
+UPDATE requests SET collection_id = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+`
+
+type UpdateRequestCollectionAndSortOrderParams struct {
+	CollectionID sql.NullInt64 `json:"collection_id"`
+	SortOrder    int64         `json:"sort_order"`
+	ID           int64         `json:"id"`
+}
+
+func (q *Queries) UpdateRequestCollectionAndSortOrder(ctx context.Context, arg UpdateRequestCollectionAndSortOrderParams) error {
+	_, err := q.db.ExecContext(ctx, updateRequestCollectionAndSortOrder, arg.CollectionID, arg.SortOrder, arg.ID)
+	return err
+}
+
+const updateRequestSortOrder = `-- name: UpdateRequestSortOrder :exec
+UPDATE requests SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+`
+
+type UpdateRequestSortOrderParams struct {
+	SortOrder int64 `json:"sort_order"`
+	ID        int64 `json:"id"`
+}
+
+func (q *Queries) UpdateRequestSortOrder(ctx context.Context, arg UpdateRequestSortOrderParams) error {
+	_, err := q.db.ExecContext(ctx, updateRequestSortOrder, arg.SortOrder, arg.ID)
+	return err
 }

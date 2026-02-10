@@ -23,6 +23,7 @@ func Run(db *sql.DB) error {
 	migrateUploadedFiles(db)
 	migrateWorkspaceCollectionVariables(db)
 	migrateRequestScripts(db)
+	migrateSortOrder(db)
 
 	return nil
 }
@@ -288,6 +289,17 @@ func migrateRequestScripts(db *sql.DB) {
 	stmts := []string{
 		"ALTER TABLE requests ADD COLUMN pre_script TEXT DEFAULT ''",
 		"ALTER TABLE requests ADD COLUMN post_script TEXT DEFAULT ''",
+	}
+	for _, s := range stmts {
+		db.Exec(s) // Ignore "duplicate column" errors
+	}
+}
+
+func migrateSortOrder(db *sql.DB) {
+	stmts := []string{
+		"ALTER TABLE collections ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE requests ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+		"ALTER TABLE flows ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
 	}
 	for _, s := range stmts {
 		db.Exec(s) // Ignore "duplicate column" errors
