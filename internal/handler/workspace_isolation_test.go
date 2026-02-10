@@ -28,7 +28,7 @@ func setupIsolationTestServer(t *testing.T, mockTarget *httptest.Server) *httpte
 
 	wsH := handler.NewWorkspaceHandler(q)
 	collH := handler.NewCollectionHandler(q, db)
-	reqH := handler.NewRequestHandler(q, re)
+	reqH := handler.NewRequestHandler(q, re, fr)
 	envH := handler.NewEnvironmentHandler(q)
 	flowH := handler.NewFlowHandler(q, fr, db)
 	histH := handler.NewHistoryHandler(q)

@@ -63,7 +63,7 @@ func main() {
 	// Initialize handlers
 	workspaceHandler := handler.NewWorkspaceHandler(queries)
 	collectionHandler := handler.NewCollectionHandler(queries, db)
-	requestHandler := handler.NewRequestHandler(queries, requestExecutor)
+	requestHandler := handler.NewRequestHandler(queries, requestExecutor, flowRunner)
 	environmentHandler := handler.NewEnvironmentHandler(queries)
 	proxyHandler := handler.NewProxyHandler(queries)
 	flowHandler := handler.NewFlowHandler(queries, flowRunner, db)

@@ -22,6 +22,7 @@ func Run(db *sql.DB) error {
 	migrateFlowScripts(db)
 	migrateUploadedFiles(db)
 	migrateWorkspaceCollectionVariables(db)
+	migrateRequestScripts(db)
 
 	return nil
 }
@@ -281,6 +282,16 @@ func migrateUploadedFiles(db *sql.DB) {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`)
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_uploaded_files_workspace ON uploaded_files(workspace_id)")
+}
+
+func migrateRequestScripts(db *sql.DB) {
+	stmts := []string{
+		"ALTER TABLE requests ADD COLUMN pre_script TEXT DEFAULT ''",
+		"ALTER TABLE requests ADD COLUMN post_script TEXT DEFAULT ''",
+	}
+	for _, s := range stmts {
+		db.Exec(s) // Ignore "duplicate column" errors
+	}
 }
 
 func migrateWorkspaceCollectionVariables(db *sql.DB) {

@@ -31,7 +31,7 @@ func setupTestServer(t *testing.T, mockTarget *httptest.Server) *httptest.Server
 	re := service.NewRequestExecutor(q, vr, nil)
 	fr := service.NewFlowRunner(q, re, vr)
 
-	reqH := handler.NewRequestHandler(q, re)
+	reqH := handler.NewRequestHandler(q, re, fr)
 	envH := handler.NewEnvironmentHandler(q)
 	flowH := handler.NewFlowHandler(q, fr, db)
 

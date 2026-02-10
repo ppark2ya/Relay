@@ -534,6 +534,36 @@ func (fr *FlowRunner) executeJavaScriptWithRequest(ctx context.Context, script s
 	}
 }
 
+// ExecuteScriptForRequest runs a pre-script for a standalone request (no flow context)
+func (fr *FlowRunner) ExecuteScriptForRequest(ctx context.Context, script string, runtimeVars map[string]string, collectionID int64) *ScriptResult {
+	scriptCtx := &ScriptContext{
+		RuntimeVars: runtimeVars,
+		Iteration:   1,
+		LoopCount:   1,
+	}
+	return fr.executeScriptWithRequest(ctx, script, scriptCtx, runtimeVars, nil, collectionID)
+}
+
+// ExecuteScriptForRequestWithResponse runs a post-script for a standalone request with response context
+func (fr *FlowRunner) ExecuteScriptForRequestWithResponse(ctx context.Context, script string, runtimeVars map[string]string, execResult *ExecuteResult, reqURL, reqMethod string, reqHeaders map[string]string, reqBody string, collectionID int64) *ScriptResult {
+	scriptCtx := &ScriptContext{
+		RuntimeVars:  runtimeVars,
+		StatusCode:   execResult.StatusCode,
+		ResponseBody: execResult.Body,
+		Headers:      execResult.Headers,
+		DurationMs:   execResult.DurationMs,
+		Iteration:    1,
+		LoopCount:    1,
+	}
+	reqInfo := &RequestInfo{
+		URL:     reqURL,
+		Method:  reqMethod,
+		Headers: reqHeaders,
+		Body:    reqBody,
+	}
+	return fr.executeScriptWithRequest(ctx, script, scriptCtx, runtimeVars, reqInfo, collectionID)
+}
+
 // createHTTPClientFunc creates a function for pm.sendRequest
 func (fr *FlowRunner) createHTTPClientFunc(ctx context.Context) func(method, url string, headers map[string]string, body string) (int, string, map[string]string, error) {
 	return func(method, url string, headers map[string]string, body string) (int, string, map[string]string, error) {

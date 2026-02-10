@@ -86,6 +86,8 @@ type Request struct {
 	CreatedAt    sql.NullTime   `json:"created_at"`
 	UpdatedAt    sql.NullTime   `json:"updated_at"`
 	WorkspaceID  int64          `json:"workspace_id"`
+	PreScript    sql.NullString `json:"pre_script"`
+	PostScript   sql.NullString `json:"post_script"`
 }
 
 type RequestHistory struct {

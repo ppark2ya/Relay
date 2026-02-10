@@ -11,8 +11,8 @@ import (
 )
 
 const createRequest = `-- name: CreateRequest :one
-INSERT INTO requests (collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, workspace_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id
+INSERT INTO requests (collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, workspace_id, pre_script, post_script)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script
 `
 
 type CreateRequestParams struct {
@@ -26,6 +26,8 @@ type CreateRequestParams struct {
 	Cookies      sql.NullString `json:"cookies"`
 	ProxyID      sql.NullInt64  `json:"proxy_id"`
 	WorkspaceID  int64          `json:"workspace_id"`
+	PreScript    sql.NullString `json:"pre_script"`
+	PostScript   sql.NullString `json:"post_script"`
 }
 
 func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (Request, error) {
@@ -40,6 +42,8 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		arg.Cookies,
 		arg.ProxyID,
 		arg.WorkspaceID,
+		arg.PreScript,
+		arg.PostScript,
 	)
 	var i Request
 	err := row.Scan(
@@ -56,6 +60,8 @@ func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (R
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkspaceID,
+		&i.PreScript,
+		&i.PostScript,
 	)
 	return i, err
 }
@@ -70,7 +76,7 @@ func (q *Queries) DeleteRequest(ctx context.Context, id int64) error {
 }
 
 const getRequest = `-- name: GetRequest :one
-SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id FROM requests WHERE id = ? LIMIT 1
+SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script FROM requests WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetRequest(ctx context.Context, id int64) (Request, error) {
@@ -90,12 +96,14 @@ func (q *Queries) GetRequest(ctx context.Context, id int64) (Request, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkspaceID,
+		&i.PreScript,
+		&i.PostScript,
 	)
 	return i, err
 }
 
 const listRequests = `-- name: ListRequests :many
-SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id FROM requests WHERE workspace_id = ? ORDER BY name
+SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script FROM requests WHERE workspace_id = ? ORDER BY name
 `
 
 func (q *Queries) ListRequests(ctx context.Context, workspaceID int64) ([]Request, error) {
@@ -121,6 +129,8 @@ func (q *Queries) ListRequests(ctx context.Context, workspaceID int64) ([]Reques
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.WorkspaceID,
+			&i.PreScript,
+			&i.PostScript,
 		); err != nil {
 			return nil, err
 		}
@@ -136,7 +146,7 @@ func (q *Queries) ListRequests(ctx context.Context, workspaceID int64) ([]Reques
 }
 
 const listRequestsByCollection = `-- name: ListRequestsByCollection :many
-SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id FROM requests WHERE collection_id = ? ORDER BY name
+SELECT id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script FROM requests WHERE collection_id = ? ORDER BY name
 `
 
 func (q *Queries) ListRequestsByCollection(ctx context.Context, collectionID sql.NullInt64) ([]Request, error) {
@@ -162,6 +172,8 @@ func (q *Queries) ListRequestsByCollection(ctx context.Context, collectionID sql
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.WorkspaceID,
+			&i.PreScript,
+			&i.PostScript,
 		); err != nil {
 			return nil, err
 		}
@@ -187,8 +199,10 @@ UPDATE requests SET
     body_type = ?,
     cookies = ?,
     proxy_id = ?,
+    pre_script = ?,
+    post_script = ?,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = ? RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id
+WHERE id = ? RETURNING id, collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, created_at, updated_at, workspace_id, pre_script, post_script
 `
 
 type UpdateRequestParams struct {
@@ -201,6 +215,8 @@ type UpdateRequestParams struct {
 	BodyType     sql.NullString `json:"body_type"`
 	Cookies      sql.NullString `json:"cookies"`
 	ProxyID      sql.NullInt64  `json:"proxy_id"`
+	PreScript    sql.NullString `json:"pre_script"`
+	PostScript   sql.NullString `json:"post_script"`
 	ID           int64          `json:"id"`
 }
 
@@ -215,6 +231,8 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		arg.BodyType,
 		arg.Cookies,
 		arg.ProxyID,
+		arg.PreScript,
+		arg.PostScript,
 		arg.ID,
 	)
 	var i Request
@@ -232,6 +250,8 @@ func (q *Queries) UpdateRequest(ctx context.Context, arg UpdateRequestParams) (R
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkspaceID,
+		&i.PreScript,
+		&i.PostScript,
 	)
 	return i, err
 }

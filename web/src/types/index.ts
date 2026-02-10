@@ -5,7 +5,7 @@ export type { Request } from '../api/requests';
 export type { Environment } from '../api/environments';
 export type { Proxy } from '../api/proxies';
 export type { Flow, FlowStep, FlowResult, StepResult } from '../api/flows';
-export type { ExecuteResult } from '../api/shared/types';
+export type { ExecuteResult, ScriptResult, RequestExecuteResult } from '../api/shared/types';
 export type { History } from '../api/history';
 
 // WebSocket types (not part of any API domain)

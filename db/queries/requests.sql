@@ -8,8 +8,8 @@ SELECT * FROM requests WHERE workspace_id = ? ORDER BY name;
 SELECT * FROM requests WHERE collection_id = ? ORDER BY name;
 
 -- name: CreateRequest :one
-INSERT INTO requests (collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, workspace_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+INSERT INTO requests (collection_id, name, method, url, headers, body, body_type, cookies, proxy_id, workspace_id, pre_script, post_script)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 -- name: UpdateRequest :one
 UPDATE requests SET
@@ -22,6 +22,8 @@ UPDATE requests SET
     body_type = ?,
     cookies = ?,
     proxy_id = ?,
+    pre_script = ?,
+    post_script = ?,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ? RETURNING *;
 

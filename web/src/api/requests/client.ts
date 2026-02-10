@@ -1,5 +1,5 @@
 import api from '../client';
-import type { ExecuteResult } from '../shared/types';
+import type { ExecuteResult, RequestExecuteResult } from '../shared/types';
 import type { Request } from './types';
 
 export const getRequests = () => api.get('requests').json<Request[]>();
@@ -23,7 +23,7 @@ export const executeRequest = (
   overrides?: { method: string; url: string; headers: string; body: string; bodyType: string; proxyId?: number },
   signal?: AbortSignal,
 ) =>
-  api.post(`requests/${id}/execute`, { json: { variables, ...overrides }, signal }).json<ExecuteResult>();
+  api.post(`requests/${id}/execute`, { json: { variables, ...overrides }, signal }).json<RequestExecuteResult>();
 
 export const executeAdhoc = (
   data: { method: string; url: string; headers: string; body: string; variables?: Record<string, string>; proxyId?: number },
@@ -53,7 +53,7 @@ export const executeRequestWithFiles = (
       formData.append(`file_${index}`, item.file);
     }
   });
-  return api.post(`requests/${id}/execute`, { body: formData, signal }).json<ExecuteResult>();
+  return api.post(`requests/${id}/execute`, { body: formData, signal }).json<RequestExecuteResult>();
 };
 
 export const executeAdhocWithFiles = (

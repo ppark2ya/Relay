@@ -11,7 +11,7 @@ import { useRequest } from './api/requests';
 import { useFlow } from './api/flows';
 import { useWebSocket } from './hooks/useWebSocket';
 import { WorkspaceContext, useWorkspaceProvider } from './hooks/useWorkspace';
-import type { Request, ExecuteResult, Flow, History } from './types';
+import type { Request, ExecuteResult, ScriptResult, Flow, History } from './types';
 
 const queryClient = new QueryClient();
 
@@ -20,6 +20,7 @@ function AppContent() {
   const [localRequest, setLocalRequest] = useState<Request | null>(null);
   const [localFlow, setLocalFlow] = useState<Flow | null>(null);
   const [response, setResponse] = useState<ExecuteResult | null>(null);
+  const [scriptResults, setScriptResults] = useState<{ pre?: ScriptResult; post?: ScriptResult } | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [currentMethod, setCurrentMethod] = useState('GET');
   const cancelRef = useRef<(() => void) | null>(null);
@@ -61,9 +62,18 @@ function AppContent() {
     }
   }, [ws]);
 
+  const handleScriptResults = useCallback((pre: ScriptResult | undefined, post: ScriptResult | undefined) => {
+    if (pre || post) {
+      setScriptResults({ pre, post });
+    } else {
+      setScriptResults(null);
+    }
+  }, []);
+
   const handleSelectRequest = useCallback((request: Request | null) => {
     setLocalRequest(request);
     setResponse(null);
+    setScriptResults(null);
     // Disconnect WS when switching requests
     if (ws.status !== 'disconnected') {
       ws.disconnect();
@@ -170,6 +180,7 @@ function AppContent() {
               onCancelReady={cancelCallbacks.onCancelReady}
               onMethodChange={handleMethodChange}
               onImportCookiesReady={(fn) => { importCookiesRef.current = fn; }}
+              onScriptResults={handleScriptResults}
               ws={ws}
             />
             {isWSMode ? (
@@ -180,12 +191,56 @@ function AppContent() {
                 onClear={ws.clearMessages}
               />
             ) : (
-              <ResponseViewer
-                response={response}
-                isLoading={isExecuting}
-                onCancel={cancelCallbacks.cancel}
-                onImportCookies={(cookies) => importCookiesRef.current?.(cookies)}
-              />
+              <>
+                {scriptResults && (scriptResults.pre || scriptResults.post) && (
+                  <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center gap-4 text-xs">
+                    {scriptResults.pre && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-medium text-gray-600 dark:text-gray-300">Pre-Script:</span>
+                        {scriptResults.pre.assertionsPassed > 0 && (
+                          <span className="text-green-600 dark:text-green-400">{scriptResults.pre.assertionsPassed} passed</span>
+                        )}
+                        {scriptResults.pre.assertionsFailed > 0 && (
+                          <span className="text-red-600 dark:text-red-400">{scriptResults.pre.assertionsFailed} failed</span>
+                        )}
+                        {scriptResults.pre.assertionsPassed === 0 && scriptResults.pre.assertionsFailed === 0 && (
+                          <span className={scriptResults.pre.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                            {scriptResults.pre.success ? 'OK' : 'Error'}
+                          </span>
+                        )}
+                        {scriptResults.pre.errors?.map((e, i) => (
+                          <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
+                        ))}
+                      </span>
+                    )}
+                    {scriptResults.post && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-medium text-gray-600 dark:text-gray-300">Post-Script:</span>
+                        {scriptResults.post.assertionsPassed > 0 && (
+                          <span className="text-green-600 dark:text-green-400">{scriptResults.post.assertionsPassed} passed</span>
+                        )}
+                        {scriptResults.post.assertionsFailed > 0 && (
+                          <span className="text-red-600 dark:text-red-400">{scriptResults.post.assertionsFailed} failed</span>
+                        )}
+                        {scriptResults.post.assertionsPassed === 0 && scriptResults.post.assertionsFailed === 0 && (
+                          <span className={scriptResults.post.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                            {scriptResults.post.success ? 'OK' : 'Error'}
+                          </span>
+                        )}
+                        {scriptResults.post.errors?.map((e, i) => (
+                          <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <ResponseViewer
+                  response={response}
+                  isLoading={isExecuting}
+                  onCancel={cancelCallbacks.cancel}
+                  onImportCookies={(cookies) => importCookiesRef.current?.(cookies)}
+                />
+              </>
             )}
           </div>
           <div className={`flex-1 flex flex-col overflow-hidden ${view === 'flows' ? '' : 'hidden'}`}>

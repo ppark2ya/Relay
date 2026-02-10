@@ -27,7 +27,7 @@ func setupDuplicateTestServer(t *testing.T) *httptest.Server {
 	fr := service.NewFlowRunner(q, re, vr)
 
 	collH := handler.NewCollectionHandler(q, db)
-	reqH := handler.NewRequestHandler(q, re)
+	reqH := handler.NewRequestHandler(q, re, fr)
 	flowH := handler.NewFlowHandler(q, fr, db)
 
 	r := chi.NewRouter()

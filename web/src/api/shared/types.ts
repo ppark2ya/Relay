@@ -11,3 +11,16 @@ export interface ExecuteResult {
   resolvedUrl: string;
   resolvedHeaders: Record<string, string>;
 }
+
+export interface ScriptResult {
+  success: boolean;
+  errors?: string[];
+  assertionsPassed: number;
+  assertionsFailed: number;
+  updatedVars?: Record<string, string>;
+}
+
+export interface RequestExecuteResult extends ExecuteResult {
+  preScriptResult?: ScriptResult;
+  postScriptResult?: ScriptResult;
+}

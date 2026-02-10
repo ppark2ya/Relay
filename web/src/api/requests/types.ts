@@ -9,6 +9,8 @@ export interface Request {
   bodyType?: string;
   cookies?: string;
   proxyId?: number | null;
+  preScript?: string;
+  postScript?: string;
   createdAt?: string;
   updatedAt?: string;
 }

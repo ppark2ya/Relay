@@ -14,12 +14,13 @@ import (
 )
 
 type RequestHandler struct {
-	queries  *repository.Queries
-	executor *service.RequestExecutor
+	queries    *repository.Queries
+	executor   *service.RequestExecutor
+	flowRunner *service.FlowRunner
 }
 
-func NewRequestHandler(queries *repository.Queries, executor *service.RequestExecutor) *RequestHandler {
-	return &RequestHandler{queries: queries, executor: executor}
+func NewRequestHandler(queries *repository.Queries, executor *service.RequestExecutor, flowRunner *service.FlowRunner) *RequestHandler {
+	return &RequestHandler{queries: queries, executor: executor, flowRunner: flowRunner}
 }
 
 type RequestRequest struct {
@@ -32,6 +33,8 @@ type RequestRequest struct {
 	BodyType     string `json:"bodyType"`
 	Cookies      string `json:"cookies"`
 	ProxyID      *int64 `json:"proxyId"`
+	PreScript    string `json:"preScript"`
+	PostScript   string `json:"postScript"`
 }
 
 type RequestResponse struct {
@@ -45,8 +48,16 @@ type RequestResponse struct {
 	BodyType     string `json:"bodyType,omitempty"`
 	Cookies      string `json:"cookies,omitempty"`
 	ProxyID      *int64 `json:"proxyId"`
+	PreScript    string `json:"preScript,omitempty"`
+	PostScript   string `json:"postScript,omitempty"`
 	CreatedAt    string `json:"createdAt,omitempty"`
 	UpdatedAt    string `json:"updatedAt,omitempty"`
+}
+
+type RequestExecuteResponse struct {
+	*service.ExecuteResult
+	PreScriptResult  *service.ScriptResult `json:"preScriptResult,omitempty"`
+	PostScriptResult *service.ScriptResult `json:"postScriptResult,omitempty"`
 }
 
 type ExecuteRequest struct {
@@ -71,16 +82,18 @@ type AdhocExecuteRequest struct {
 
 func toRequestResponse(req repository.Request) RequestResponse {
 	resp := RequestResponse{
-		ID:        req.ID,
-		Name:      req.Name,
-		Method:    req.Method,
-		URL:       req.Url,
-		Headers:   req.Headers.String,
-		Body:      req.Body.String,
-		BodyType:  req.BodyType.String,
-		Cookies:   req.Cookies.String,
-		CreatedAt: formatTime(req.CreatedAt),
-		UpdatedAt: formatTime(req.UpdatedAt),
+		ID:         req.ID,
+		Name:       req.Name,
+		Method:     req.Method,
+		URL:        req.Url,
+		Headers:    req.Headers.String,
+		Body:       req.Body.String,
+		BodyType:   req.BodyType.String,
+		Cookies:    req.Cookies.String,
+		PreScript:  req.PreScript.String,
+		PostScript: req.PostScript.String,
+		CreatedAt:  formatTime(req.CreatedAt),
+		UpdatedAt:  formatTime(req.UpdatedAt),
 	}
 	if req.CollectionID.Valid {
 		collID := req.CollectionID.Int64
@@ -169,6 +182,8 @@ func (h *RequestHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Cookies:      sql.NullString{String: reqBody.Cookies, Valid: true},
 		ProxyID:      proxyID,
 		WorkspaceID:  wsID,
+		PreScript:    sql.NullString{String: reqBody.PreScript, Valid: reqBody.PreScript != ""},
+		PostScript:   sql.NullString{String: reqBody.PostScript, Valid: reqBody.PostScript != ""},
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -217,6 +232,8 @@ func (h *RequestHandler) Update(w http.ResponseWriter, r *http.Request) {
 		BodyType:     sql.NullString{String: reqBody.BodyType, Valid: true},
 		Cookies:      sql.NullString{String: reqBody.Cookies, Valid: true},
 		ProxyID:      proxyID,
+		PreScript:    sql.NullString{String: reqBody.PreScript, Valid: reqBody.PreScript != ""},
+		PostScript:   sql.NullString{String: reqBody.PostScript, Valid: reqBody.PostScript != ""},
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -270,13 +287,57 @@ func (h *RequestHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Load request for scripts and collection context
+	savedReq, _ := h.queries.GetRequest(r.Context(), id)
+	resp := RequestExecuteResponse{}
+
+	// Run pre-script
+	runtimeVars := make(map[string]string)
+	if savedReq.PreScript.Valid && savedReq.PreScript.String != "" {
+		var collectionID int64
+		if savedReq.CollectionID.Valid {
+			collectionID = savedReq.CollectionID.Int64
+		}
+		preResult := h.flowRunner.ExecuteScriptForRequest(r.Context(), savedReq.PreScript.String, runtimeVars, collectionID)
+		resp.PreScriptResult = preResult
+		for k, v := range preResult.UpdatedVars {
+			runtimeVars[k] = v
+		}
+	}
+
+	// Merge runtime vars into execute variables
+	if execReq.Variables == nil {
+		execReq.Variables = runtimeVars
+	} else {
+		for k, v := range runtimeVars {
+			if _, exists := execReq.Variables[k]; !exists {
+				execReq.Variables[k] = v
+			}
+		}
+	}
+
 	result, err := h.executor.Execute(r.Context(), id, execReq.Variables, overrides)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	resp.ExecuteResult = result
 
-	respondJSON(w, http.StatusOK, result)
+	// Run post-script
+	if savedReq.PostScript.Valid && savedReq.PostScript.String != "" {
+		reqHeaders := make(map[string]string)
+		if savedReq.Headers.Valid {
+			json.Unmarshal([]byte(savedReq.Headers.String), &reqHeaders)
+		}
+		var collectionID int64
+		if savedReq.CollectionID.Valid {
+			collectionID = savedReq.CollectionID.Int64
+		}
+		postResult := h.flowRunner.ExecuteScriptForRequestWithResponse(r.Context(), savedReq.PostScript.String, runtimeVars, result, savedReq.Url, savedReq.Method, reqHeaders, savedReq.Body.String, collectionID)
+		resp.PostScriptResult = postResult
+	}
+
+	respondJSON(w, http.StatusOK, resp)
 }
 
 type formDataItemDTO struct {
@@ -343,13 +404,56 @@ func (h *RequestHandler) executeMultipart(w http.ResponseWriter, r *http.Request
 		FormDataFiles: formDataFiles,
 	}
 
+	// Load request for scripts
+	savedReq, _ := h.queries.GetRequest(r.Context(), id)
+	resp := RequestExecuteResponse{}
+
+	// Run pre-script
+	runtimeVars := make(map[string]string)
+	if savedReq.PreScript.Valid && savedReq.PreScript.String != "" {
+		var collectionID int64
+		if savedReq.CollectionID.Valid {
+			collectionID = savedReq.CollectionID.Int64
+		}
+		preResult := h.flowRunner.ExecuteScriptForRequest(r.Context(), savedReq.PreScript.String, runtimeVars, collectionID)
+		resp.PreScriptResult = preResult
+		for k, v := range preResult.UpdatedVars {
+			runtimeVars[k] = v
+		}
+	}
+
+	if execReq.Variables == nil {
+		execReq.Variables = runtimeVars
+	} else {
+		for k, v := range runtimeVars {
+			if _, exists := execReq.Variables[k]; !exists {
+				execReq.Variables[k] = v
+			}
+		}
+	}
+
 	result, err := h.executor.Execute(r.Context(), id, execReq.Variables, overrides)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	resp.ExecuteResult = result
 
-	respondJSON(w, http.StatusOK, result)
+	// Run post-script
+	if savedReq.PostScript.Valid && savedReq.PostScript.String != "" {
+		reqHeaders := make(map[string]string)
+		if savedReq.Headers.Valid {
+			json.Unmarshal([]byte(savedReq.Headers.String), &reqHeaders)
+		}
+		var collectionID int64
+		if savedReq.CollectionID.Valid {
+			collectionID = savedReq.CollectionID.Int64
+		}
+		postResult := h.flowRunner.ExecuteScriptForRequestWithResponse(r.Context(), savedReq.PostScript.String, runtimeVars, result, savedReq.Url, savedReq.Method, reqHeaders, savedReq.Body.String, collectionID)
+		resp.PostScriptResult = postResult
+	}
+
+	respondJSON(w, http.StatusOK, resp)
 }
 
 func (h *RequestHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
@@ -376,6 +480,8 @@ func (h *RequestHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 		Cookies:      source.Cookies,
 		ProxyID:      source.ProxyID,
 		WorkspaceID:  source.WorkspaceID,
+		PreScript:    source.PreScript,
+		PostScript:   source.PostScript,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())

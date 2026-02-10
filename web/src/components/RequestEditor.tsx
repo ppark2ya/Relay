@@ -4,7 +4,7 @@ import { useEnvironments } from '../api/environments';
 import { useProxies } from '../api/proxies';
 import { uploadFile, deleteFile } from '../api/files';
 import { useClickOutside } from '../hooks/useClickOutside';
-import type { Request, ExecuteResult, WSConnectionStatus } from '../types';
+import type { Request, ExecuteResult, ScriptResult, WSConnectionStatus } from '../types';
 import { TabNav, KeyValueEditor, FormDataEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
 import type { FormDataItem } from './ui';
 
@@ -22,8 +22,11 @@ interface RequestEditorProps {
   onCancelReady?: (fn: (() => void) | null) => void;
   onMethodChange?: (method: string) => void;
   onImportCookiesReady?: (fn: ((cookies: Array<{ key: string; value: string; enabled: boolean }>) => void) | null) => void;
+  onScriptResults?: (pre: ScriptResult | undefined, post: ScriptResult | undefined) => void;
   ws?: WSControls;
 }
+
+type ScriptMode = 'dsl' | 'javascript';
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS', 'WS'];
 
@@ -53,9 +56,9 @@ const COMMON_HEADERS = [
   'X-API-Key',
 ];
 
-type Tab = 'params' | 'headers' | 'cookies' | 'body';
+type Tab = 'params' | 'headers' | 'cookies' | 'body' | 'scripts';
 
-export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange, onCancelReady, onMethodChange, onImportCookiesReady, ws }: RequestEditorProps) {
+export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange, onCancelReady, onMethodChange, onImportCookiesReady, onScriptResults, ws }: RequestEditorProps) {
   const [name, setName] = useState('');
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('');
@@ -72,6 +75,11 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const [cookieItems, setCookieItems] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [graphqlVariables, setGraphqlVariables] = useState('');
   const [proxyId, setProxyId] = useState<number | null>(null); // null = global inherit, 0 = no proxy, >0 = specific
+
+  const [preScript, setPreScript] = useState('');
+  const [postScript, setPostScript] = useState('');
+  const [preScriptMode, setPreScriptMode] = useState<ScriptMode>('dsl');
+  const [postScriptMode, setPostScriptMode] = useState<ScriptMode>('dsl');
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -262,6 +270,12 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setCookieItems(parseCookies(fullRequestData.cookies || '{}'));
     parseParamsFromUrl(fullRequestData.url);
     setProxyId(fullRequestData.proxyId ?? null);
+    setPreScript(fullRequestData.preScript || '');
+    setPostScript(fullRequestData.postScript || '');
+    // Detect script mode from content
+    const detectMode = (s: string): ScriptMode => s.trimStart().startsWith('{') ? 'dsl' : 'javascript';
+    setPreScriptMode(fullRequestData.preScript ? detectMode(fullRequestData.preScript) : 'dsl');
+    setPostScriptMode(fullRequestData.postScript ? detectMode(fullRequestData.postScript) : 'dsl');
   }
 
   // Sync form state from history-loaded synthetic request (id=0)
@@ -376,6 +390,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           cookies: cookiesJson,
           collectionId, // Preserve collectionId
           proxyId: proxyId === null ? -1 : proxyId,
+          preScript,
+          postScript,
         },
       }, {
         onSuccess: (data) => {
@@ -449,6 +465,12 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       abortControllerRef.current = null;
     };
 
+    // Helper to handle saved request results (may include script results)
+    const handleSavedResult = (result: ExecuteResult & { preScriptResult?: ScriptResult; postScriptResult?: ScriptResult }) => {
+      onExecute(result);
+      onScriptResults?.(result.preScriptResult, result.postScriptResult);
+    };
+
     // Map proxyId: null→-1 (global inherit), 0→0 (no proxy), N→N (specific)
     const proxyIdForExec = proxyId === null ? -1 : proxyId;
 
@@ -478,7 +500,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
             overrides: { method, url, headers: headersJson, body: formDataBody, bodyType: 'formdata', proxyId: proxyIdForExec },
             signal: controller.signal,
           }, {
-            onSuccess: (result) => onExecute(result),
+            onSuccess: handleSavedResult,
             onSettled,
           });
         }
@@ -502,7 +524,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
             overrides: { method, url, headers: headersJson, bodyType: 'formdata', proxyId: proxyIdForExec },
             signal: controller.signal,
           }, {
-            onSuccess: (result) => onExecute(result),
+            onSuccess: handleSavedResult,
             onSettled,
           });
         }
@@ -533,7 +555,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         },
         signal: controller.signal,
       }, {
-        onSuccess: (result) => onExecute(result),
+        onSuccess: handleSavedResult,
         onSettled,
       });
     }
@@ -580,9 +602,11 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       currentBody !== (fullRequestData.body || '') ||
       getHeadersJsonForSave() !== (fullRequestData.headers || '{}') ||
       getCookiesJsonForSave() !== (fullRequestData.cookies || '{}') ||
-      (proxyId ?? null) !== (fullRequestData.proxyId ?? null)
+      (proxyId ?? null) !== (fullRequestData.proxyId ?? null) ||
+      preScript !== (fullRequestData.preScript || '') ||
+      postScript !== (fullRequestData.postScript || '')
     );
-  }, [fullRequestData, isFromHistory, name, method, url, bodyType, body, formItems, formDataItems, graphqlVariables, headerItems, cookieItems, proxyId]);
+  }, [fullRequestData, isFromHistory, name, method, url, bodyType, body, formItems, formDataItems, graphqlVariables, headerItems, cookieItems, proxyId, preScript, postScript]);
 
   if (!request) {
     return (
@@ -899,6 +923,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           { key: 'headers', label: 'Headers', badge: validHeadersCount },
           { key: 'cookies', label: 'Cookies', badge: validCookiesCount },
           { key: 'body', label: 'Body' },
+          { key: 'scripts', label: 'Scripts' },
         ]}
         activeTab={method === 'WS' ? 'headers' : activeTab}
         onTabChange={key => setActiveTab(key as Tab)}
@@ -1026,6 +1051,90 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 height="128px"
               />
             )}
+          </div>
+        )}
+
+        {activeTab === 'scripts' && method !== 'WS' && (
+          <div className="space-y-4">
+            {/* Pre-Script */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-300">Pre-Script</label>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPreScriptMode('dsl')}
+                    className={`px-2 py-0.5 text-xs rounded border ${
+                      preScriptMode === 'dsl'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    DSL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreScriptMode('javascript')}
+                    className={`px-2 py-0.5 text-xs rounded border ${
+                      preScriptMode === 'javascript'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    JavaScript
+                  </button>
+                </div>
+              </div>
+              <CodeEditor
+                value={preScript}
+                onChange={setPreScript}
+                language={preScriptMode === 'javascript' ? 'javascript' : 'json'}
+                placeholder={preScriptMode === 'javascript'
+                  ? '// Pre-request script\npm.variables.set("timestamp", Date.now().toString());'
+                  : '{"setVariables": [{"name": "counter", "operation": "increment"}]}'}
+                height="80px"
+              />
+            </div>
+
+            {/* Post-Script */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-300">Post-Script</label>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPostScriptMode('dsl')}
+                    className={`px-2 py-0.5 text-xs rounded border ${
+                      postScriptMode === 'dsl'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    DSL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPostScriptMode('javascript')}
+                    className={`px-2 py-0.5 text-xs rounded border ${
+                      postScriptMode === 'javascript'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    JavaScript
+                  </button>
+                </div>
+              </div>
+              <CodeEditor
+                value={postScript}
+                onChange={setPostScript}
+                language={postScriptMode === 'javascript' ? 'javascript' : 'json'}
+                placeholder={postScriptMode === 'javascript'
+                  ? `// Post-request script (Postman-compatible)\npm.test("Status is 200", function() {\n    pm.response.to.have.status(200);\n});\n\nlet data = pm.response.json();\npm.environment.set("userId", data.id);`
+                  : '{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'}
+                height="80px"
+              />
+            </div>
           </div>
         )}
       </div>
