@@ -50,11 +50,11 @@ test.describe('Flow Loop and Selection Features', () => {
       url: `${JSON_PLACEHOLDER}/posts/1`,
     });
 
-    // Save with Ctrl+S
-    await page.keyboard.press('Control+s');
-
-    // Wait a bit for save to complete
-    await page.waitForTimeout(500);
+    // Save with Ctrl+S and wait for the API response
+    await Promise.all([
+      page.waitForResponse((resp) => resp.url().includes('/api/flows/') && resp.request().method() === 'PUT'),
+      page.keyboard.press('Control+s'),
+    ]);
 
     // Close the modal
     await page.keyboard.press('Escape');

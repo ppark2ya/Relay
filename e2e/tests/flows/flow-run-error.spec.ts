@@ -45,7 +45,7 @@ test.describe('Flow Run Error Handling', () => {
     await configureStep(page, {
       name: 'Failing Step',
       method: 'GET',
-      url: 'http://unreachable.invalid/test',
+      url: 'http://localhost:1/test',
     });
     await saveStep(page);
 
@@ -77,7 +77,7 @@ test.describe('Flow Run Error Handling', () => {
     await expect(step1Card.getByText('ERR')).toBeVisible();
 
     // Step 1 should show error message in the card
-    await expect(step1Card.getByText('unreachable.invalid').first()).toBeVisible();
+    await expect(step1Card.getByText('localhost').first()).toBeVisible();
 
     // Step 2 should remain default (not executed)
     const step2Card = stepCards.nth(1);

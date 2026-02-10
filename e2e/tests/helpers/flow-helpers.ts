@@ -84,16 +84,31 @@ export async function configureStep(
 
 /** Save the currently expanded step and close the modal */
 export async function saveStep(page: Page) {
-  await page.getByRole('button', { name: 'Save Step' }).click();
-  // Wait for save to complete (button text changes back from "Saving...")
-  await expect(page.getByRole('button', { name: 'Save Step' })).toBeVisible();
+  const saveButton = page.getByRole('button', { name: 'Save Step' });
+  // Wait for button to be enabled before clicking
+  await expect(saveButton).toBeEnabled();
+
+  // Use Promise.all to catch the API response alongside the click
+  await Promise.all([
+    page.waitForResponse((resp) => resp.url().includes('/api/flows/') && resp.request().method() === 'PUT'),
+    saveButton.click(),
+  ]);
+
+  // Ensure button is no longer in "Saving..." state
+  await expect(saveButton).toBeEnabled();
+
   // Close the fullscreen modal
   await page.keyboard.press('Escape');
+  // Wait for modal to close (step edit area disappears)
+  await page.waitForTimeout(200);
 }
 
 /** Run the current flow and wait for results */
 export async function runFlowAndWaitForResult(page: Page) {
-  await page.getByRole('button', { name: 'Run Flow' }).click();
+  const runButton = page.getByRole('button', { name: 'Run Flow' });
+  // Wait for button to be enabled before clicking
+  await expect(runButton).toBeEnabled({ timeout: 5_000 });
+  await runButton.click();
   // Wait for "Flow Result" to appear
   await expect(page.getByText('Flow Result')).toBeVisible({ timeout: 30_000 });
 }
