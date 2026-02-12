@@ -719,3 +719,77 @@ func TestExecuteFormData_FileIDWithNilStorage(t *testing.T) {
 		t.Errorf("status: got %d, want 200", result.StatusCode)
 	}
 }
+
+func TestExecuteFormData_TextFieldWithCustomContentType(t *testing.T) {
+	var partContentTypes map[string]string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ct := r.Header.Get("Content-Type")
+		if !strings.HasPrefix(ct, "multipart/form-data") {
+			t.Errorf("expected multipart/form-data, got %q", ct)
+		}
+		_, params, _ := mime.ParseMediaType(ct)
+		reader := multipart.NewReader(r.Body, params["boundary"])
+		partContentTypes = make(map[string]string)
+		for {
+			part, err := reader.NextPart()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				t.Fatalf("next part: %v", err)
+			}
+			partContentTypes[part.FormName()] = part.Header.Get("Content-Type")
+			io.ReadAll(part)
+			part.Close()
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer ts.Close()
+
+	q := testutil.SetupTestDB(t)
+	vr := NewVariableResolver(q)
+	re := NewRequestExecutor(q, vr, nil)
+
+	items := `[{"key":"image","value":"binary","type":"file","enabled":true},{"key":"metadata","value":"{\"name\":\"test\"}","type":"text","enabled":true,"contentType":"application/json"},{"key":"plain","value":"hello","type":"text","enabled":true}]`
+
+	ctx := context.Background()
+	req, err := q.CreateRequest(ctx, repository.CreateRequestParams{
+		Name:        "formdata-custom-ct",
+		Method:      "POST",
+		Url:         ts.URL,
+		Body:        sql.NullString{String: items, Valid: true},
+		BodyType:    sql.NullString{String: "formdata", Valid: true},
+		WorkspaceID: 1,
+	})
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	// Provide a runtime file for the "image" field
+	formFiles := map[int]FormDataFile{
+		0: {Filename: "test.png", Data: []byte("fakepng")},
+	}
+
+	result, err := re.Execute(ctx, req.ID, nil, &RequestOverrides{FormDataFiles: formFiles})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+	if result.StatusCode != 200 {
+		t.Errorf("status: got %d, want 200", result.StatusCode)
+	}
+
+	// "metadata" field should have custom Content-Type "application/json"
+	if got := partContentTypes["metadata"]; got != "application/json" {
+		t.Errorf("metadata Content-Type: got %q, want %q", got, "application/json")
+	}
+
+	// "plain" field without explicit contentType should have no custom Content-Type
+	// (standard multipart WriteField doesn't set Content-Type header)
+	if got := partContentTypes["plain"]; got != "" {
+		t.Errorf("plain Content-Type: got %q, want empty", got)
+	}
+}

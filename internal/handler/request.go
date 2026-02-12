@@ -352,10 +352,11 @@ func (h *RequestHandler) Execute(w http.ResponseWriter, r *http.Request) {
 }
 
 type formDataItemDTO struct {
-	Key     string `json:"key"`
-	Value   string `json:"value"`
-	Type    string `json:"type"`
-	Enabled bool   `json:"enabled"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	Type        string `json:"type"`
+	Enabled     bool   `json:"enabled"`
+	ContentType string `json:"contentType,omitempty"`
 }
 
 func (h *RequestHandler) executeMultipart(w http.ResponseWriter, r *http.Request, id int64) {

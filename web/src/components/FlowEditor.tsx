@@ -158,7 +158,7 @@ function stepToEditState(step: FlowStep): StepEditState {
     formItems = parseFormBody(body);
   } else if (bodyType === 'formdata') {
     try {
-      const parsed = JSON.parse(body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean }>;
+      const parsed = JSON.parse(body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean; contentType?: string }>;
       formDataItems = parsed.map(item => ({ ...item, file: undefined }));
     } catch {
       formDataItems = [];
@@ -1056,8 +1056,8 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           body: req.body || '',
           bodyType: req.bodyType || 'none',
           loopCount: 1,
-          preScript: '',
-          postScript: '',
+          preScript: req.preScript || '',
+          postScript: req.postScript || '',
           continueOnError: false,
         },
       });
@@ -1117,8 +1117,8 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     } else if (edit.bodyType === 'form-urlencoded') {
       bodyToSave = buildFormBody(edit.formItems);
     } else if (edit.bodyType === 'formdata') {
-      bodyToSave = JSON.stringify(edit.formDataItems.map(({ key, value, type, enabled, fileId, fileSize }) =>
-        ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}) })));
+      bodyToSave = JSON.stringify(edit.formDataItems.map(({ key, value, type, enabled, fileId, fileSize, contentType }) =>
+        ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}), ...(contentType ? { contentType } : {}) })));
     }
 
     // Build headers: use headerItems (key-value mode) or raw text

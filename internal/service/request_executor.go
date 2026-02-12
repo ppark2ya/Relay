@@ -144,12 +144,13 @@ func (re *RequestExecutor) ExecuteRequest(ctx context.Context, req repository.Re
 }
 
 type formDataItem struct {
-	Key      string `json:"key"`
-	Value    string `json:"value"`
-	Type     string `json:"type"`
-	Enabled  bool   `json:"enabled"`
-	FileID   *int64 `json:"fileId,omitempty"`
-	FileSize *int64 `json:"fileSize,omitempty"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	Type        string `json:"type"`
+	Enabled     bool   `json:"enabled"`
+	FileID      *int64 `json:"fileId,omitempty"`
+	FileSize    *int64 `json:"fileSize,omitempty"`
+	ContentType string `json:"contentType,omitempty"`
 }
 
 func (re *RequestExecutor) buildFormDataBody(ctx context.Context, bodyStr string, runtimeVars map[string]string, formFiles map[int]FormDataFile) (io.Reader, string, error) {
@@ -193,8 +194,21 @@ func (re *RequestExecutor) buildFormDataBody(ctx context.Context, bodyStr string
 			}
 		} else {
 			resolvedValue, _ := re.variableResolver.Resolve(ctx, item.Value, runtimeVars)
-			if err := writer.WriteField(item.Key, resolvedValue); err != nil {
-				return nil, "", err
+			if item.ContentType != "" {
+				h := make(textproto.MIMEHeader)
+				h.Set("Content-Disposition", `form-data; name="`+escapeQuotes(item.Key)+`"`)
+				h.Set("Content-Type", item.ContentType)
+				part, err := writer.CreatePart(h)
+				if err != nil {
+					return nil, "", err
+				}
+				if _, err := part.Write([]byte(resolvedValue)); err != nil {
+					return nil, "", err
+				}
+			} else {
+				if err := writer.WriteField(item.Key, resolvedValue); err != nil {
+					return nil, "", err
+				}
 			}
 		}
 	}

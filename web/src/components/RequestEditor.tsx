@@ -258,7 +258,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setFormItems(fullRequestData.bodyType === 'form' || fullRequestData.bodyType === 'form-urlencoded' ? parseFormBody(fullRequestData.body || '') : []);
     if (fullRequestData.bodyType === 'formdata' && fullRequestData.body) {
       try {
-        const parsed = JSON.parse(fullRequestData.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean }>;
+        const parsed = JSON.parse(fullRequestData.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean; contentType?: string }>;
         setFormDataItems(parsed.map(item => ({ ...item, file: undefined })));
       } catch {
         setFormDataItems([]);
@@ -293,7 +293,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setFormItems(request.bodyType === 'form' || request.bodyType === 'form-urlencoded' ? parseFormBody(request.body || '') : []);
     if (request.bodyType === 'formdata' && request.body) {
       try {
-        const parsed = JSON.parse(request.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean }>;
+        const parsed = JSON.parse(request.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean; contentType?: string }>;
         setFormDataItems(parsed.map(item => ({ ...item, file: undefined })));
       } catch {
         setFormDataItems([]);
@@ -374,8 +374,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         : bodyType === 'form-urlencoded'
         ? buildFormBody(formItems)
         : bodyType === 'formdata'
-        ? JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize }) =>
-            ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}) })))
+        ? JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize, contentType }) =>
+            ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}), ...(contentType ? { contentType } : {}) })))
         : body;
 
       updateRequest.mutate({
@@ -491,8 +491,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
 
       // If all file items have fileIds (persisted), use JSON execute — backend loads from disk
       if (!hasRuntimeFiles && allFilesHaveIds && enabledItems.length > 0) {
-        const formDataBody = JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize }) =>
-          ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}) })));
+        const formDataBody = JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize, contentType }) =>
+          ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}), ...(contentType ? { contentType } : {}) })));
         if (isFromHistory) {
           executeAdhoc.mutate({
             data: { method, url, headers: headersJson, body: formDataBody, proxyId: proxyIdForExec },

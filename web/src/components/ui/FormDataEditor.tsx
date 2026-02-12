@@ -8,6 +8,7 @@ export interface FormDataItem {
   file?: File;
   fileId?: number;
   fileSize?: number;
+  contentType?: string;
 }
 
 interface FormDataEditorProps {
@@ -73,7 +74,7 @@ function FileInput({ item, onChange, onRemove }: { item: FormDataItem; onChange:
 
 const CELL_BORDER = 'border-l border-gray-200 dark:border-gray-700';
 const ROW_BORDER = 'border-t border-gray-200 dark:border-gray-700';
-const GRID_COLS = { gridTemplateColumns: '2.5rem 1fr 5rem 2fr 2.25rem' };
+const GRID_COLS = { gridTemplateColumns: '2.5rem 1fr 5rem 8rem 2fr 2.25rem' };
 
 export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: FormDataEditorProps) {
   const handleChange = (index: number, field: keyof FormDataItem, val: string | boolean | File) => {
@@ -84,7 +85,7 @@ export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: 
       if (oldItem.type === 'file' && oldItem.fileId && onFileRemove) {
         onFileRemove(index, oldItem.fileId);
       }
-      newItems[index] = { ...newItems[index], type: val as 'text' | 'file', value: '', file: undefined, fileId: undefined, fileSize: undefined };
+      newItems[index] = { ...newItems[index], type: val as 'text' | 'file', value: '', file: undefined, fileId: undefined, fileSize: undefined, contentType: undefined };
     } else {
       newItems[index] = { ...newItems[index], [field]: val };
     }
@@ -138,6 +139,7 @@ export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: 
           <div className="bg-gray-50 dark:bg-gray-800" />
           <div className={`bg-gray-50 dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 ${CELL_BORDER}`}>Key</div>
           <div className={`bg-gray-50 dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 ${CELL_BORDER}`}>Type</div>
+          <div className={`bg-gray-50 dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 ${CELL_BORDER}`}>Content-Type</div>
           <div className={`bg-gray-50 dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 ${CELL_BORDER}`}>Value</div>
           <div className="bg-gray-50 dark:bg-gray-800" />
 
@@ -172,6 +174,19 @@ export function FormDataEditor({ items, onChange, onFileUpload, onFileRemove }: 
                   <option value="text">Text</option>
                   <option value="file">File</option>
                 </select>
+              </div>
+              <div className={`${ROW_BORDER} ${CELL_BORDER} min-w-0 flex items-center`}>
+                {item.type === 'text' ? (
+                  <input
+                    type="text"
+                    value={item.contentType || ''}
+                    onChange={e => handleChange(index, 'contentType', e.target.value)}
+                    placeholder="text/plain"
+                    className={inputClass(item)}
+                  />
+                ) : (
+                  <div className="px-3 py-1.5 text-xs text-gray-400 dark:text-gray-500">—</div>
+                )}
               </div>
               <div className={`${ROW_BORDER} ${CELL_BORDER} min-w-0 flex items-center`}>
                 {item.type === 'file' ? (

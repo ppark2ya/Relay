@@ -39,6 +39,7 @@ export interface FormDataFileItem {
   type: 'text' | 'file';
   enabled: boolean;
   file?: File;
+  contentType?: string;
 }
 
 export const executeRequestWithFiles = (
@@ -50,7 +51,7 @@ export const executeRequestWithFiles = (
 ) => {
   const formData = new FormData();
   formData.append('_metadata', JSON.stringify({ variables, ...overrides }));
-  formData.append('_items', JSON.stringify(items.map(({ key, value, type, enabled }) => ({ key, value, type, enabled }))));
+  formData.append('_items', JSON.stringify(items.map(({ key, value, type, enabled, contentType }) => ({ key, value, type, enabled, ...(contentType ? { contentType } : {}) }))));
   items.forEach((item, index) => {
     if (item.type === 'file' && item.file && item.enabled) {
       formData.append(`file_${index}`, item.file);
@@ -67,7 +68,7 @@ export const executeAdhocWithFiles = (
 ) => {
   const formData = new FormData();
   formData.append('_metadata', JSON.stringify({ variables, ...overrides }));
-  formData.append('_items', JSON.stringify(items.map(({ key, value, type, enabled }) => ({ key, value, type, enabled }))));
+  formData.append('_items', JSON.stringify(items.map(({ key, value, type, enabled, contentType }) => ({ key, value, type, enabled, ...(contentType ? { contentType } : {}) }))));
   items.forEach((item, index) => {
     if (item.type === 'file' && item.file && item.enabled) {
       formData.append(`file_${index}`, item.file);
