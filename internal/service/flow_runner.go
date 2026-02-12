@@ -227,6 +227,19 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 			}
 			stepResult.ExecuteResult = execResult
 
+			// Stop on non-2xx HTTP status (unless continueOnError is set)
+			if execResult.StatusCode < 200 || execResult.StatusCode >= 300 {
+				result.Steps = append(result.Steps, stepResult)
+				if !step.ContinueOnError.Valid || step.ContinueOnError.Int64 == 0 {
+					result.Success = false
+					result.Error = fmt.Sprintf("step %q returned HTTP %d", step.Name, execResult.StatusCode)
+					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					return result, nil
+				}
+				iteration++
+				continue
+			}
+
 			// Update script context with response
 			scriptCtx.StatusCode = execResult.StatusCode
 			scriptCtx.ResponseBody = execResult.Body

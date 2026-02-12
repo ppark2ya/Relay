@@ -88,3 +88,12 @@ export const useDeleteFlowStep = () => {
     onSuccess: (_, { flowId }) => queryClient.invalidateQueries({ queryKey: queryKeys.flowSteps(flowId) }),
   });
 };
+
+export const useImportCollectionToFlow = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ flowId, collectionId }: { flowId: number; collectionId: number }) =>
+      api.importCollectionToFlow(flowId, collectionId),
+    onSuccess: (_, { flowId }) => queryClient.invalidateQueries({ queryKey: queryKeys.flowSteps(flowId) }),
+  });
+};

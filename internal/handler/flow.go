@@ -57,6 +57,10 @@ type RunFlowRequest struct {
 	StepIDs []int64 `json:"stepIds"`
 }
 
+type ImportCollectionRequest struct {
+	CollectionID int64 `json:"collectionId"`
+}
+
 type FlowStepResponse struct {
 	ID              int64  `json:"id"`
 	FlowID          int64  `json:"flowId"`
@@ -351,6 +355,101 @@ func (h *FlowHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:   formatTime(newFlow.CreatedAt),
 		UpdatedAt:   formatTime(newFlow.UpdatedAt),
 	})
+}
+
+func (h *FlowHandler) ImportCollection(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid ID")
+		return
+	}
+
+	var req ImportCollectionRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Verify flow exists
+	_, err = h.queries.GetFlow(r.Context(), id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "Flow not found")
+		return
+	}
+
+	// Get current steps to calculate max step order
+	existingSteps, err := h.queries.ListFlowSteps(r.Context(), id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var maxStepOrder int64
+	for _, s := range existingSteps {
+		if s.StepOrder > maxStepOrder {
+			maxStepOrder = s.StepOrder
+		}
+	}
+
+	// Get all requests in the collection
+	requests, err := h.queries.ListRequestsByCollection(r.Context(), sql.NullInt64{Int64: req.CollectionID, Valid: true})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer tx.Rollback()
+
+	txQueries := h.queries.WithTx(tx)
+
+	createdSteps := make([]FlowStepResponse, 0)
+	stepIndex := int64(0)
+	for _, req := range requests {
+		// Skip WebSocket requests
+		if req.Method == "WS" {
+			continue
+		}
+
+		step, err := txQueries.CreateFlowStep(r.Context(), repository.CreateFlowStepParams{
+			FlowID:          id,
+			RequestID:       sql.NullInt64{Int64: req.ID, Valid: true},
+			StepOrder:       maxStepOrder + stepIndex + 1,
+			Name:            req.Name,
+			Method:          req.Method,
+			Url:             req.Url,
+			Headers:         req.Headers,
+			Body:            req.Body,
+			BodyType:        req.BodyType,
+			Cookies:         req.Cookies,
+			ProxyID:         req.ProxyID,
+			PreScript:       req.PreScript,
+			PostScript:      req.PostScript,
+			DelayMs:         sql.NullInt64{Int64: 0, Valid: true},
+			ExtractVars:     sql.NullString{String: "{}", Valid: true},
+			Condition:       sql.NullString{},
+			LoopCount:       sql.NullInt64{Int64: 1, Valid: true},
+			ContinueOnError: sql.NullInt64{Int64: 0, Valid: true},
+		})
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		createdSteps = append(createdSteps, toFlowStepResponse(step))
+		stepIndex++
+	}
+
+	if err := tx.Commit(); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, createdSteps)
 }
 
 func (h *FlowHandler) ListSteps(w http.ResponseWriter, r *http.Request) {

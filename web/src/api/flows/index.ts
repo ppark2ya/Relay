@@ -11,5 +11,6 @@ export {
   useCreateFlowStep,
   useUpdateFlowStep,
   useDeleteFlowStep,
+  useImportCollectionToFlow,
 } from './hooks';
 export type { Flow, FlowStep, FlowResult, StepResult } from './types';

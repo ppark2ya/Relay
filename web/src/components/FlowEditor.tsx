@@ -24,7 +24,9 @@ import {
   useCreateFlowStep,
   useUpdateFlowStep,
   useDeleteFlowStep,
+  useImportCollectionToFlow,
 } from '../api/flows';
+import { useCollections } from '../api/collections';
 import { useRequests } from '../api/requests';
 import { useProxies } from '../api/proxies';
 import { useClickOutside } from '../hooks/useClickOutside';
@@ -849,6 +851,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showRequestDropdown, setShowRequestDropdown] = useState(false);
+  const [showCollectionDropdown, setShowCollectionDropdown] = useState(false);
   const [flowResult, setFlowResult] = useState<FlowResult | null>(null);
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
   const [editStates, setEditStates] = useState<Record<number, StepEditState>>({});
@@ -864,6 +867,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const { data: flowData } = useFlow(flow?.id || 0);
   const { data: steps = [] } = useFlowSteps(flow?.id || 0);
   const { data: requests = [] } = useRequests();
+  const { data: collections = [] } = useCollections();
   const { data: proxies = [] } = useProxies();
   const activeGlobalProxy = proxies.find(p => p.isActive);
 
@@ -872,14 +876,16 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const createStep = useCreateFlowStep();
   const updateStep = useUpdateFlowStep();
   const deleteStep = useDeleteFlowStep();
+  const importCollection = useImportCollectionToFlow();
 
   const [syncedFlowId, setSyncedFlowId] = useState<number | null>(null);
 
   const closeAddMenu = useCallback(() => {
     setShowAddMenu(false);
     setShowRequestDropdown(false);
+    setShowCollectionDropdown(false);
   }, []);
-  const addMenuRef = useClickOutside<HTMLDivElement>(closeAddMenu, showAddMenu || showRequestDropdown);
+  const addMenuRef = useClickOutside<HTMLDivElement>(closeAddMenu, showAddMenu || showRequestDropdown || showCollectionDropdown);
 
   // Sync form fields when flow data changes (React recommended pattern)
   if (flowData && flowData.id !== syncedFlowId) {
@@ -1048,6 +1054,14 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
         },
       });
       setShowRequestDropdown(false);
+      setShowAddMenu(false);
+    }
+  };
+
+  const handleImportCollection = (collectionId: number) => {
+    if (flow) {
+      importCollection.mutate({ flowId: flow.id, collectionId });
+      setShowCollectionDropdown(false);
       setShowAddMenu(false);
     }
   };
@@ -1315,7 +1329,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               </svg>
               Add Step
             </button>
-            {showAddMenu && !showRequestDropdown && (
+            {showAddMenu && !showRequestDropdown && !showCollectionDropdown && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10">
                 <button
                   onClick={handleAddBlankStep}
@@ -1339,6 +1353,18 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                   <div>
                     <div className="font-medium dark:text-gray-200">Copy From Request</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Copy data from an existing request as a template</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setShowCollectionDropdown(true)}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                >
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  <div>
+                    <div className="font-medium dark:text-gray-200">Import from Collection</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Add all requests from a collection as steps</div>
                   </div>
                 </button>
               </div>
@@ -1368,6 +1394,37 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       <MethodBadge method={req.method} />
                       <span className="font-medium dark:text-gray-200">{req.name}</span>
                       <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{req.url}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {showCollectionDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10 max-h-64 overflow-y-auto">
+                <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+                  <button
+                    onClick={() => setShowCollectionDropdown(false)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Select a collection to import</span>
+                </div>
+                {collections.length === 0 ? (
+                  <div className="p-4 text-xs text-gray-500 dark:text-gray-400">No collections available. Create collections first.</div>
+                ) : (
+                  collections.map(col => (
+                    <button
+                      key={col.id}
+                      onClick={() => handleImportCollection(col.id)}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 dark:text-gray-200"
+                    >
+                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      <span className="font-medium dark:text-gray-200">{col.name}</span>
                     </button>
                   ))
                 )}
