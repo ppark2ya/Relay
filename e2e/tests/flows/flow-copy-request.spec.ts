@@ -42,9 +42,10 @@ test.describe('Flow Copy From Request', () => {
     await page.getByRole('button', { name: 'Add Step' }).click();
     await page.getByText('Copy From Request').click();
 
-    // Select the request from the dropdown
+    // Select the request from the dropdown (wait for request list to load)
     const copyDropdown = page.locator('.max-h-64');
     await expect(copyDropdown.getByText('Select a request to copy')).toBeVisible();
+    await expect(copyDropdown.getByText('Get Post 1')).toBeVisible({ timeout: 15_000 });
     await copyDropdown.getByText('Get Post 1').click();
 
     // Verify step was created with request data

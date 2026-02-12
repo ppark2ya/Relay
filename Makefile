@@ -46,7 +46,8 @@ test-frontend:
 
 # E2E tests
 test-e2e:
-	-pkill -f relay-e2e 2>/dev/null; lsof -ti:8080 | xargs kill -9 2>/dev/null; lsof -ti:5173 | xargs kill -9 2>/dev/null; sleep 1
+	-lsof -ti:8080 | xargs kill -9 2>/dev/null; lsof -ti:5173 | xargs kill -9 2>/dev/null; sleep 1
+	CGO_ENABLED=0 go build -o relay-e2e ./cmd/server
 	cd e2e && bun install && bunx playwright install chromium && bunx playwright test
 
 # Clean build artifacts
