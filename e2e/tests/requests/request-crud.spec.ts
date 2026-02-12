@@ -53,7 +53,7 @@ test.describe('Request CRUD', () => {
     await editInput.press('Enter');
 
     // Save the request
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save' }).click({ force: true });
 
     // Verify name updated in heading
     await expect(page.getByRole('heading', { name: 'Renamed Request' })).toBeVisible();

@@ -52,22 +52,14 @@ async function getEnvironment(envId: number) {
 
 /** Fill a script editor with content */
 async function fillScriptEditor(page: Page, scriptType: 'pre' | 'post', content: string) {
-  // Find the script section by its label, then locate the CodeMirror editor within
-  const label = scriptType === 'pre' ? 'Pre-Script' : 'Post-Script';
-  // The FormField structure has the label followed by the editor
-  // Get all cm-content editors on the page
-  const allEditors = page.locator('.cm-content');
+  // Click the correct subtab to show the editor (only one editor visible at a time)
+  const tabButton = page.getByRole('button', { name: scriptType === 'pre' ? 'Pre-Script' : 'Post-Script' });
+  await tabButton.click();
 
-  // For expanded step, there are multiple CodeMirror editors:
-  // 1. Headers (JSON) - optional
-  // 2. Body editor - depends on body type
-  // 3. Pre-Script
-  // 4. Post-Script
-  // We need to find the right one by looking at sibling/parent structure
-
-  // Find the section with the label
-  const section = page.locator(`text=${label}`).first().locator('..').locator('..');
-  const editor = section.locator('.cm-content');
+  // Navigate from tab button up to FormField wrapper which contains the CodeEditor:
+  // button → div.flex.gap-1 → div.flex.items-center (subtab row) → FormField wrapper div
+  const formField = tabButton.locator('..').locator('..').locator('..');
+  const editor = formField.locator('.cm-content');
 
   await editor.click();
   await page.keyboard.press('ControlOrMeta+a');
@@ -76,11 +68,12 @@ async function fillScriptEditor(page: Page, scriptType: 'pre' | 'post', content:
 
 /** Click the JavaScript mode toggle button */
 async function switchToJavaScriptMode(page: Page, scriptType: 'pre' | 'post') {
-  // Find the script section by looking for Pre-Script or Post-Script label
-  const label = scriptType === 'pre' ? 'Pre-Script' : 'Post-Script';
-  const section = page.locator(`text=${label}`).locator('..').locator('..');
-  // Click the JavaScript toggle button within that section
-  await section.getByRole('button', { name: 'JavaScript' }).click();
+  // Click the subtab first so the DSL/JavaScript toggle affects the right script
+  const tabButton = page.getByRole('button', { name: scriptType === 'pre' ? 'Pre-Script' : 'Post-Script' });
+  await tabButton.click();
+  // The DSL/JavaScript toggle is in the same subtab row
+  const subtabRow = tabButton.locator('..').locator('..');
+  await subtabRow.getByRole('button', { name: 'JavaScript' }).click();
 }
 
 test.describe('Flow JavaScript Scripts', () => {
@@ -93,15 +86,13 @@ test.describe('Flow JavaScript Scripts', () => {
     // Expand step
     await page.getByText('Untitled Step').click();
 
-    // Verify DSL and JavaScript toggle buttons are visible for Pre-Script
-    const preScriptSection = page.locator('text=Pre-Script').locator('..').locator('..');
-    await expect(preScriptSection.getByRole('button', { name: 'DSL' })).toBeVisible();
-    await expect(preScriptSection.getByRole('button', { name: 'JavaScript' })).toBeVisible();
+    // Verify Pre-Script and Post-Script subtab buttons are visible
+    await expect(page.getByRole('button', { name: 'Pre-Script' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Post-Script' })).toBeVisible();
 
-    // Verify DSL and JavaScript toggle buttons are visible for Post-Script
-    const postScriptSection = page.locator('text=Post-Script').locator('..').locator('..');
-    await expect(postScriptSection.getByRole('button', { name: 'DSL' })).toBeVisible();
-    await expect(postScriptSection.getByRole('button', { name: 'JavaScript' })).toBeVisible();
+    // Verify shared DSL/JavaScript toggle buttons are visible
+    await expect(page.getByRole('button', { name: 'DSL' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'JavaScript' })).toBeVisible();
   });
 
   test('should toggle between DSL and JavaScript modes', async ({ page }) => {
@@ -113,15 +104,20 @@ test.describe('Flow JavaScript Scripts', () => {
     // Expand step
     await page.getByText('Untitled Step').click();
 
-    // Initially in DSL mode - check placeholder contains JSON-style text
-    const postScriptSection = page.locator('text=Post-Script').locator('..').locator('..');
-    await expect(postScriptSection.locator('.cm-content[aria-placeholder*="assertions"]')).toBeVisible();
+    // Switch to Post-Script subtab to show its editor
+    await page.getByRole('button', { name: 'Post-Script' }).click();
 
-    // Switch to JavaScript mode
-    await switchToJavaScriptMode(page, 'post');
+    // Default is JavaScript mode for empty scripts - check placeholder
+    const postTab = page.getByRole('button', { name: 'Post-Script' });
+    const formField = postTab.locator('..').locator('..').locator('..');
+    await expect(formField.locator('.cm-content[aria-placeholder*="Post-request script"]')).toBeVisible();
 
-    // Now placeholder should show JavaScript example
-    await expect(postScriptSection.locator('.cm-content[aria-placeholder*="Post-request script"]')).toBeVisible();
+    // Switch to DSL mode
+    const subtabRow = postTab.locator('..').locator('..');
+    await subtabRow.getByRole('button', { name: 'DSL' }).click();
+
+    // Now placeholder should show DSL JSON example
+    await expect(formField.locator('.cm-content[aria-placeholder*="assertions"]')).toBeVisible();
   });
 
   test('should execute JavaScript pm.test assertions', async ({ page }) => {

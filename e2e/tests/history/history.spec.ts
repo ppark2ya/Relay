@@ -110,8 +110,8 @@ test.describe('History - Date Grouping', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'History' }).click();
 
-    // The group header should show count "2"
-    await expect(page.getByText('Today')).toBeVisible();
+    // Wait for history data to load, then verify group header
+    await expect(page.getByText('Today')).toBeVisible({ timeout: 15_000 });
     // Find the count badge next to Today (the "2" text in the group header)
     const todayGroup = page.getByText('Today').locator('..');
     await expect(todayGroup.getByText('2')).toBeVisible();

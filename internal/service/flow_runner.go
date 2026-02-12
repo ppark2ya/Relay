@@ -525,6 +525,7 @@ func (fr *FlowRunner) executeJavaScriptWithRequest(ctx context.Context, script s
 	return &ScriptResult{
 		Success:          jsResult.Success,
 		Errors:           jsResult.Errors,
+		ErrorDetails:     jsResult.ErrorDetails,
 		AssertionsPassed: jsResult.AssertionsPassed,
 		AssertionsFailed: jsResult.AssertionsFailed,
 		UpdatedVars:      jsResult.UpdatedVars,

@@ -12,9 +12,16 @@ export interface ExecuteResult {
   resolvedHeaders: Record<string, string>;
 }
 
+export interface ErrorDetail {
+  message: string;
+  line?: number;
+  column?: number;
+}
+
 export interface ScriptResult {
   success: boolean;
   errors?: string[];
+  errorDetails?: ErrorDetail[];
   assertionsPassed: number;
   assertionsFailed: number;
   updatedVars?: Record<string, string>;

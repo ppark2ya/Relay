@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -367,6 +368,211 @@ func TestJSExecutor_SyntaxError(t *testing.T) {
 	result := executor.Execute(script, ctx)
 	if result.Success {
 		t.Error("Expected syntax error")
+	}
+}
+
+func TestParseGojaErrorLocation_RuntimeError(t *testing.T) {
+	msg, line, col := parseGojaErrorLocation("Script error: ReferenceError: foo is not defined at script:3:5(42)")
+	if msg != "Script error: ReferenceError: foo is not defined" {
+		t.Errorf("Expected clean message, got %q", msg)
+	}
+	if line != 3 {
+		t.Errorf("Expected line 3, got %d", line)
+	}
+	if col != 5 {
+		t.Errorf("Expected col 5, got %d", col)
+	}
+}
+
+func TestParseGojaErrorLocation_FunctionError(t *testing.T) {
+	msg, line, col := parseGojaErrorLocation("Script error: Expected 200 but got 404 at test (script:2:3(2))")
+	if msg != "Script error: Expected 200 but got 404" {
+		t.Errorf("Expected clean message, got %q", msg)
+	}
+	if line != 2 {
+		t.Errorf("Expected line 2, got %d", line)
+	}
+	if col != 3 {
+		t.Errorf("Expected col 3, got %d", col)
+	}
+}
+
+func TestParseGojaErrorLocation_CompileError(t *testing.T) {
+	msg, line, col := parseGojaErrorLocation("SyntaxError: script: Line 2:1 Unexpected token ; (and 4 more errors)")
+	if msg != "SyntaxError: Unexpected token ; (and 4 more errors)" {
+		t.Errorf("Expected clean message, got %q", msg)
+	}
+	if line != 2 {
+		t.Errorf("Expected line 2, got %d", line)
+	}
+	if col != 1 {
+		t.Errorf("Expected col 1, got %d", col)
+	}
+}
+
+func TestParseGojaErrorLocation_NoLocation(t *testing.T) {
+	msg, line, col := parseGojaErrorLocation("Script error: something went wrong")
+	if msg != "Script error: something went wrong" {
+		t.Errorf("Expected original message, got %q", msg)
+	}
+	if line != 0 || col != 0 {
+		t.Errorf("Expected line=0, col=0, got line=%d, col=%d", line, col)
+	}
+}
+
+func TestJSExecutor_SyntaxError_ErrorDetails(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:      make(map[string]string),
+		EnvVars:          make(map[string]string),
+		PendingEnvWrites: make(map[string]string),
+	}
+
+	script := "var x = 1;\nvar y = {;\nvar z = 3;"
+
+	result := executor.Execute(script, ctx)
+	if result.Success {
+		t.Fatal("Expected syntax error failure")
+	}
+	if len(result.ErrorDetails) == 0 {
+		t.Fatal("Expected ErrorDetails to be populated")
+	}
+	detail := result.ErrorDetails[0]
+	if detail.Line == 0 {
+		t.Error("Expected ErrorDetails line > 0 for syntax error")
+	}
+	if detail.Message == "" {
+		t.Error("Expected ErrorDetails message to be non-empty")
+	}
+	// Errors should have clean message (no location suffix)
+	for _, e := range result.Errors {
+		if strings.Contains(e, "at script:") || strings.Contains(e, "at eval:") {
+			t.Errorf("Expected clean error message without location suffix, got %q", e)
+		}
+	}
+}
+
+func TestJSExecutor_RuntimeError_ErrorDetails(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:      make(map[string]string),
+		EnvVars:          make(map[string]string),
+		PendingEnvWrites: make(map[string]string),
+	}
+
+	script := "var x = 1;\nvar y = 2;\nfoo.bar();"
+
+	result := executor.Execute(script, ctx)
+	if result.Success {
+		t.Fatal("Expected runtime error failure")
+	}
+	if len(result.ErrorDetails) == 0 {
+		t.Fatal("Expected ErrorDetails to be populated for runtime error")
+	}
+	detail := result.ErrorDetails[0]
+	if detail.Line != 3 {
+		t.Errorf("Expected ErrorDetails line=3, got %d", detail.Line)
+	}
+	if detail.Message == "" {
+		t.Error("Expected ErrorDetails message to be non-empty")
+	}
+	// Errors should have clean message
+	for _, e := range result.Errors {
+		if strings.Contains(e, "at script:") || strings.Contains(e, "at eval:") {
+			t.Errorf("Expected clean error message, got %q", e)
+		}
+	}
+}
+
+func TestJSExecutor_PmTestFailure_ErrorDetails(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:      make(map[string]string),
+		EnvVars:          make(map[string]string),
+		StatusCode:       404,
+		PendingEnvWrites: make(map[string]string),
+	}
+
+	script := `pm.test("Status is 200", function() {
+	pm.response.to.have.status(200);
+});`
+
+	result := executor.Execute(script, ctx)
+	if result.Success {
+		t.Fatal("Expected test failure")
+	}
+	if result.AssertionsFailed != 1 {
+		t.Errorf("Expected 1 assertion failed, got %d", result.AssertionsFailed)
+	}
+	if len(result.ErrorDetails) == 0 {
+		t.Fatal("Expected ErrorDetails to be populated for pm.test failure")
+	}
+	detail := result.ErrorDetails[0]
+	if detail.Message == "" {
+		t.Error("Expected ErrorDetails message to be non-empty")
+	}
+	// pm.test call site line should be captured via CaptureCallStack
+	if detail.Line != 1 {
+		t.Errorf("Expected line 1 for pm.test call site, got %d", detail.Line)
+	}
+	// Errors should have clean message (no native function reference)
+	for _, e := range result.Errors {
+		if strings.Contains(e, "at script:") || strings.Contains(e, "at eval:") {
+			t.Errorf("Expected clean error message, got %q", e)
+		}
+		if strings.Contains(e, "(native)") {
+			t.Errorf("Expected native function reference to be stripped, got %q", e)
+		}
+	}
+}
+
+func TestJSExecutor_PmExpectFailure_ErrorDetails(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:      make(map[string]string),
+		EnvVars:          make(map[string]string),
+		StatusCode:       200,
+		ResponseBody:     `{"value": 42}`,
+		PendingEnvWrites: make(map[string]string),
+	}
+
+	script := `pm.test("Value check", function() {
+	var data = pm.response.json();
+	pm.expect(data.value).to.equal(99);
+});`
+
+	result := executor.Execute(script, ctx)
+	if result.Success {
+		t.Fatal("Expected expect failure")
+	}
+	if len(result.ErrorDetails) == 0 {
+		t.Fatal("Expected ErrorDetails to be populated for pm.expect failure")
+	}
+	detail := result.ErrorDetails[0]
+	if detail.Message == "" {
+		t.Error("Expected ErrorDetails message to be non-empty")
+	}
+}
+
+func TestJSExecutor_SuccessScript_NoErrorDetails(t *testing.T) {
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:      make(map[string]string),
+		EnvVars:          make(map[string]string),
+		StatusCode:       200,
+		PendingEnvWrites: make(map[string]string),
+	}
+
+	script := `pm.test("ok", function() {
+	pm.response.to.have.status(200);
+});`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+	if len(result.ErrorDetails) != 0 {
+		t.Errorf("Expected no ErrorDetails for success, got %d", len(result.ErrorDetails))
 	}
 }
 

@@ -55,6 +55,7 @@ type JSScriptContext struct {
 type JSScriptResult struct {
 	Success          bool              `json:"success"`
 	Errors           []string          `json:"errors,omitempty"`
+	ErrorDetails     []ErrorDetail     `json:"errorDetails,omitempty"`
 	AssertionsPassed int               `json:"assertionsPassed"`
 	AssertionsFailed int               `json:"assertionsFailed"`
 	UpdatedEnvVars   map[string]string `json:"updatedEnvVars,omitempty"` // For DB persistence
@@ -130,8 +131,23 @@ func (jse *JSScriptExecutor) Execute(script string, jsCtx *JSScriptContext) *JSS
 	// Set up console.log
 	jse.setupConsole(vm)
 
-	// Execute the script
-	_, err := vm.RunString(resolvedScript)
+	// Compile the script first to catch syntax errors with location info
+	prog, compileErr := goja.Compile("script", resolvedScript, true)
+	if compileErr != nil {
+		result.Success = false
+		errMsg := compileErr.Error()
+		cleanMsg, line, col := parseGojaErrorLocation(errMsg)
+		result.Errors = append(result.Errors, cleanMsg)
+		result.ErrorDetails = append(result.ErrorDetails, ErrorDetail{
+			Message: cleanMsg,
+			Line:    line,
+			Column:  col,
+		})
+		return result
+	}
+
+	// Execute the compiled program
+	_, err := vm.RunProgram(prog)
 	if err != nil {
 		// Check if it's an interrupt (timeout)
 		if interrupted, ok := err.(*goja.InterruptedError); ok {
@@ -140,7 +156,14 @@ func (jse *JSScriptExecutor) Execute(script string, jsCtx *JSScriptContext) *JSS
 			return result
 		}
 		result.Success = false
-		result.Errors = append(result.Errors, fmt.Sprintf("Script error: %v", err))
+		errMsg := fmt.Sprintf("Script error: %v", err)
+		cleanMsg, line, col := parseGojaErrorLocation(errMsg)
+		result.Errors = append(result.Errors, cleanMsg)
+		result.ErrorDetails = append(result.ErrorDetails, ErrorDetail{
+			Message: cleanMsg,
+			Line:    line,
+			Column:  col,
+		})
 		return result
 	}
 
@@ -594,6 +617,18 @@ func (jse *JSScriptExecutor) setupPmAPI(vm *goja.Runtime, jsCtx *JSScriptContext
 			return goja.Undefined()
 		}
 
+		// Capture pm.test() call site line before executing callback
+		var callSiteLine int
+		if frames := vm.CaptureCallStack(5, nil); len(frames) > 0 {
+			for _, f := range frames {
+				pos := f.Position()
+				if pos.Line > 0 {
+					callSiteLine = pos.Line
+					break
+				}
+			}
+		}
+
 		// Execute the test callback
 		testResult := TestResult{Name: name, Passed: true}
 
@@ -616,7 +651,18 @@ func (jse *JSScriptExecutor) setupPmAPI(vm *goja.Runtime, jsCtx *JSScriptContext
 			result.AssertionsPassed++
 		} else {
 			result.AssertionsFailed++
-			result.Errors = append(result.Errors, fmt.Sprintf("Test '%s' failed: %s", name, testResult.Error))
+			errMsg := fmt.Sprintf("Test '%s' failed: %s", name, testResult.Error)
+			cleanMsg, line, col := parseGojaErrorLocation(errMsg)
+			// If no line from error string, use the pm.test() call site line
+			if line == 0 && callSiteLine > 0 {
+				line = callSiteLine
+			}
+			result.Errors = append(result.Errors, cleanMsg)
+			result.ErrorDetails = append(result.ErrorDetails, ErrorDetail{
+				Message: cleanMsg,
+				Line:    line,
+				Column:  col,
+			})
 			result.Success = false
 		}
 		testMutex.Unlock()

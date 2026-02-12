@@ -6,7 +6,7 @@ import { uploadFile, deleteFile } from '../api/files';
 import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult, ScriptResult, WSConnectionStatus } from '../types';
 import { TabNav, KeyValueEditor, FormDataEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
-import type { FormDataItem } from './ui';
+import type { FormDataItem, ScriptDiagnostic } from './ui';
 
 interface WSControls {
   status: WSConnectionStatus;
@@ -81,6 +81,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const [preScriptMode, setPreScriptMode] = useState<ScriptMode>('javascript');
   const [postScriptMode, setPostScriptMode] = useState<ScriptMode>('javascript');
   const [scriptTab, setScriptTab] = useState<'pre' | 'post'>('pre');
+  const [preScriptDiagnostics, setPreScriptDiagnostics] = useState<ScriptDiagnostic[]>([]);
+  const [postScriptDiagnostics, setPostScriptDiagnostics] = useState<ScriptDiagnostic[]>([]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -273,6 +275,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setProxyId(fullRequestData.proxyId ?? null);
     setPreScript(fullRequestData.preScript || '');
     setPostScript(fullRequestData.postScript || '');
+    setPreScriptDiagnostics([]);
+    setPostScriptDiagnostics([]);
     // Detect script mode from content
     const detectMode = (s: string): ScriptMode => s.trimStart().startsWith('{') ? 'dsl' : 'javascript';
     setPreScriptMode(fullRequestData.preScript ? detectMode(fullRequestData.preScript) : 'javascript');
@@ -477,6 +481,14 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     const handleSavedResult = (result: ExecuteResult & { preScriptResult?: ScriptResult; postScriptResult?: ScriptResult }) => {
       onExecute(result);
       onScriptResults?.(result.preScriptResult, result.postScriptResult);
+
+      // Convert errorDetails to diagnostics for inline display
+      const toDiags = (sr?: ScriptResult): ScriptDiagnostic[] =>
+        (sr?.errorDetails || [])
+          .filter(d => d.line && d.line > 0)
+          .map(d => ({ line: d.line!, message: d.message, severity: 'error' as const }));
+      setPreScriptDiagnostics(toDiags(result.preScriptResult));
+      setPostScriptDiagnostics(toDiags(result.postScriptResult));
     };
 
     // Map proxyId: null→-1 (global inherit), 0→0 (no proxy), N→N (specific)
@@ -707,7 +719,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           value={url}
           onChange={e => handleUrlChange(e.target.value)}
           placeholder="Enter URL or paste text (use {{variable}} for env vars)"
-          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs dark:bg-gray-700 dark:text-gray-100"
+          className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs dark:bg-gray-700 dark:text-gray-100"
         />
         {/* Proxy Selector */}
         <div className="relative" ref={proxySelectorRef}>
@@ -1120,12 +1132,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
             {scriptTab === 'pre' && (
               <CodeEditor
                 value={preScript}
-                onChange={setPreScript}
+                onChange={v => { setPreScript(v); setPreScriptDiagnostics([]); }}
                 language={preScriptMode === 'javascript' ? 'javascript' : 'json'}
                 placeholder={preScriptMode === 'javascript'
                   ? '// Pre-request script\npm.variables.set("timestamp", Date.now().toString());'
                   : '{"setVariables": [{"name": "counter", "operation": "increment"}]}'}
                 height="180px"
+                diagnostics={preScriptDiagnostics}
               />
             )}
 
@@ -1133,12 +1146,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
             {scriptTab === 'post' && (
               <CodeEditor
                 value={postScript}
-                onChange={setPostScript}
+                onChange={v => { setPostScript(v); setPostScriptDiagnostics([]); }}
                 language={postScriptMode === 'javascript' ? 'javascript' : 'json'}
                 placeholder={postScriptMode === 'javascript'
                   ? `// Post-request script (Postman-compatible)\npm.test("Status is 200", function() {\n    pm.response.to.have.status(200);\n});\n\nlet data = pm.response.json();\npm.environment.set("userId", data.id);`
                   : '{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'}
                 height="180px"
+                diagnostics={postScriptDiagnostics}
               />
             )}
           </div>
