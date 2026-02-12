@@ -22,6 +22,7 @@ function AppContent() {
   const [localFlow, setLocalFlow] = useState<Flow | null>(null);
   const [response, setResponse] = useState<ExecuteResult | null>(null);
   const [scriptResults, setScriptResults] = useState<{ pre?: ScriptResult; post?: ScriptResult } | null>(null);
+  const [responseCache] = useState(() => new Map<number, { response: ExecuteResult; scriptResults: { pre?: ScriptResult; post?: ScriptResult } | null }>());
   const [isExecuting, setIsExecuting] = useState(false);
   const [currentMethod, setCurrentMethod] = useState('GET');
   const cancelRef = useRef<(() => void) | null>(null);
@@ -96,7 +97,9 @@ function AppContent() {
   const handleUrlChange = useCallback(() => {
     setLocalRequest(null);
     setLocalFlow(null);
+    // response/scriptResults cleared here; derived effectiveResponse restores from cache
     setResponse(null);
+    setScriptResults(null);
   }, []);
 
   const { view, resourceId, navigateToRequest, navigateToFlow, navigateToView } = useNavigation(handleUrlChange);
@@ -112,6 +115,19 @@ function AppContent() {
   const selectedRequest = localRequest ?? (requestQueryId ? urlRequest ?? null : null);
   const selectedFlow = localFlow ?? (flowQueryId ? urlFlow ?? null : null);
 
+  // Derive effective response: when response state is null, fall back to cache
+  // This handles browser back/forward and URL navigation without needing useEffect
+  const effectiveResponse = response ?? (
+    selectedRequest && selectedRequest.id > 0
+      ? responseCache.get(selectedRequest.id)?.response ?? null
+      : null
+  );
+  const effectiveScriptResults = scriptResults ?? (
+    selectedRequest && selectedRequest.id > 0
+      ? responseCache.get(selectedRequest.id)?.scriptResults ?? null
+      : null
+  );
+
   const handleMethodChange = useCallback((method: string) => {
     setCurrentMethod(method);
     // Disconnect WS when switching away from WS method
@@ -120,18 +136,35 @@ function AppContent() {
     }
   }, [ws]);
 
-  const handleScriptResults = useCallback((pre: ScriptResult | undefined, post: ScriptResult | undefined) => {
-    if (pre || post) {
-      setScriptResults({ pre, post });
-    } else {
-      setScriptResults(null);
+  const handleExecuteResult = useCallback((result: ExecuteResult) => {
+    setResponse(result);
+    if (selectedRequest?.id && selectedRequest.id > 0) {
+      responseCache.set(selectedRequest.id, { response: result, scriptResults: null });
     }
-  }, []);
+  }, [selectedRequest, responseCache]);
+
+  const handleScriptResults = useCallback((pre: ScriptResult | undefined, post: ScriptResult | undefined) => {
+    const sr = (pre || post) ? { pre, post } : null;
+    setScriptResults(sr);
+    if (selectedRequest?.id && selectedRequest.id > 0) {
+      const cached = responseCache.get(selectedRequest.id);
+      if (cached) {
+        cached.scriptResults = sr;
+      }
+    }
+  }, [selectedRequest, responseCache]);
 
   const handleSelectRequest = useCallback((request: Request | null) => {
     setLocalRequest(request);
-    setResponse(null);
-    setScriptResults(null);
+    // Restore from cache or clear
+    if (request && request.id > 0) {
+      const cached = responseCache.get(request.id);
+      setResponse(cached?.response ?? null);
+      setScriptResults(cached?.scriptResults ?? null);
+    } else {
+      setResponse(null);
+      setScriptResults(null);
+    }
     // Disconnect WS when switching requests
     if (ws.status !== 'disconnected') {
       ws.disconnect();
@@ -141,7 +174,7 @@ function AppContent() {
     } else if (!request) {
       navigateToView('requests');
     }
-  }, [navigateToRequest, navigateToView, ws]);
+  }, [navigateToRequest, navigateToView, ws, responseCache]);
 
   const handleSelectFlow = useCallback((flow: Flow | null) => {
     setLocalFlow(flow);
@@ -235,7 +268,7 @@ function AppContent() {
             <div className="flex flex-col min-h-0" style={{ width: `${requestPanelWidth}%` }}>
               <RequestEditor
                 request={selectedRequest}
-                onExecute={setResponse}
+                onExecute={handleExecuteResult}
                 onUpdate={setLocalRequest}
                 onExecutingChange={setIsExecuting}
                 onCancelReady={cancelCallbacks.onCancelReady}
@@ -263,42 +296,42 @@ function AppContent() {
                 />
               ) : (
                 <>
-                  {scriptResults && (scriptResults.pre || scriptResults.post) && (
+                  {effectiveScriptResults && (effectiveScriptResults.pre || effectiveScriptResults.post) && (
                     <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center gap-4 text-xs">
-                      {scriptResults.pre && (
+                      {effectiveScriptResults.pre && (
                         <span className="flex items-center gap-1.5">
                           <span className="font-medium text-gray-600 dark:text-gray-300">Pre-Script:</span>
-                          {scriptResults.pre.assertionsPassed > 0 && (
-                            <span className="text-green-600 dark:text-green-400">{scriptResults.pre.assertionsPassed} passed</span>
+                          {effectiveScriptResults.pre.assertionsPassed > 0 && (
+                            <span className="text-green-600 dark:text-green-400">{effectiveScriptResults.pre.assertionsPassed} passed</span>
                           )}
-                          {scriptResults.pre.assertionsFailed > 0 && (
-                            <span className="text-red-600 dark:text-red-400">{scriptResults.pre.assertionsFailed} failed</span>
+                          {effectiveScriptResults.pre.assertionsFailed > 0 && (
+                            <span className="text-red-600 dark:text-red-400">{effectiveScriptResults.pre.assertionsFailed} failed</span>
                           )}
-                          {scriptResults.pre.assertionsPassed === 0 && scriptResults.pre.assertionsFailed === 0 && (
-                            <span className={scriptResults.pre.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                              {scriptResults.pre.success ? 'OK' : 'Error'}
+                          {effectiveScriptResults.pre.assertionsPassed === 0 && effectiveScriptResults.pre.assertionsFailed === 0 && (
+                            <span className={effectiveScriptResults.pre.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                              {effectiveScriptResults.pre.success ? 'OK' : 'Error'}
                             </span>
                           )}
-                          {scriptResults.pre.errors?.map((e, i) => (
+                          {effectiveScriptResults.pre.errors?.map((e, i) => (
                             <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
                           ))}
                         </span>
                       )}
-                      {scriptResults.post && (
+                      {effectiveScriptResults.post && (
                         <span className="flex items-center gap-1.5">
                           <span className="font-medium text-gray-600 dark:text-gray-300">Post-Script:</span>
-                          {scriptResults.post.assertionsPassed > 0 && (
-                            <span className="text-green-600 dark:text-green-400">{scriptResults.post.assertionsPassed} passed</span>
+                          {effectiveScriptResults.post.assertionsPassed > 0 && (
+                            <span className="text-green-600 dark:text-green-400">{effectiveScriptResults.post.assertionsPassed} passed</span>
                           )}
-                          {scriptResults.post.assertionsFailed > 0 && (
-                            <span className="text-red-600 dark:text-red-400">{scriptResults.post.assertionsFailed} failed</span>
+                          {effectiveScriptResults.post.assertionsFailed > 0 && (
+                            <span className="text-red-600 dark:text-red-400">{effectiveScriptResults.post.assertionsFailed} failed</span>
                           )}
-                          {scriptResults.post.assertionsPassed === 0 && scriptResults.post.assertionsFailed === 0 && (
-                            <span className={scriptResults.post.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                              {scriptResults.post.success ? 'OK' : 'Error'}
+                          {effectiveScriptResults.post.assertionsPassed === 0 && effectiveScriptResults.post.assertionsFailed === 0 && (
+                            <span className={effectiveScriptResults.post.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                              {effectiveScriptResults.post.success ? 'OK' : 'Error'}
                             </span>
                           )}
-                          {scriptResults.post.errors?.map((e, i) => (
+                          {effectiveScriptResults.post.errors?.map((e, i) => (
                             <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
                           ))}
                         </span>
@@ -306,7 +339,7 @@ function AppContent() {
                     </div>
                   )}
                   <ResponseViewer
-                    response={response}
+                    response={effectiveResponse}
                     isLoading={isExecuting}
                     onCancel={cancelCallbacks.cancel}
                     onImportCookies={(cookies) => importCookiesRef.current?.(cookies)}
