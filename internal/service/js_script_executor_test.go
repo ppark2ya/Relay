@@ -1058,3 +1058,125 @@ func TestJSExecutor_CollectionVariablesUnsetClear(t *testing.T) {
 		t.Errorf("Expected colVar1 to be marked for deletion with empty string")
 	}
 }
+
+func TestJSExecutor_CollectionVarsPropagatesToRuntimeVars(t *testing.T) {
+	// Verify that pm.collectionVariables.set() values propagate to UpdatedVars and RuntimeVars
+	// so they can be used in {{var}} URL resolution
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:             make(map[string]string),
+		EnvVars:                 make(map[string]string),
+		CollectionVars:          make(map[string]string),
+		PendingEnvWrites:        make(map[string]string),
+		PendingCollectionWrites: make(map[string]string),
+		PendingGlobalWrites:     make(map[string]string),
+	}
+
+	script := `
+		pm.collectionVariables.set("baseUrl", "https://api.example.com");
+		pm.collectionVariables.set("apiKey", "secret123");
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	// Collection writes should propagate to UpdatedVars
+	if result.UpdatedVars["baseUrl"] != "https://api.example.com" {
+		t.Errorf("Expected UpdatedVars baseUrl=https://api.example.com, got %v", result.UpdatedVars["baseUrl"])
+	}
+	if result.UpdatedVars["apiKey"] != "secret123" {
+		t.Errorf("Expected UpdatedVars apiKey=secret123, got %v", result.UpdatedVars["apiKey"])
+	}
+
+	// Collection writes should propagate to RuntimeVars for {{var}} resolution
+	if ctx.RuntimeVars["baseUrl"] != "https://api.example.com" {
+		t.Errorf("Expected RuntimeVars baseUrl=https://api.example.com, got %v", ctx.RuntimeVars["baseUrl"])
+	}
+	if ctx.RuntimeVars["apiKey"] != "secret123" {
+		t.Errorf("Expected RuntimeVars apiKey=secret123, got %v", ctx.RuntimeVars["apiKey"])
+	}
+
+	// Also verify UpdatedCollectionVars
+	if result.UpdatedCollectionVars["baseUrl"] != "https://api.example.com" {
+		t.Errorf("Expected UpdatedCollectionVars baseUrl=https://api.example.com, got %v", result.UpdatedCollectionVars["baseUrl"])
+	}
+}
+
+func TestJSExecutor_GlobalVarsPropagatesToRuntimeVars(t *testing.T) {
+	// Verify that pm.globals.set() values propagate to UpdatedVars and RuntimeVars
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:             make(map[string]string),
+		EnvVars:                 make(map[string]string),
+		GlobalVars:              make(map[string]string),
+		PendingEnvWrites:        make(map[string]string),
+		PendingCollectionWrites: make(map[string]string),
+		PendingGlobalWrites:     make(map[string]string),
+	}
+
+	script := `
+		pm.globals.set("globalBaseUrl", "https://global.example.com");
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	// Global writes should propagate to UpdatedVars
+	if result.UpdatedVars["globalBaseUrl"] != "https://global.example.com" {
+		t.Errorf("Expected UpdatedVars globalBaseUrl=https://global.example.com, got %v", result.UpdatedVars["globalBaseUrl"])
+	}
+
+	// Global writes should propagate to RuntimeVars
+	if ctx.RuntimeVars["globalBaseUrl"] != "https://global.example.com" {
+		t.Errorf("Expected RuntimeVars globalBaseUrl=https://global.example.com, got %v", ctx.RuntimeVars["globalBaseUrl"])
+	}
+}
+
+func TestJSExecutor_VarWritePriorityOrder(t *testing.T) {
+	// Verify priority: env > collection > global when same key is set at multiple levels
+	executor := NewJSScriptExecutor(nil)
+	ctx := &JSScriptContext{
+		RuntimeVars:             make(map[string]string),
+		EnvVars:                 make(map[string]string),
+		GlobalVars:              make(map[string]string),
+		CollectionVars:          make(map[string]string),
+		PendingEnvWrites:        make(map[string]string),
+		PendingCollectionWrites: make(map[string]string),
+		PendingGlobalWrites:     make(map[string]string),
+	}
+
+	// Set same key at all three levels
+	script := `
+		pm.globals.set("sharedKey", "global_value");
+		pm.collectionVariables.set("sharedKey", "collection_value");
+		pm.environment.set("sharedKey", "env_value");
+	`
+
+	result := executor.Execute(script, ctx)
+	if !result.Success {
+		t.Errorf("Expected success, got errors: %v", result.Errors)
+	}
+
+	// UpdatedVars and RuntimeVars should have env_value (highest priority)
+	if result.UpdatedVars["sharedKey"] != "env_value" {
+		t.Errorf("Expected UpdatedVars sharedKey=env_value (env wins), got %v", result.UpdatedVars["sharedKey"])
+	}
+	if ctx.RuntimeVars["sharedKey"] != "env_value" {
+		t.Errorf("Expected RuntimeVars sharedKey=env_value (env wins), got %v", ctx.RuntimeVars["sharedKey"])
+	}
+
+	// Each level should have its own write recorded
+	if result.UpdatedGlobalVars["sharedKey"] != "global_value" {
+		t.Errorf("Expected UpdatedGlobalVars sharedKey=global_value, got %v", result.UpdatedGlobalVars["sharedKey"])
+	}
+	if result.UpdatedCollectionVars["sharedKey"] != "collection_value" {
+		t.Errorf("Expected UpdatedCollectionVars sharedKey=collection_value, got %v", result.UpdatedCollectionVars["sharedKey"])
+	}
+	if result.UpdatedEnvVars["sharedKey"] != "env_value" {
+		t.Errorf("Expected UpdatedEnvVars sharedKey=env_value, got %v", result.UpdatedEnvVars["sharedKey"])
+	}
+}

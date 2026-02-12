@@ -78,8 +78,9 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
 
   const [preScript, setPreScript] = useState('');
   const [postScript, setPostScript] = useState('');
-  const [preScriptMode, setPreScriptMode] = useState<ScriptMode>('dsl');
-  const [postScriptMode, setPostScriptMode] = useState<ScriptMode>('dsl');
+  const [preScriptMode, setPreScriptMode] = useState<ScriptMode>('javascript');
+  const [postScriptMode, setPostScriptMode] = useState<ScriptMode>('javascript');
+  const [scriptTab, setScriptTab] = useState<'pre' | 'post'>('pre');
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -274,8 +275,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setPostScript(fullRequestData.postScript || '');
     // Detect script mode from content
     const detectMode = (s: string): ScriptMode => s.trimStart().startsWith('{') ? 'dsl' : 'javascript';
-    setPreScriptMode(fullRequestData.preScript ? detectMode(fullRequestData.preScript) : 'dsl');
-    setPostScriptMode(fullRequestData.postScript ? detectMode(fullRequestData.postScript) : 'dsl');
+    setPreScriptMode(fullRequestData.preScript ? detectMode(fullRequestData.preScript) : 'javascript');
+    setPostScriptMode(fullRequestData.postScript ? detectMode(fullRequestData.postScript) : 'javascript');
   }
 
   // Sync form state from history-loaded synthetic request (id=0)
@@ -632,10 +633,10 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
   const isExecuting = executeRequest.isPending || executeAdhoc.isPending || executeRequestWithFiles.isPending || executeAdhocWithFiles.isPending;
 
   return (
-    <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+    <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-gray-800">
       {/* History banner */}
       {isFromHistory && (
-        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2 shrink-0">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -644,7 +645,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       )}
 
       {/* Request Name */}
-      <div className="px-4 pt-3 pb-1">
+      <div className="px-4 pt-3 pb-1 shrink-0">
         {isEditingName ? (
           <input
             type="text"
@@ -676,7 +677,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       </div>
 
       {/* URL Bar */}
-      <div className="p-4 pt-2 flex gap-2">
+      <div className="p-4 pt-2 flex gap-2 shrink-0">
         <div className="relative" ref={methodDropdownRef}>
           <button
             onClick={() => setShowMethodDropdown(!showMethodDropdown)}
@@ -934,11 +935,11 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         ]}
         activeTab={method === 'WS' ? 'headers' : activeTab}
         onTabChange={key => setActiveTab(key as Tab)}
-        className="px-4"
+        className="px-4 shrink-0"
       />
 
       {/* Tab Content */}
-      <div className="p-4 max-h-72 overflow-y-auto">
+      <div className="p-4 flex-1 overflow-y-auto min-h-0">
         {activeTab === 'params' && method !== 'WS' && (
           <KeyValueEditor
             items={paramItems}
@@ -1062,36 +1063,61 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
         )}
 
         {activeTab === 'scripts' && method !== 'WS' && (
-          <div className="space-y-4">
-            {/* Pre-Script */}
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <label className="text-xs font-medium text-gray-600 dark:text-gray-300">Pre-Script</label>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPreScriptMode('dsl')}
-                    className={`px-2 py-0.5 text-xs rounded border ${
-                      preScriptMode === 'dsl'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    DSL
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreScriptMode('javascript')}
-                    className={`px-2 py-0.5 text-xs rounded border ${
-                      preScriptMode === 'javascript'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    JavaScript
-                  </button>
-                </div>
+          <div className="space-y-2">
+            {/* Script Sub-tabs */}
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setScriptTab('pre')}
+                  className={`px-3 py-1 text-xs rounded-md font-medium ${
+                    scriptTab === 'pre'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Pre-Script
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScriptTab('post')}
+                  className={`px-3 py-1 text-xs rounded-md font-medium ${
+                    scriptTab === 'post'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Post-Script
+                </button>
               </div>
+              <div className="flex gap-1 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => scriptTab === 'pre' ? setPreScriptMode('dsl') : setPostScriptMode('dsl')}
+                  className={`px-2 py-0.5 text-xs rounded border ${
+                    (scriptTab === 'pre' ? preScriptMode : postScriptMode) === 'dsl'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                      : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  DSL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scriptTab === 'pre' ? setPreScriptMode('javascript') : setPostScriptMode('javascript')}
+                  className={`px-2 py-0.5 text-xs rounded border ${
+                    (scriptTab === 'pre' ? preScriptMode : postScriptMode) === 'javascript'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                      : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  JavaScript
+                </button>
+              </div>
+            </div>
+
+            {/* Pre-Script Editor */}
+            {scriptTab === 'pre' && (
               <CodeEditor
                 value={preScript}
                 onChange={setPreScript}
@@ -1099,39 +1125,12 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 placeholder={preScriptMode === 'javascript'
                   ? '// Pre-request script\npm.variables.set("timestamp", Date.now().toString());'
                   : '{"setVariables": [{"name": "counter", "operation": "increment"}]}'}
-                height="80px"
+                height="180px"
               />
-            </div>
+            )}
 
-            {/* Post-Script */}
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <label className="text-xs font-medium text-gray-600 dark:text-gray-300">Post-Script</label>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPostScriptMode('dsl')}
-                    className={`px-2 py-0.5 text-xs rounded border ${
-                      postScriptMode === 'dsl'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    DSL
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPostScriptMode('javascript')}
-                    className={`px-2 py-0.5 text-xs rounded border ${
-                      postScriptMode === 'javascript'
-                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    JavaScript
-                  </button>
-                </div>
-              </div>
+            {/* Post-Script Editor */}
+            {scriptTab === 'post' && (
               <CodeEditor
                 value={postScript}
                 onChange={setPostScript}
@@ -1139,9 +1138,9 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                 placeholder={postScriptMode === 'javascript'
                   ? `// Post-request script (Postman-compatible)\npm.test("Status is 200", function() {\n    pm.response.to.have.status(200);\n});\n\nlet data = pm.response.json();\npm.environment.set("userId", data.id);`
                   : '{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'}
-                height="80px"
+                height="180px"
               />
-            </div>
+            )}
           </div>
         )}
       </div>

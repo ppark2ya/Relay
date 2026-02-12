@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/Sidebar';
 import { RequestEditor } from './components/RequestEditor';
@@ -31,6 +31,49 @@ function AppContent() {
   }), []);
 
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+
+  // Horizontal panel resize (Request / Response split)
+  const MIN_PANEL = 25;
+  const MAX_PANEL = 75;
+  const [requestPanelWidth, setRequestPanelWidth] = useState(() => {
+    const saved = localStorage.getItem('requestPanelWidth');
+    if (saved) {
+      const n = parseFloat(saved);
+      if (n >= MIN_PANEL && n <= MAX_PANEL) return n;
+    }
+    return 50;
+  });
+  const isPanelResizing = useRef(false);
+
+  useEffect(() => {
+    localStorage.setItem('requestPanelWidth', String(requestPanelWidth));
+  }, [requestPanelWidth]);
+
+  const handlePanelResizeStart = useCallback((e: ReactMouseEvent) => {
+    e.preventDefault();
+    isPanelResizing.current = true;
+    const container = (e.target as HTMLElement).parentElement!;
+
+    const onMouseMove = (ev: globalThis.MouseEvent) => {
+      if (!isPanelResizing.current) return;
+      const rect = container.getBoundingClientRect();
+      const pct = ((ev.clientX - rect.left) / rect.width) * 100;
+      setRequestPanelWidth(Math.min(MAX_PANEL, Math.max(MIN_PANEL, pct)));
+    };
+
+    const onMouseUp = () => {
+      isPanelResizing.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
 
   // Cmd+K / Ctrl+K global shortcut
   useEffect(() => {
@@ -187,77 +230,90 @@ function AppContent() {
           selectedFlowId={selectedFlow?.id}
         />
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div className={`flex-1 flex flex-col overflow-hidden ${view === 'requests' ? '' : 'hidden'}`}>
-            <RequestEditor
-              request={selectedRequest}
-              onExecute={setResponse}
-              onUpdate={setLocalRequest}
-              onExecutingChange={setIsExecuting}
-              onCancelReady={cancelCallbacks.onCancelReady}
-              onMethodChange={handleMethodChange}
-              onImportCookiesReady={(fn) => { importCookiesRef.current = fn; }}
-              onScriptResults={handleScriptResults}
-              ws={ws}
-            />
-            {isWSMode ? (
-              <WebSocketPanel
-                messages={ws.messages}
-                isConnected={ws.status === 'connected'}
-                onSend={ws.send}
-                onClear={ws.clearMessages}
+          <div className={`flex-1 flex flex-row overflow-hidden ${view === 'requests' ? '' : 'hidden'}`}>
+            {/* Left Panel: Request Editor */}
+            <div className="flex flex-col min-h-0" style={{ width: `${requestPanelWidth}%` }}>
+              <RequestEditor
+                request={selectedRequest}
+                onExecute={setResponse}
+                onUpdate={setLocalRequest}
+                onExecutingChange={setIsExecuting}
+                onCancelReady={cancelCallbacks.onCancelReady}
+                onMethodChange={handleMethodChange}
+                onImportCookiesReady={(fn) => { importCookiesRef.current = fn; }}
+                onScriptResults={handleScriptResults}
+                ws={ws}
               />
-            ) : (
-              <>
-                {scriptResults && (scriptResults.pre || scriptResults.post) && (
-                  <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center gap-4 text-xs">
-                    {scriptResults.pre && (
-                      <span className="flex items-center gap-1.5">
-                        <span className="font-medium text-gray-600 dark:text-gray-300">Pre-Script:</span>
-                        {scriptResults.pre.assertionsPassed > 0 && (
-                          <span className="text-green-600 dark:text-green-400">{scriptResults.pre.assertionsPassed} passed</span>
-                        )}
-                        {scriptResults.pre.assertionsFailed > 0 && (
-                          <span className="text-red-600 dark:text-red-400">{scriptResults.pre.assertionsFailed} failed</span>
-                        )}
-                        {scriptResults.pre.assertionsPassed === 0 && scriptResults.pre.assertionsFailed === 0 && (
-                          <span className={scriptResults.pre.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                            {scriptResults.pre.success ? 'OK' : 'Error'}
-                          </span>
-                        )}
-                        {scriptResults.pre.errors?.map((e, i) => (
-                          <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
-                        ))}
-                      </span>
-                    )}
-                    {scriptResults.post && (
-                      <span className="flex items-center gap-1.5">
-                        <span className="font-medium text-gray-600 dark:text-gray-300">Post-Script:</span>
-                        {scriptResults.post.assertionsPassed > 0 && (
-                          <span className="text-green-600 dark:text-green-400">{scriptResults.post.assertionsPassed} passed</span>
-                        )}
-                        {scriptResults.post.assertionsFailed > 0 && (
-                          <span className="text-red-600 dark:text-red-400">{scriptResults.post.assertionsFailed} failed</span>
-                        )}
-                        {scriptResults.post.assertionsPassed === 0 && scriptResults.post.assertionsFailed === 0 && (
-                          <span className={scriptResults.post.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                            {scriptResults.post.success ? 'OK' : 'Error'}
-                          </span>
-                        )}
-                        {scriptResults.post.errors?.map((e, i) => (
-                          <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
-                        ))}
-                      </span>
-                    )}
-                  </div>
-                )}
-                <ResponseViewer
-                  response={response}
-                  isLoading={isExecuting}
-                  onCancel={cancelCallbacks.cancel}
-                  onImportCookies={(cookies) => importCookiesRef.current?.(cookies)}
+            </div>
+
+            {/* Resize Handle */}
+            <div
+              onMouseDown={handlePanelResizeStart}
+              className="w-1.5 shrink-0 cursor-col-resize bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 active:bg-blue-500 transition-colors"
+            />
+
+            {/* Right Panel: Response / WebSocket */}
+            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+              {isWSMode ? (
+                <WebSocketPanel
+                  messages={ws.messages}
+                  isConnected={ws.status === 'connected'}
+                  onSend={ws.send}
+                  onClear={ws.clearMessages}
                 />
-              </>
-            )}
+              ) : (
+                <>
+                  {scriptResults && (scriptResults.pre || scriptResults.post) && (
+                    <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center gap-4 text-xs">
+                      {scriptResults.pre && (
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-medium text-gray-600 dark:text-gray-300">Pre-Script:</span>
+                          {scriptResults.pre.assertionsPassed > 0 && (
+                            <span className="text-green-600 dark:text-green-400">{scriptResults.pre.assertionsPassed} passed</span>
+                          )}
+                          {scriptResults.pre.assertionsFailed > 0 && (
+                            <span className="text-red-600 dark:text-red-400">{scriptResults.pre.assertionsFailed} failed</span>
+                          )}
+                          {scriptResults.pre.assertionsPassed === 0 && scriptResults.pre.assertionsFailed === 0 && (
+                            <span className={scriptResults.pre.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                              {scriptResults.pre.success ? 'OK' : 'Error'}
+                            </span>
+                          )}
+                          {scriptResults.pre.errors?.map((e, i) => (
+                            <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
+                          ))}
+                        </span>
+                      )}
+                      {scriptResults.post && (
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-medium text-gray-600 dark:text-gray-300">Post-Script:</span>
+                          {scriptResults.post.assertionsPassed > 0 && (
+                            <span className="text-green-600 dark:text-green-400">{scriptResults.post.assertionsPassed} passed</span>
+                          )}
+                          {scriptResults.post.assertionsFailed > 0 && (
+                            <span className="text-red-600 dark:text-red-400">{scriptResults.post.assertionsFailed} failed</span>
+                          )}
+                          {scriptResults.post.assertionsPassed === 0 && scriptResults.post.assertionsFailed === 0 && (
+                            <span className={scriptResults.post.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                              {scriptResults.post.success ? 'OK' : 'Error'}
+                            </span>
+                          )}
+                          {scriptResults.post.errors?.map((e, i) => (
+                            <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
+                          ))}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <ResponseViewer
+                    response={response}
+                    isLoading={isExecuting}
+                    onCancel={cancelCallbacks.cancel}
+                    onImportCookies={(cookies) => importCookiesRef.current?.(cookies)}
+                  />
+                </>
+              )}
+            </div>
           </div>
           <div className={`flex-1 flex flex-col overflow-hidden ${view === 'flows' ? '' : 'hidden'}`}>
             <FlowEditor

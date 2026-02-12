@@ -144,21 +144,29 @@ func (jse *JSScriptExecutor) Execute(script string, jsCtx *JSScriptContext) *JSS
 		return result
 	}
 
-	// Copy pending env writes to updated vars for runtime use
-	for k, v := range jsCtx.PendingEnvWrites {
-		result.UpdatedEnvVars[k] = v
-		result.UpdatedVars[k] = v
-		jsCtx.RuntimeVars[k] = v
-	}
+	// Copy pending writes to updated vars for runtime use
+	// Order: global (lowest priority) → collection → env (highest priority)
+	// Higher priority overwrites lower priority in UpdatedVars/RuntimeVars
 
 	// Copy pending global writes
 	for k, v := range jsCtx.PendingGlobalWrites {
 		result.UpdatedGlobalVars[k] = v
+		result.UpdatedVars[k] = v
+		jsCtx.RuntimeVars[k] = v
 	}
 
-	// Copy pending collection writes
+	// Copy pending collection writes (overwrites global if same key)
 	for k, v := range jsCtx.PendingCollectionWrites {
 		result.UpdatedCollectionVars[k] = v
+		result.UpdatedVars[k] = v
+		jsCtx.RuntimeVars[k] = v
+	}
+
+	// Copy pending env writes (overwrites collection/global if same key)
+	for k, v := range jsCtx.PendingEnvWrites {
+		result.UpdatedEnvVars[k] = v
+		result.UpdatedVars[k] = v
+		jsCtx.RuntimeVars[k] = v
 	}
 
 	return result

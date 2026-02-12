@@ -20,22 +20,10 @@ func NewVariableResolver(queries *repository.Queries) *VariableResolver {
 
 var variablePattern = regexp.MustCompile(`\{\{([^}]+)\}\}`)
 
-// Resolve replaces {{variable}} patterns with values from the active environment and runtime vars
-func (vr *VariableResolver) Resolve(ctx context.Context, input string, runtimeVars map[string]string) (string, error) {
-	envVars, err := vr.getActiveEnvironmentVars(ctx)
-	if err != nil {
-		return input, err
-	}
-
-	// Merge environment vars with runtime vars (runtime takes precedence)
-	allVars := make(map[string]string)
-	for k, v := range envVars {
-		allVars[k] = v
-	}
-	for k, v := range runtimeVars {
-		allVars[k] = v
-	}
-
+// Resolve replaces {{variable}} patterns with values from all variable layers.
+// Priority (highest first): runtimeVars → environment → collection → workspace
+func (vr *VariableResolver) Resolve(ctx context.Context, input string, runtimeVars map[string]string, collectionID ...int64) (string, error) {
+	allVars := vr.buildAllVars(ctx, runtimeVars, collectionID...)
 	return vr.ResolveWithVars(input, allVars), nil
 }
 
@@ -59,21 +47,9 @@ type HeaderValue struct {
 
 // ResolveHeaders resolves variables in header map
 // Supports both legacy format { "key": "value" } and new format { "key": { "value": "...", "enabled": true } }
-func (vr *VariableResolver) ResolveHeaders(ctx context.Context, headersJSON string, runtimeVars map[string]string) (map[string]string, error) {
+func (vr *VariableResolver) ResolveHeaders(ctx context.Context, headersJSON string, runtimeVars map[string]string, collectionID ...int64) (map[string]string, error) {
 	resolved := make(map[string]string)
-
-	envVars, err := vr.getActiveEnvironmentVars(ctx)
-	if err != nil {
-		return resolved, err
-	}
-
-	allVars := make(map[string]string)
-	for k, v := range envVars {
-		allVars[k] = v
-	}
-	for k, v := range runtimeVars {
-		allVars[k] = v
-	}
+	allVars := vr.buildAllVars(ctx, runtimeVars, collectionID...)
 
 	// Try new format first: { "key": { "value": "...", "enabled": true } }
 	var headersNew map[string]HeaderValue
@@ -97,6 +73,58 @@ func (vr *VariableResolver) ResolveHeaders(ctx context.Context, headersJSON stri
 	}
 
 	return resolved, nil
+}
+
+// buildAllVars merges all variable layers with proper priority.
+// Priority (highest first): runtimeVars → environment → collection → workspace
+func (vr *VariableResolver) buildAllVars(ctx context.Context, runtimeVars map[string]string, collectionID ...int64) map[string]string {
+	allVars := make(map[string]string)
+
+	// Lowest priority: workspace (global) variables
+	wsVars := vr.getWorkspaceVars(ctx)
+	for k, v := range wsVars {
+		allVars[k] = v
+	}
+
+	// Collection variables
+	if len(collectionID) > 0 && collectionID[0] > 0 {
+		colVars := vr.getCollectionVars(ctx, collectionID[0])
+		for k, v := range colVars {
+			allVars[k] = v
+		}
+	}
+
+	// Environment variables
+	envVars, _ := vr.getActiveEnvironmentVars(ctx)
+	for k, v := range envVars {
+		allVars[k] = v
+	}
+
+	// Highest priority: runtime variables
+	for k, v := range runtimeVars {
+		allVars[k] = v
+	}
+
+	return allVars
+}
+
+func (vr *VariableResolver) getWorkspaceVars(ctx context.Context) map[string]string {
+	vars := make(map[string]string)
+	wsID := middleware.GetWorkspaceID(ctx)
+	wsVars, err := vr.queries.GetWorkspaceVariables(ctx, wsID)
+	if err == nil && wsVars.Valid && wsVars.String != "" {
+		json.Unmarshal([]byte(wsVars.String), &vars)
+	}
+	return vars
+}
+
+func (vr *VariableResolver) getCollectionVars(ctx context.Context, collectionID int64) map[string]string {
+	vars := make(map[string]string)
+	colVars, err := vr.queries.GetCollectionVariables(ctx, collectionID)
+	if err == nil && colVars.Valid && colVars.String != "" {
+		json.Unmarshal([]byte(colVars.String), &vars)
+	}
+	return vars
 }
 
 func (vr *VariableResolver) getActiveEnvironmentVars(ctx context.Context) (map[string]string, error) {

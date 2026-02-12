@@ -29,7 +29,7 @@ async function createRequestViaApi(opts: {
 }
 
 test.describe('Request Scripts', () => {
-  test('should show Scripts tab and persist pre/post scripts after save', async ({ page }) => {
+  test('should show Scripts tab with subtabs and persist pre/post scripts after save', async ({ page }) => {
     await createRequestViaApi({
       name: 'Script Test',
       method: 'GET',
@@ -44,28 +44,33 @@ test.describe('Request Scripts', () => {
     // Click Scripts tab
     await page.getByRole('button', { name: 'Scripts' }).click();
 
-    // Should see Pre-Script and Post-Script labels
-    await expect(page.getByText('Pre-Script')).toBeVisible();
-    await expect(page.getByText('Post-Script')).toBeVisible();
+    // Should see Pre-Script and Post-Script subtab buttons
+    const preScriptTab = page.getByRole('button', { name: 'Pre-Script' });
+    const postScriptTab = page.getByRole('button', { name: 'Post-Script' });
+    await expect(preScriptTab).toBeVisible();
+    await expect(postScriptTab).toBeVisible();
 
-    // Should see DSL/JavaScript toggle buttons (2 pairs)
+    // Should see DSL/JavaScript toggle buttons (1 pair, shared for active subtab)
     const dslButtons = page.getByRole('button', { name: 'DSL' });
-    await expect(dslButtons).toHaveCount(2);
+    await expect(dslButtons).toHaveCount(1);
 
     const jsButtons = page.getByRole('button', { name: 'JavaScript' });
-    await expect(jsButtons).toHaveCount(2);
+    await expect(jsButtons).toHaveCount(1);
 
-    // Type pre-script in the first CodeMirror editor
-    const editors = page.locator('.cm-content[contenteditable="true"]');
-    await editors.first().click();
-    await editors.first().fill('{"setVariables": [{"name": "test", "value": "hello"}]}');
+    // Pre-Script subtab is selected by default — type in the editor
+    const editor = page.locator('.cm-content[contenteditable="true"]');
+    await editor.first().click();
+    await editor.first().fill('{"setVariables": [{"name": "test", "value": "hello"}]}');
+
+    // Switch to Post-Script subtab
+    await postScriptTab.click();
 
     // Switch post-script to JavaScript mode
-    await jsButtons.nth(1).click();
+    await jsButtons.first().click();
 
-    // Type post-script in the second editor
-    await editors.nth(1).click();
-    await editors.nth(1).fill('pm.variables.set("result", "done");');
+    // Type post-script in the editor (now showing post-script)
+    await editor.first().click();
+    await editor.first().fill('pm.variables.set("result", "done");');
 
     // Save
     await page.getByRole('button', { name: 'Save' }).click();
@@ -76,14 +81,15 @@ test.describe('Request Scripts', () => {
     await expandCollection(page, 'Script Collection');
     await selectRequest(page, 'Script Test');
 
-    // Go to Scripts tab
+    // Go to Scripts tab — Pre-Script subtab is default
     await page.getByRole('button', { name: 'Scripts' }).click();
 
     // Verify pre-script content
-    await expect(editors.first()).toContainText('setVariables');
+    await expect(editor.first()).toContainText('setVariables');
 
-    // Verify post-script content
-    await expect(editors.nth(1)).toContainText('pm.variables.set');
+    // Switch to Post-Script subtab and verify
+    await page.getByRole('button', { name: 'Post-Script' }).click();
+    await expect(editor.first()).toContainText('pm.variables.set');
   });
 
   test('should save scripts via API and return them in GET', async () => {

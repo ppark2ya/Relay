@@ -153,7 +153,7 @@ type formDataItem struct {
 	ContentType string `json:"contentType,omitempty"`
 }
 
-func (re *RequestExecutor) buildFormDataBody(ctx context.Context, bodyStr string, runtimeVars map[string]string, formFiles map[int]FormDataFile) (io.Reader, string, error) {
+func (re *RequestExecutor) buildFormDataBody(ctx context.Context, bodyStr string, runtimeVars map[string]string, formFiles map[int]FormDataFile, collectionID ...int64) (io.Reader, string, error) {
 	var items []formDataItem
 	if err := json.Unmarshal([]byte(bodyStr), &items); err != nil {
 		return nil, "", err
@@ -193,7 +193,7 @@ func (re *RequestExecutor) buildFormDataBody(ctx context.Context, bodyStr string
 				return nil, "", err
 			}
 		} else {
-			resolvedValue, _ := re.variableResolver.Resolve(ctx, item.Value, runtimeVars)
+			resolvedValue, _ := re.variableResolver.Resolve(ctx, item.Value, runtimeVars, collectionID...)
 			if item.ContentType != "" {
 				h := make(textproto.MIMEHeader)
 				h.Set("Content-Disposition", `form-data; name="`+escapeQuotes(item.Key)+`"`)
@@ -228,7 +228,7 @@ func escapeQuotes(s string) string {
 
 // buildCookieHeader parses the cookies JSON (same format as headers: {"name": {"value": "val", "enabled": true}})
 // and builds a Cookie header string like "name1=val1; name2=val2".
-func (re *RequestExecutor) buildCookieHeader(ctx context.Context, cookiesJSON string, runtimeVars map[string]string) string {
+func (re *RequestExecutor) buildCookieHeader(ctx context.Context, cookiesJSON string, runtimeVars map[string]string, collectionID ...int64) string {
 	var parsed map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(cookiesJSON), &parsed); err != nil {
 		return ""
@@ -246,14 +246,14 @@ func (re *RequestExecutor) buildCookieHeader(ctx context.Context, cookiesJSON st
 			if err2 := json.Unmarshal(raw, &strVal); err2 != nil {
 				continue
 			}
-			resolved, _ := re.variableResolver.Resolve(ctx, strVal, runtimeVars)
+			resolved, _ := re.variableResolver.Resolve(ctx, strVal, runtimeVars, collectionID...)
 			pairs = append(pairs, name+"="+resolved)
 			continue
 		}
 		if !obj.Enabled {
 			continue
 		}
-		resolved, _ := re.variableResolver.Resolve(ctx, obj.Value, runtimeVars)
+		resolved, _ := re.variableResolver.Resolve(ctx, obj.Value, runtimeVars, collectionID...)
 		pairs = append(pairs, name+"="+resolved)
 	}
 	return strings.Join(pairs, "; ")
@@ -294,8 +294,14 @@ func isTextContentType(ct string) bool {
 func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repository.Request, runtimeVars map[string]string, formFiles map[int]FormDataFile) (*ExecuteResult, error) {
 	result := &ExecuteResult{}
 
+	// Extract collectionID for variable resolution
+	var colID int64
+	if req.CollectionID.Valid {
+		colID = req.CollectionID.Int64
+	}
+
 	// Resolve URL
-	resolvedURL, err := re.variableResolver.Resolve(ctx, req.Url, runtimeVars)
+	resolvedURL, err := re.variableResolver.Resolve(ctx, req.Url, runtimeVars, colID)
 	if err != nil {
 		result.Error = err.Error()
 		return result, nil
@@ -307,7 +313,7 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 	if req.Headers.Valid {
 		headers = req.Headers.String
 	}
-	resolvedHeaders, err := re.variableResolver.ResolveHeaders(ctx, headers, runtimeVars)
+	resolvedHeaders, err := re.variableResolver.ResolveHeaders(ctx, headers, runtimeVars, colID)
 	if err != nil {
 		result.Error = err.Error()
 		return result, nil
@@ -329,7 +335,7 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 	}
 
 	if bodyType == "formdata" && req.Body.Valid {
-		reader, contentType, err := re.buildFormDataBody(ctx, req.Body.String, runtimeVars, formFiles)
+		reader, contentType, err := re.buildFormDataBody(ctx, req.Body.String, runtimeVars, formFiles, colID)
 		if err != nil {
 			result.Error = "Failed to build form data: " + err.Error()
 			return result, nil
@@ -339,7 +345,7 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 	} else {
 		body := ""
 		if req.Body.Valid {
-			body, _ = re.variableResolver.Resolve(ctx, req.Body.String, runtimeVars)
+			body, _ = re.variableResolver.Resolve(ctx, req.Body.String, runtimeVars, colID)
 		}
 		bodyReader = bytes.NewBufferString(body)
 
@@ -376,7 +382,7 @@ func (re *RequestExecutor) executeRequestInternal(ctx context.Context, req repos
 
 	// Merge cookies from cookies field into Cookie header
 	if req.Cookies.Valid && req.Cookies.String != "" && req.Cookies.String != "{}" {
-		cookiePairs := re.buildCookieHeader(ctx, req.Cookies.String, runtimeVars)
+		cookiePairs := re.buildCookieHeader(ctx, req.Cookies.String, runtimeVars, colID)
 		if cookiePairs != "" {
 			existing := httpReq.Header.Get("Cookie")
 			if existing != "" {
