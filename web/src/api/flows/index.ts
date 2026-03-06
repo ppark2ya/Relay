@@ -12,4 +12,5 @@ export {
   useUpdateFlowStep,
   useDeleteFlowStep,
 } from './hooks';
-export type { Flow, FlowStep, FlowResult, StepResult } from './types';
+export { runFlowStream } from './client';
+export type { Flow, FlowStep, FlowResult, StepResult, StepStartEvent, FlowCompleteEvent, RunFlowStreamCallbacks } from './types';
