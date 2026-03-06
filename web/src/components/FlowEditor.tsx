@@ -20,10 +20,10 @@ import {
   useFlow,
   useFlowSteps,
   useUpdateFlow,
-  useRunFlow,
   useCreateFlowStep,
   useUpdateFlowStep,
   useDeleteFlowStep,
+  runFlowStream,
 } from '../api/flows';
 import { useRequests } from '../api/requests';
 import { useProxies } from '../api/proxies';
@@ -198,6 +198,7 @@ interface SortableStepProps {
   stepsLength: number;
   isSelected: boolean;
   hasChanges: boolean;
+  isRunningStep: boolean;
   onToggleSelection: (stepId: number, e: React.MouseEvent) => void;
   onExpand: (stepId: number) => void;
   onDelete: (stepId: number) => void;
@@ -217,6 +218,7 @@ function SortableStep({
   stepsLength,
   isSelected,
   hasChanges,
+  isRunningStep,
   onToggleSelection,
   onExpand,
   onDelete,
@@ -273,9 +275,14 @@ function SortableStep({
             </svg>
           </div>
           <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-xs font-medium ${
-            isStepError ? 'bg-red-500' : isStepSuccess ? 'bg-green-500' : isStepSkipped ? 'bg-gray-400' : 'bg-blue-600'
+            isRunningStep ? 'bg-yellow-500' : isStepError ? 'bg-red-500' : isStepSuccess ? 'bg-green-500' : isStepSkipped ? 'bg-gray-400' : 'bg-blue-600'
           }`}>
-            {isStepError ? (
+            {isRunningStep ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : isStepError ? (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -850,6 +857,9 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showRequestDropdown, setShowRequestDropdown] = useState(false);
   const [flowResult, setFlowResult] = useState<FlowResult | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [runningStepId, setRunningStepId] = useState<number | null>(null);
+  const [completedStepIds, setCompletedStepIds] = useState<Set<number>>(new Set());
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
   const [editStates, setEditStates] = useState<Record<number, StepEditState>>({});
   const [selectedStepIds, setSelectedStepIds] = useState<Set<number>>(new Set());
@@ -868,7 +878,6 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const activeGlobalProxy = proxies.find(p => p.isActive);
 
   const updateFlow = useUpdateFlow();
-  const runFlow = useRunFlow();
   const createStep = useCreateFlowStep();
   const updateStep = useUpdateFlowStep();
   const deleteStep = useDeleteFlowStep();
@@ -924,23 +933,53 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   }, [flow, name, description, updateFlow, onUpdate]);
 
   const handleRun = () => {
-    if (flow) {
-      setFlowResult(null);
-      const stepIds = selectedStepIds.size > 0 ? Array.from(selectedStepIds) : undefined;
-      runFlow.mutate({ flowId: flow.id, stepIds }, {
-        onSuccess: (result) => setFlowResult(result),
-        onError: (error) => {
-          setFlowResult({
-            flowId: flow.id,
-            flowName: flow.name,
-            steps: [],
-            totalTimeMs: 0,
-            success: false,
-            error: error instanceof Error ? error.message : 'Flow execution failed',
-          });
-        },
-      });
-    }
+    if (!flow) return;
+    setFlowResult(null);
+    setIsRunning(true);
+    setRunningStepId(null);
+    setCompletedStepIds(new Set());
+    const stepIds = selectedStepIds.size > 0 ? Array.from(selectedStepIds) : undefined;
+
+    const accumulatedSteps: StepResult[] = [];
+
+    runFlowStream(flow.id, stepIds, {
+      onStepStart: (event) => {
+        setRunningStepId(event.stepId);
+      },
+      onStepComplete: (result) => {
+        accumulatedSteps.push(result);
+        setCompletedStepIds(prev => new Set(prev).add(result.stepId));
+        setFlowResult(prev => ({
+          flowId: flow.id,
+          flowName: prev?.flowName || flow.name,
+          steps: [...accumulatedSteps],
+          totalTimeMs: 0,
+          success: true,
+        }));
+      },
+      onFlowComplete: (event) => {
+        setIsRunning(false);
+        setRunningStepId(null);
+        setFlowResult(prev => prev ? {
+          ...prev,
+          totalTimeMs: event.totalTimeMs,
+          success: event.success,
+          error: event.error,
+        } : null);
+      },
+      onError: (error) => {
+        setIsRunning(false);
+        setRunningStepId(null);
+        setFlowResult({
+          flowId: flow.id,
+          flowName: flow.name,
+          steps: [...accumulatedSteps],
+          totalTimeMs: 0,
+          success: false,
+          error,
+        });
+      },
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -1225,10 +1264,10 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           </div>
           <button
             onClick={handleRun}
-            disabled={runFlow.isPending || steps.length === 0}
+            disabled={isRunning || steps.length === 0}
             className="px-6 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
           >
-            {runFlow.isPending ? (
+            {isRunning ? (
               <>
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -1246,6 +1285,11 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               </>
             )}
           </button>
+          {isRunning && (
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {completedStepIds.size}/{steps.length} steps
+            </span>
+          )}
           <button
             onClick={handleSave}
             disabled={updateFlow.isPending}
@@ -1285,6 +1329,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                         stepsLength={steps.length}
                         isSelected={selectedStepIds.has(step.id)}
                         hasChanges={hasStepChanges(step.id)}
+                        isRunningStep={runningStepId === step.id}
                         onToggleSelection={toggleStepSelection}
                         onExpand={handleExpandStep}
                         onDelete={handleDeleteStep}

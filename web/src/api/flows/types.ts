@@ -66,6 +66,27 @@ export interface StepResult {
   postScriptResult?: ScriptResult;
 }
 
+// SSE streaming event types
+export interface StepStartEvent {
+  stepId: number;
+  stepName: string;
+  iteration: number;
+  loopCount: number;
+}
+
+export interface FlowCompleteEvent {
+  success: boolean;
+  totalTimeMs: number;
+  error?: string;
+}
+
+export interface RunFlowStreamCallbacks {
+  onStepStart: (event: StepStartEvent) => void;
+  onStepComplete: (result: StepResult) => void;
+  onFlowComplete: (event: FlowCompleteEvent) => void;
+  onError: (error: string) => void;
+}
+
 // DSL Types for Script Editor
 export interface Assertion {
   type: 'status' | 'jsonpath' | 'header' | 'responseTime' | 'bodyContains';
