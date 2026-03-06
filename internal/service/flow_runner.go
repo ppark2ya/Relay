@@ -133,6 +133,7 @@ func (fr *FlowRunner) runInternal(ctx context.Context, flowID int64, selectedSte
 
 	// Use index-based iteration for goto support
 	stepIndex := 0
+outer:
 	for stepIndex < len(steps) {
 		step := steps[stepIndex]
 
@@ -398,8 +399,7 @@ func (fr *FlowRunner) runInternal(ctx context.Context, flowID int64, selectedSte
 
 				if targetIndex >= 0 {
 					stepIndex = targetIndex
-					iteration = 1 // Reset iteration for the new step
-					continue
+					continue outer
 				}
 				// If target not found, fall through to next step
 			}
