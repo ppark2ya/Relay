@@ -1440,6 +1440,14 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                 {flowResult.error}
               </div>
             )}
+            {flowResult.warnings && flowResult.warnings.length > 0 && (
+              <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800">
+                <div className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">Warnings</div>
+                {flowResult.warnings.map((w, i) => (
+                  <div key={i} className="text-xs text-amber-600 dark:text-amber-400">⚠ {w}</div>
+                ))}
+              </div>
+            )}
             <div className="space-y-2">
               {flowResult.steps.map((stepResult) => (
                 <div
@@ -1497,6 +1505,14 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                     <div className="mt-1 text-xs text-red-600 dark:text-red-400">
                       {stepResult.postScriptResult.errors.map((err, i) => (
                         <div key={i}>{err}</div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Show goto warnings */}
+                  {stepResult.warnings && stepResult.warnings.length > 0 && (
+                    <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                      {stepResult.warnings.map((w, i) => (
+                        <div key={i}>⚠ {w}</div>
                       ))}
                     </div>
                   )}

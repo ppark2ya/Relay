@@ -45,6 +45,7 @@ type StepResult struct {
 	LoopCount        int64             `json:"loopCount,omitempty"`
 	PreScriptResult  *ScriptResult     `json:"preScriptResult,omitempty"`
 	PostScriptResult *ScriptResult     `json:"postScriptResult,omitempty"`
+	Warnings         []string          `json:"warnings,omitempty"`
 }
 
 type FlowResult struct {
@@ -54,6 +55,7 @@ type FlowResult struct {
 	TotalTimeMs int64        `json:"totalTimeMs"`
 	Success     bool         `json:"success"`
 	Error       string       `json:"error,omitempty"`
+	Warnings    []string     `json:"warnings,omitempty"`
 }
 
 // StepStartEvent is sent when a step begins execution
@@ -111,14 +113,26 @@ func (fr *FlowRunner) runInternal(ctx context.Context, flowID int64, selectedSte
 		selectedSet[id] = true
 	}
 
-	// Build step name -> index map for goto resolution
+	// Build step name -> index map for goto resolution (first occurrence wins)
 	stepNameToIndex := make(map[string]int)
 	stepOrderToIndex := make(map[int]int)
+	duplicateNames := make(map[string]bool)
 	for i, step := range steps {
 		if step.Name != "" {
-			stepNameToIndex[step.Name] = i
+			if _, exists := stepNameToIndex[step.Name]; exists {
+				duplicateNames[step.Name] = true
+			} else {
+				stepNameToIndex[step.Name] = i
+			}
 		}
-		stepOrderToIndex[int(step.StepOrder)] = i
+		if _, exists := stepOrderToIndex[int(step.StepOrder)]; !exists {
+			stepOrderToIndex[int(step.StepOrder)] = i
+		}
+	}
+
+	// Add warnings for duplicate step names
+	for name := range duplicateNames {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("Duplicate step name %q found - goto will target first occurrence", name))
 	}
 
 	// Runtime variables accumulated during flow execution
@@ -401,7 +415,21 @@ outer:
 					stepIndex = targetIndex
 					continue outer
 				}
-				// If target not found, fall through to next step
+
+				// Target not found - add warning (preserve fallthrough for backward compat)
+				var warnMsg string
+				if gotoStepName != "" {
+					warnMsg = fmt.Sprintf("setNextRequest target step not found: %q", gotoStepName)
+				} else if gotoStepOrder > 0 {
+					warnMsg = fmt.Sprintf("setNextRequest target step order not found: %d", gotoStepOrder)
+				}
+				if warnMsg != "" {
+					if len(result.Steps) > 0 {
+						result.Steps[len(result.Steps)-1].Warnings = append(result.Steps[len(result.Steps)-1].Warnings, warnMsg)
+					}
+					result.Warnings = append(result.Warnings, fmt.Sprintf("[%s] %s", step.Name, warnMsg))
+				}
+				// Fall through to next step
 			}
 
 			iteration++

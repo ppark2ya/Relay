@@ -39,6 +39,7 @@ export interface FlowResult {
   totalTimeMs: number;
   success: boolean;
   error?: string;
+  warnings?: string[];
 }
 
 export interface ScriptResult {
@@ -64,6 +65,7 @@ export interface StepResult {
   loopCount?: number;
   preScriptResult?: ScriptResult;
   postScriptResult?: ScriptResult;
+  warnings?: string[];
 }
 
 // SSE streaming event types
