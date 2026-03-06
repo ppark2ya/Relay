@@ -88,7 +88,7 @@ type JSScriptExecutor struct {
 func NewJSScriptExecutor(vr *VariableResolver) *JSScriptExecutor {
 	return &JSScriptExecutor{
 		variableResolver: vr,
-		timeout:          5 * time.Second,
+		timeout:          30 * time.Second,
 	}
 }
 
