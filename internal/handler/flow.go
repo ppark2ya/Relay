@@ -2,6 +2,8 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"relay/internal/middleware"
@@ -275,6 +277,52 @@ func (h *FlowHandler) Run(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, result)
+}
+
+func (h *FlowHandler) RunStream(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid ID")
+		return
+	}
+
+	var req RunFlowRequest
+	if err := decodeJSON(r, &req); err != nil {
+		req.StepIDs = nil
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		respondError(w, http.StatusInternalServerError, "Streaming not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	writeSSE := func(event string, data any) {
+		jsonData, _ := json.Marshal(data)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, jsonData)
+		flusher.Flush()
+	}
+
+	callbacks := &service.StreamCallbacks{
+		OnStepStart: func(e service.StepStartEvent) {
+			writeSSE("step:start", e)
+		},
+		OnStepComplete: func(sr service.StepResult) {
+			writeSSE("step:complete", sr)
+		},
+		OnFlowComplete: func(e service.FlowCompleteEvent) {
+			writeSSE("flow:complete", e)
+		},
+	}
+
+	h.runner.RunStream(r.Context(), id, req.StepIDs, callbacks)
 }
 
 func (h *FlowHandler) Duplicate(w http.ResponseWriter, r *http.Request) {

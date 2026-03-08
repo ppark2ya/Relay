@@ -1,5 +1,5 @@
 import api from '../client';
-import type { Flow, FlowStep, FlowResult } from './types';
+import type { Flow, FlowStep, FlowResult, StepStartEvent, StepResult, FlowCompleteEvent, RunFlowStreamCallbacks } from './types';
 
 export const getFlows = () => api.get('flows').json<Flow[]>();
 
@@ -36,5 +36,67 @@ export const updateFlowStep = (flowId: number, stepId: number, data: Partial<Flo
 export const deleteFlowStep = (flowId: number, stepId: number) =>
   api.delete(`flows/${flowId}/steps/${stepId}`);
 
-export const importCollectionToFlow = (flowId: number, collectionId: number) =>
-  api.post(`flows/${flowId}/import-collection`, { json: { collectionId } }).json<FlowStep[]>();
+export const runFlowStream = async (
+  id: number,
+  stepIds: number[] | undefined,
+  callbacks: RunFlowStreamCallbacks,
+  signal?: AbortSignal,
+) => {
+  const workspaceId = localStorage.getItem('workspaceId') || '1';
+  const body = stepIds && stepIds.length > 0 ? JSON.stringify({ stepIds }) : '{}';
+
+  const response = await fetch(`/api/flows/${id}/run/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Workspace-ID': workspaceId,
+    },
+    body,
+    signal,
+  });
+
+  if (!response.ok || !response.body) {
+    callbacks.onError('Failed to start flow stream');
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    let currentEvent = '';
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        currentEvent = line.slice(7);
+      } else if (line.startsWith('data: ') && currentEvent) {
+        const data = line.slice(6);
+        try {
+          switch (currentEvent) {
+            case 'step:start':
+              callbacks.onStepStart(JSON.parse(data) as StepStartEvent);
+              break;
+            case 'step:complete':
+              callbacks.onStepComplete(JSON.parse(data) as StepResult);
+              break;
+            case 'flow:complete':
+              callbacks.onFlowComplete(JSON.parse(data) as FlowCompleteEvent);
+              break;
+          }
+        } catch {
+          // ignore parse errors
+        }
+        currentEvent = '';
+      } else if (line === '') {
+        currentEvent = '';
+      }
+    }
+  }
+};

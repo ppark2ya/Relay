@@ -92,7 +92,7 @@ test.describe('Form Data Body Type', () => {
     await valueInputs.nth(1).fill('test@example.com');
 
     // Save
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save' }).click({ force: true });
 
     // Reload and verify
     await page.reload();

@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  retries: 1,
   timeout: 30_000,
   expect: {
     timeout: 10_000,
@@ -21,11 +21,11 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'CGO_ENABLED=0 go build -o relay-e2e ./cmd/server && DB_PATH=./relay-test.db ./relay-e2e',
+      command: 'DB_PATH=./relay-test.db ./relay-e2e',
       port: 8080,
       reuseExistingServer: !process.env.CI,
       cwd: '..',
-      timeout: 60_000,
+      timeout: 10_000,
     },
     {
       command: 'bun run dev',

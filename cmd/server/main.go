@@ -136,6 +136,7 @@ func main() {
 		r.Put("/flows/{id}", flowHandler.Update)
 		r.Delete("/flows/{id}", flowHandler.Delete)
 		r.Post("/flows/{id}/run", flowHandler.Run)
+		r.Post("/flows/{id}/run/stream", flowHandler.RunStream)
 		r.Post("/flows/{id}/duplicate", flowHandler.Duplicate)
 		r.Get("/flows/{id}/steps", flowHandler.ListSteps)
 		r.Post("/flows/{id}/steps", flowHandler.CreateStep)

@@ -24,9 +24,9 @@ test.describe('Flow Scripts', () => {
     // Expand step
     await page.getByText('Untitled Step').click();
 
-    // Verify Pre-Script and Post-Script labels are visible
-    await expect(page.getByText('Pre-Script')).toBeVisible();
-    await expect(page.getByText('Post-Script')).toBeVisible();
+    // Verify Pre-Script and Post-Script subtab buttons are visible
+    await expect(page.getByRole('button', { name: 'Pre-Script' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Post-Script' })).toBeVisible();
 
     // Verify Continue on Error checkbox is visible
     await expect(page.getByText('Continue on Error')).toBeVisible();
@@ -46,10 +46,12 @@ test.describe('Flow Scripts', () => {
       url: `${JSON_PLACEHOLDER}/posts/1`,
     });
 
-    // Fill Post-Script with assertions
-    const postScriptEditor = page.locator('.cm-content[aria-placeholder*="assertions"]');
-    await postScriptEditor.click();
-    await postScriptEditor.fill(JSON.stringify({
+    // Switch to Post-Script subtab and fill with assertions
+    await page.getByRole('button', { name: 'Post-Script' }).click();
+    const postTab1 = page.getByRole('button', { name: 'Post-Script' });
+    const postEditor1 = postTab1.locator('..').locator('..').locator('..').locator('.cm-content');
+    await postEditor1.click();
+    await postEditor1.fill(JSON.stringify({
       assertions: [
         { type: 'status', operator: 'eq', value: 200 }
       ]
@@ -78,10 +80,12 @@ test.describe('Flow Scripts', () => {
       url: `${JSON_PLACEHOLDER}/posts/1`,
     });
 
-    // Add Post-Script with wrong status assertion (expect 404 but get 200)
-    const postScriptEditor = page.locator('.cm-content[aria-placeholder*="assertions"]');
-    await postScriptEditor.click();
-    await postScriptEditor.fill(JSON.stringify({
+    // Switch to Post-Script subtab and add wrong status assertion
+    await page.getByRole('button', { name: 'Post-Script' }).click();
+    const postTab2 = page.getByRole('button', { name: 'Post-Script' });
+    const postEditor2 = postTab2.locator('..').locator('..').locator('..').locator('.cm-content');
+    await postEditor2.click();
+    await postEditor2.fill(JSON.stringify({
       assertions: [
         { type: 'status', operator: 'eq', value: 404 }
       ]
@@ -108,10 +112,12 @@ test.describe('Flow Scripts', () => {
       url: `${JSON_PLACEHOLDER}/posts/1`,
     });
 
-    // Add failing assertion
-    const postScriptEditor = page.locator('.cm-content[aria-placeholder*="assertions"]');
-    await postScriptEditor.click();
-    await postScriptEditor.fill(JSON.stringify({
+    // Switch to Post-Script subtab and add failing assertion
+    await page.getByRole('button', { name: 'Post-Script' }).click();
+    const postTab3 = page.getByRole('button', { name: 'Post-Script' });
+    const postEditor3 = postTab3.locator('..').locator('..').locator('..').locator('.cm-content');
+    await postEditor3.click();
+    await postEditor3.fill(JSON.stringify({
       assertions: [
         { type: 'status', operator: 'eq', value: 404 }
       ]

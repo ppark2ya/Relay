@@ -54,7 +54,7 @@ test.describe('Request Editor', () => {
     await urlInput.fill(`${JSON_PLACEHOLDER}/posts/1`);
 
     // Save
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save' }).click({ force: true });
 
     // Reload and verify URL persists
     await page.reload();
@@ -76,8 +76,8 @@ test.describe('Request Editor', () => {
     // Click Body tab
     await page.getByRole('button', { name: /Body/ }).click();
 
-    // Select json radio
-    await page.getByLabel('Json').check();
+    // Select json radio (label is lowercase)
+    await page.getByLabel('json').check();
 
     // Type JSON body (CodeMirror editor)
     const bodyEditor = page.locator('.cm-content[contenteditable="true"]');
@@ -85,7 +85,7 @@ test.describe('Request Editor', () => {
     await bodyEditor.fill('{"title": "test"}');
 
     // Save
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save' }).click({ force: true });
 
     // Reload and verify body persists
     await page.reload();
@@ -94,7 +94,7 @@ test.describe('Request Editor', () => {
     await selectRequest(page, 'Test Request');
 
     await page.getByRole('button', { name: /Body/ }).click();
-    await expect(page.getByLabel('Json')).toBeChecked();
+    await expect(page.getByLabel('json')).toBeChecked();
     await expect(page.locator('.cm-content')).toContainText('"title"');
   });
 });

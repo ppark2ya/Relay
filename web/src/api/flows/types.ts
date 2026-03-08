@@ -39,6 +39,7 @@ export interface FlowResult {
   totalTimeMs: number;
   success: boolean;
   error?: string;
+  warnings?: string[];
 }
 
 export interface ScriptResult {
@@ -64,6 +65,28 @@ export interface StepResult {
   loopCount?: number;
   preScriptResult?: ScriptResult;
   postScriptResult?: ScriptResult;
+  warnings?: string[];
+}
+
+// SSE streaming event types
+export interface StepStartEvent {
+  stepId: number;
+  stepName: string;
+  iteration: number;
+  loopCount: number;
+}
+
+export interface FlowCompleteEvent {
+  success: boolean;
+  totalTimeMs: number;
+  error?: string;
+}
+
+export interface RunFlowStreamCallbacks {
+  onStepStart: (event: StepStartEvent) => void;
+  onStepComplete: (result: StepResult) => void;
+  onFlowComplete: (event: FlowCompleteEvent) => void;
+  onError: (error: string) => void;
 }
 
 // DSL Types for Script Editor

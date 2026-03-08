@@ -12,6 +12,44 @@ import (
 	"github.com/google/uuid"
 )
 
+// gojaErrorLocationRe matches goja runtime error locations:
+//   - " at script:3:5(42)" or " at eval:3:5(42)" — top-level errors
+//   - " at funcName (script:3:5(42))" — errors inside functions
+var gojaErrorLocationRe = regexp.MustCompile(`\s+at\s+(?:\w+\s+\()?(?:script|eval):(\d+):(\d+)(?:\(\d+\))?\)?$`)
+
+// gojaCompileErrorRe matches goja compile (SyntaxError) locations: "script: Line N:C ..."
+var gojaCompileErrorRe = regexp.MustCompile(`(?:script|eval): Line (\d+):(\d+)\s+(.+)`)
+
+// gojaNativeSuffixRe matches Go native function references appended by goja:
+// " at relay/internal/service.(*JSScriptExecutor).setupPmAPI.func19 (native)"
+var gojaNativeSuffixRe = regexp.MustCompile(`\s+at\s+\S+\s+\(native\)$`)
+
+// parseGojaErrorLocation extracts line/column from a goja error string.
+// Returns clean message (without location suffix), line, and column.
+// If no location is found, returns the original message with line=0, col=0.
+func parseGojaErrorLocation(errStr string) (string, int, int) {
+	// Try runtime error pattern first
+	if matches := gojaErrorLocationRe.FindStringSubmatch(errStr); matches != nil {
+		line, _ := strconv.Atoi(matches[1])
+		col, _ := strconv.Atoi(matches[2])
+		cleanMsg := gojaErrorLocationRe.ReplaceAllString(errStr, "")
+		return cleanMsg, line, col
+	}
+	// Try compile error pattern
+	if matches := gojaCompileErrorRe.FindStringSubmatch(errStr); matches != nil {
+		line, _ := strconv.Atoi(matches[1])
+		col, _ := strconv.Atoi(matches[2])
+		cleanMsg := fmt.Sprintf("SyntaxError: %s", matches[3])
+		return cleanMsg, line, col
+	}
+	// Strip native Go function references (no line info available)
+	cleanMsg := gojaNativeSuffixRe.ReplaceAllString(errStr, "")
+	if cleanMsg != errStr {
+		return cleanMsg, 0, 0
+	}
+	return errStr, 0, 0
+}
+
 // FlowAction represents the action to take after script execution
 type FlowAction string
 
@@ -22,10 +60,18 @@ const (
 	FlowActionRepeat FlowAction = "repeat"
 )
 
+// ErrorDetail provides structured error location info for inline diagnostics
+type ErrorDetail struct {
+	Message string `json:"message"`
+	Line    int    `json:"line,omitempty"`
+	Column  int    `json:"column,omitempty"`
+}
+
 // ScriptResult holds the result of script execution
 type ScriptResult struct {
 	Success          bool              `json:"success"`
 	Errors           []string          `json:"errors,omitempty"`
+	ErrorDetails     []ErrorDetail     `json:"errorDetails,omitempty"`
 	AssertionsPassed int               `json:"assertionsPassed"`
 	AssertionsFailed int               `json:"assertionsFailed"`
 	UpdatedVars      map[string]string `json:"updatedVars,omitempty"`

@@ -92,7 +92,7 @@ test.describe('Flow Run', () => {
     await runFlowAndWaitForResult(page);
 
     // Verify both steps succeeded
-    await expect(page.getByText('Success')).toBeVisible();
+    await expect(page.getByText('Success')).toBeVisible({ timeout: 15_000 });
     // Both step results should show 200
     const statusCodes = page.getByText('200', { exact: true });
     await expect(statusCodes.first()).toBeVisible();

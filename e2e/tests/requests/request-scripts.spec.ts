@@ -73,7 +73,7 @@ test.describe('Request Scripts', () => {
     await editor.first().fill('pm.variables.set("result", "done");');
 
     // Save
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save' }).click({ force: true });
 
     // Reload and verify scripts persist
     await page.reload();

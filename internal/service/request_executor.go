@@ -476,7 +476,7 @@ func CreateHTTPClient(ctx context.Context, queries *repository.Queries, proxyID 
 
 	return &http.Client{
 		Transport: transport,
-		Timeout:   30 * time.Second,
+		Timeout:   60 * time.Second,
 	}, nil
 }
 

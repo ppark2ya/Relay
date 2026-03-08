@@ -45,6 +45,7 @@ type StepResult struct {
 	LoopCount        int64             `json:"loopCount,omitempty"`
 	PreScriptResult  *ScriptResult     `json:"preScriptResult,omitempty"`
 	PostScriptResult *ScriptResult     `json:"postScriptResult,omitempty"`
+	Warnings         []string          `json:"warnings,omitempty"`
 }
 
 type FlowResult struct {
@@ -54,9 +55,41 @@ type FlowResult struct {
 	TotalTimeMs int64        `json:"totalTimeMs"`
 	Success     bool         `json:"success"`
 	Error       string       `json:"error,omitempty"`
+	Warnings    []string     `json:"warnings,omitempty"`
+}
+
+// StepStartEvent is sent when a step begins execution
+type StepStartEvent struct {
+	StepID    int64  `json:"stepId"`
+	StepName  string `json:"stepName"`
+	Iteration int64  `json:"iteration"`
+	LoopCount int64  `json:"loopCount"`
+}
+
+// FlowCompleteEvent is sent when the entire flow finishes
+type FlowCompleteEvent struct {
+	Success     bool   `json:"success"`
+	TotalTimeMs int64  `json:"totalTimeMs"`
+	Error       string `json:"error,omitempty"`
+}
+
+// StreamCallbacks holds callback functions for streaming flow execution
+type StreamCallbacks struct {
+	OnStepStart    func(StepStartEvent)
+	OnStepComplete func(StepResult)
+	OnFlowComplete func(FlowCompleteEvent)
 }
 
 func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []int64) (*FlowResult, error) {
+	return fr.runInternal(ctx, flowID, selectedStepIDs, nil)
+}
+
+// RunStream executes a flow with streaming callbacks for real-time progress
+func (fr *FlowRunner) RunStream(ctx context.Context, flowID int64, selectedStepIDs []int64, callbacks *StreamCallbacks) (*FlowResult, error) {
+	return fr.runInternal(ctx, flowID, selectedStepIDs, callbacks)
+}
+
+func (fr *FlowRunner) runInternal(ctx context.Context, flowID int64, selectedStepIDs []int64, callbacks *StreamCallbacks) (*FlowResult, error) {
 	flow, err := fr.queries.GetFlow(ctx, flowID)
 	if err != nil {
 		return nil, err
@@ -80,14 +113,26 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 		selectedSet[id] = true
 	}
 
-	// Build step name -> index map for goto resolution
+	// Build step name -> index map for goto resolution (first occurrence wins)
 	stepNameToIndex := make(map[string]int)
 	stepOrderToIndex := make(map[int]int)
+	duplicateNames := make(map[string]bool)
 	for i, step := range steps {
 		if step.Name != "" {
-			stepNameToIndex[step.Name] = i
+			if _, exists := stepNameToIndex[step.Name]; exists {
+				duplicateNames[step.Name] = true
+			} else {
+				stepNameToIndex[step.Name] = i
+			}
 		}
-		stepOrderToIndex[int(step.StepOrder)] = i
+		if _, exists := stepOrderToIndex[int(step.StepOrder)]; !exists {
+			stepOrderToIndex[int(step.StepOrder)] = i
+		}
+	}
+
+	// Add warnings for duplicate step names
+	for name := range duplicateNames {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("Duplicate step name %q found - goto will target first occurrence", name))
 	}
 
 	// Runtime variables accumulated during flow execution
@@ -102,6 +147,7 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 
 	// Use index-based iteration for goto support
 	stepIndex := 0
+outer:
 	for stepIndex < len(steps) {
 		step := steps[stepIndex]
 
@@ -129,7 +175,20 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 				result.Success = false
 				result.Error = "Maximum iteration limit reached"
 				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				if callbacks != nil && callbacks.OnFlowComplete != nil {
+					callbacks.OnFlowComplete(FlowCompleteEvent{Success: false, TotalTimeMs: result.TotalTimeMs, Error: result.Error})
+				}
 				return result, nil
+			}
+
+			// Notify step start
+			if callbacks != nil && callbacks.OnStepStart != nil {
+				callbacks.OnStepStart(StepStartEvent{
+					StepID:    step.ID,
+					StepName:  step.Name,
+					Iteration: iteration,
+					LoopCount: loopCount,
+				})
 			}
 
 			// Add iteration info to runtime vars
@@ -155,6 +214,20 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 				LoopCount:   loopCount,
 			}
 
+			// Helper to emit step complete callback
+			emitStepComplete := func(sr StepResult) {
+				if callbacks != nil && callbacks.OnStepComplete != nil {
+					callbacks.OnStepComplete(sr)
+				}
+			}
+			// Helper to finalize flow and emit complete callback
+			finalizeFlow := func() {
+				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				if callbacks != nil && callbacks.OnFlowComplete != nil {
+					callbacks.OnFlowComplete(FlowCompleteEvent{Success: result.Success, TotalTimeMs: result.TotalTimeMs, Error: result.Error})
+				}
+			}
+
 			// Execute pre-script
 			if step.PreScript.Valid && step.PreScript.String != "" {
 				preResult := fr.executeScript(ctx, step.PreScript.String, scriptCtx, runtimeVars)
@@ -168,7 +241,8 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 				// Handle pre-script flow control
 				if preResult.FlowAction == FlowActionStop {
 					result.Steps = append(result.Steps, stepResult)
-					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					emitStepComplete(stepResult)
+					finalizeFlow()
 					return result, nil
 				}
 			}
@@ -188,9 +262,10 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 			if step.Url == "" {
 				stepResult.ExecuteResult = &ExecuteResult{Error: "step has no URL configured"}
 				result.Steps = append(result.Steps, stepResult)
+				emitStepComplete(stepResult)
 				result.Success = false
 				result.Error = "step has no URL configured"
-				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				finalizeFlow()
 				return result, nil
 			}
 
@@ -201,6 +276,7 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 					stepResult.Skipped = true
 					stepResult.SkipReason = "Condition not met"
 					result.Steps = append(result.Steps, stepResult)
+					emitStepComplete(stepResult)
 					iteration++
 					continue
 				}
@@ -216,10 +292,11 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 			if err != nil {
 				stepResult.ExecuteResult = &ExecuteResult{Error: err.Error()}
 				result.Steps = append(result.Steps, stepResult)
+				emitStepComplete(stepResult)
 				if !step.ContinueOnError.Valid || step.ContinueOnError.Int64 == 0 {
 					result.Success = false
 					result.Error = err.Error()
-					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					finalizeFlow()
 					return result, nil
 				}
 				iteration++
@@ -295,29 +372,31 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 				// Check assertions
 				if !postResult.Success && (!step.ContinueOnError.Valid || step.ContinueOnError.Int64 == 0) {
 					result.Steps = append(result.Steps, stepResult)
+					emitStepComplete(stepResult)
 					result.Success = false
 					if len(postResult.Errors) > 0 {
 						result.Error = postResult.Errors[0]
 					}
-					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					finalizeFlow()
 					return result, nil
 				}
 			}
 
 			result.Steps = append(result.Steps, stepResult)
+			emitStepComplete(stepResult)
 
 			// Check if request failed
 			if execResult.Error != "" && (!step.ContinueOnError.Valid || step.ContinueOnError.Int64 == 0) {
 				result.Success = false
 				result.Error = execResult.Error
-				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				finalizeFlow()
 				return result, nil
 			}
 
 			// Handle flow control from post-script
 			switch flowAction {
 			case FlowActionStop:
-				result.TotalTimeMs = time.Since(startTime).Milliseconds()
+				finalizeFlow()
 				return result, nil
 
 			case FlowActionRepeat:
@@ -329,7 +408,7 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 				if gotoJumps > maxGotoJumps {
 					result.Success = false
 					result.Error = "Maximum goto jump limit reached"
-					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					finalizeFlow()
 					return result, nil
 				}
 
@@ -347,10 +426,23 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 
 				if targetIndex >= 0 {
 					stepIndex = targetIndex
-					iteration = 1 // Reset iteration for the new step
-					continue
+					continue outer
 				}
-				// If target not found, fall through to next step
+
+				// Target not found - add warning (preserve fallthrough for backward compat)
+				var warnMsg string
+				if gotoStepName != "" {
+					warnMsg = fmt.Sprintf("setNextRequest target step not found: %q", gotoStepName)
+				} else if gotoStepOrder > 0 {
+					warnMsg = fmt.Sprintf("setNextRequest target step order not found: %d", gotoStepOrder)
+				}
+				if warnMsg != "" {
+					if len(result.Steps) > 0 {
+						result.Steps[len(result.Steps)-1].Warnings = append(result.Steps[len(result.Steps)-1].Warnings, warnMsg)
+					}
+					result.Warnings = append(result.Warnings, fmt.Sprintf("[%s] %s", step.Name, warnMsg))
+				}
+				// Fall through to next step
 			}
 
 			iteration++
@@ -360,6 +452,9 @@ func (fr *FlowRunner) Run(ctx context.Context, flowID int64, selectedStepIDs []i
 	}
 
 	result.TotalTimeMs = time.Since(startTime).Milliseconds()
+	if callbacks != nil && callbacks.OnFlowComplete != nil {
+		callbacks.OnFlowComplete(FlowCompleteEvent{Success: result.Success, TotalTimeMs: result.TotalTimeMs})
+	}
 	return result, nil
 }
 
@@ -538,6 +633,7 @@ func (fr *FlowRunner) executeJavaScriptWithRequest(ctx context.Context, script s
 	return &ScriptResult{
 		Success:          jsResult.Success,
 		Errors:           jsResult.Errors,
+		ErrorDetails:     jsResult.ErrorDetails,
 		AssertionsPassed: jsResult.AssertionsPassed,
 		AssertionsFailed: jsResult.AssertionsFailed,
 		UpdatedVars:      jsResult.UpdatedVars,

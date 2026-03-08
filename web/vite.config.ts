@@ -11,6 +11,13 @@ export default defineConfig({
     }),
     tailwindcss(),
   ],
+  resolve: {
+    dedupe: [
+      '@codemirror/state',
+      '@codemirror/view',
+      '@codemirror/language',
+    ],
+  },
   server: {
     proxy: {
       '/api/ws/relay': {

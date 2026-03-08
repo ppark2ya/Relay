@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { xml } from '@codemirror/lang-xml';
 import { html } from '@codemirror/lang-html';
@@ -9,6 +9,13 @@ import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/
 import { graphql as graphqlParser } from 'codemirror-graphql/cm6-legacy/mode';
 import { EditorView } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
+import { setDiagnostics, lintGutter } from '@codemirror/lint';
+
+export interface ScriptDiagnostic {
+  line: number;
+  message: string;
+  severity?: 'error' | 'warning';
+}
 
 const lightHighlightTheme = syntaxHighlighting(HighlightStyle.define([
   // JSON: property names (keys) — blue
@@ -66,7 +73,12 @@ const darkEditorTheme = EditorView.theme({
   '.cm-selectionBackground': { backgroundColor: '#4b5563 !important' },
   '.cm-content': { color: '#e5e7eb' },
   '.cm-placeholder': { color: '#9ca3af' },
+  '.cm-lintRange-error': { backgroundImage: 'none', textDecoration: 'wavy underline #ef4444', textUnderlineOffset: '3px' },
 }, { dark: true });
+
+const lightLintTheme = EditorView.theme({
+  '.cm-lintRange-error': { backgroundImage: 'none', textDecoration: 'wavy underline #dc2626', textUnderlineOffset: '3px' },
+});
 
 interface CodeEditorProps {
   value: string;
@@ -75,6 +87,7 @@ interface CodeEditorProps {
   placeholder?: string;
   height?: string;
   readOnly?: boolean;
+  diagnostics?: ScriptDiagnostic[];
 }
 
 export function CodeEditor({
@@ -84,8 +97,10 @@ export function CodeEditor({
   placeholder,
   height = '120px',
   readOnly = false,
+  diagnostics,
 }: CodeEditorProps) {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const cmRef = useRef<ReactCodeMirrorRef>(null);
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -95,12 +110,44 @@ export function CodeEditor({
     return () => observer.disconnect();
   }, []);
 
+  // Apply diagnostics to editor (use rAF to ensure view is initialized after mount)
+  useEffect(() => {
+    const applyDiags = () => {
+      const view = cmRef.current?.view;
+      if (!view) return;
+
+      if (!diagnostics || diagnostics.length === 0) {
+        view.dispatch(setDiagnostics(view.state, []));
+        return;
+      }
+
+      const doc = view.state.doc;
+      const cmDiags = diagnostics
+        .filter(d => d.line > 0 && d.line <= doc.lines)
+        .map(d => {
+          const line = doc.line(d.line);
+          return {
+            from: line.from,
+            to: line.to,
+            severity: (d.severity || 'error') as 'error' | 'warning' | 'info' | 'hint',
+            message: d.message,
+          };
+        });
+
+      view.dispatch(setDiagnostics(view.state, cmDiags));
+    };
+
+    const raf = requestAnimationFrame(applyDiags);
+    return () => cancelAnimationFrame(raf);
+  }, [diagnostics]);
+
   const extensions = useMemo(() => {
     const exts = [
       EditorView.lineWrapping,
       isDark ? darkHighlightTheme : lightHighlightTheme,
+      isDark ? darkEditorTheme : lightLintTheme,
+      lintGutter(),
     ];
-    if (isDark) exts.push(darkEditorTheme);
     if (language === 'json') exts.push(json());
     if (language === 'graphql') exts.push(StreamLanguage.define(graphqlParser));
     if (language === 'xml') exts.push(xml());
@@ -112,6 +159,7 @@ export function CodeEditor({
 
   return (
     <CodeMirror
+      ref={cmRef}
       value={value}
       onChange={readOnly ? undefined : onChange}
       extensions={extensions}

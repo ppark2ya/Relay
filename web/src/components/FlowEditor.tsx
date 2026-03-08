@@ -20,13 +20,11 @@ import {
   useFlow,
   useFlowSteps,
   useUpdateFlow,
-  useRunFlow,
   useCreateFlowStep,
   useUpdateFlowStep,
   useDeleteFlowStep,
-  useImportCollectionToFlow,
+  runFlowStream,
 } from '../api/flows';
-import { useCollections } from '../api/collections';
 import { useRequests } from '../api/requests';
 import { useProxies } from '../api/proxies';
 import { useClickOutside } from '../hooks/useClickOutside';
@@ -200,6 +198,7 @@ interface SortableStepProps {
   stepsLength: number;
   isSelected: boolean;
   hasChanges: boolean;
+  isRunningStep: boolean;
   onToggleSelection: (stepId: number, e: React.MouseEvent) => void;
   onExpand: (stepId: number) => void;
   onDelete: (stepId: number) => void;
@@ -219,6 +218,7 @@ function SortableStep({
   stepsLength,
   isSelected,
   hasChanges,
+  isRunningStep,
   onToggleSelection,
   onExpand,
   onDelete,
@@ -275,9 +275,14 @@ function SortableStep({
             </svg>
           </div>
           <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-xs font-medium ${
-            isStepError ? 'bg-red-500' : isStepSuccess ? 'bg-green-500' : isStepSkipped ? 'bg-gray-400' : 'bg-blue-600'
+            isRunningStep ? 'bg-yellow-500' : isStepError ? 'bg-red-500' : isStepSuccess ? 'bg-green-500' : isStepSkipped ? 'bg-gray-400' : 'bg-blue-600'
           }`}>
-            {isStepError ? (
+            {isRunningStep ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : isStepError ? (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -851,8 +856,10 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showRequestDropdown, setShowRequestDropdown] = useState(false);
-  const [showCollectionDropdown, setShowCollectionDropdown] = useState(false);
   const [flowResult, setFlowResult] = useState<FlowResult | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [runningStepId, setRunningStepId] = useState<number | null>(null);
+  const [completedStepIds, setCompletedStepIds] = useState<Set<number>>(new Set());
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
   const [editStates, setEditStates] = useState<Record<number, StepEditState>>({});
   const [selectedStepIds, setSelectedStepIds] = useState<Set<number>>(new Set());
@@ -867,25 +874,21 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const { data: flowData } = useFlow(flow?.id || 0);
   const { data: steps = [] } = useFlowSteps(flow?.id || 0);
   const { data: requests = [] } = useRequests();
-  const { data: collections = [] } = useCollections();
   const { data: proxies = [] } = useProxies();
   const activeGlobalProxy = proxies.find(p => p.isActive);
 
   const updateFlow = useUpdateFlow();
-  const runFlow = useRunFlow();
   const createStep = useCreateFlowStep();
   const updateStep = useUpdateFlowStep();
   const deleteStep = useDeleteFlowStep();
-  const importCollection = useImportCollectionToFlow();
 
   const [syncedFlowId, setSyncedFlowId] = useState<number | null>(null);
 
   const closeAddMenu = useCallback(() => {
     setShowAddMenu(false);
     setShowRequestDropdown(false);
-    setShowCollectionDropdown(false);
   }, []);
-  const addMenuRef = useClickOutside<HTMLDivElement>(closeAddMenu, showAddMenu || showRequestDropdown || showCollectionDropdown);
+  const addMenuRef = useClickOutside<HTMLDivElement>(closeAddMenu, showAddMenu || showRequestDropdown);
 
   // Sync form fields when flow data changes (React recommended pattern)
   if (flowData && flowData.id !== syncedFlowId) {
@@ -930,23 +933,53 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   }, [flow, name, description, updateFlow, onUpdate]);
 
   const handleRun = () => {
-    if (flow) {
-      setFlowResult(null);
-      const stepIds = selectedStepIds.size > 0 ? Array.from(selectedStepIds) : undefined;
-      runFlow.mutate({ flowId: flow.id, stepIds }, {
-        onSuccess: (result) => setFlowResult(result),
-        onError: (error) => {
-          setFlowResult({
-            flowId: flow.id,
-            flowName: flow.name,
-            steps: [],
-            totalTimeMs: 0,
-            success: false,
-            error: error instanceof Error ? error.message : 'Flow execution failed',
-          });
-        },
-      });
-    }
+    if (!flow) return;
+    setFlowResult(null);
+    setIsRunning(true);
+    setRunningStepId(null);
+    setCompletedStepIds(new Set());
+    const stepIds = selectedStepIds.size > 0 ? Array.from(selectedStepIds) : undefined;
+
+    const accumulatedSteps: StepResult[] = [];
+
+    runFlowStream(flow.id, stepIds, {
+      onStepStart: (event) => {
+        setRunningStepId(event.stepId);
+      },
+      onStepComplete: (result) => {
+        accumulatedSteps.push(result);
+        setCompletedStepIds(prev => new Set(prev).add(result.stepId));
+        setFlowResult(prev => ({
+          flowId: flow.id,
+          flowName: prev?.flowName || flow.name,
+          steps: [...accumulatedSteps],
+          totalTimeMs: 0,
+          success: true,
+        }));
+      },
+      onFlowComplete: (event) => {
+        setIsRunning(false);
+        setRunningStepId(null);
+        setFlowResult(prev => prev ? {
+          ...prev,
+          totalTimeMs: event.totalTimeMs,
+          success: event.success,
+          error: event.error,
+        } : null);
+      },
+      onError: (error) => {
+        setIsRunning(false);
+        setRunningStepId(null);
+        setFlowResult({
+          flowId: flow.id,
+          flowName: flow.name,
+          steps: [...accumulatedSteps],
+          totalTimeMs: 0,
+          success: false,
+          error,
+        });
+      },
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -1054,14 +1087,6 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
         },
       });
       setShowRequestDropdown(false);
-      setShowAddMenu(false);
-    }
-  };
-
-  const handleImportCollection = (collectionId: number) => {
-    if (flow) {
-      importCollection.mutate({ flowId: flow.id, collectionId });
-      setShowCollectionDropdown(false);
       setShowAddMenu(false);
     }
   };
@@ -1239,10 +1264,10 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           </div>
           <button
             onClick={handleRun}
-            disabled={runFlow.isPending || steps.length === 0}
+            disabled={isRunning || steps.length === 0}
             className="px-6 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
           >
-            {runFlow.isPending ? (
+            {isRunning ? (
               <>
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -1260,6 +1285,11 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               </>
             )}
           </button>
+          {isRunning && (
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {completedStepIds.size}/{steps.length} steps
+            </span>
+          )}
           <button
             onClick={handleSave}
             disabled={updateFlow.isPending}
@@ -1299,6 +1329,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                         stepsLength={steps.length}
                         isSelected={selectedStepIds.has(step.id)}
                         hasChanges={hasStepChanges(step.id)}
+                        isRunningStep={runningStepId === step.id}
                         onToggleSelection={toggleStepSelection}
                         onExpand={handleExpandStep}
                         onDelete={handleDeleteStep}
@@ -1329,7 +1360,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               </svg>
               Add Step
             </button>
-            {showAddMenu && !showRequestDropdown && !showCollectionDropdown && (
+            {showAddMenu && !showRequestDropdown && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10">
                 <button
                   onClick={handleAddBlankStep}
@@ -1353,18 +1384,6 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                   <div>
                     <div className="font-medium dark:text-gray-200">Copy From Request</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">Copy data from an existing request as a template</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setShowCollectionDropdown(true)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-                >
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                  <div>
-                    <div className="font-medium dark:text-gray-200">Import from Collection</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Add all requests from a collection as steps</div>
                   </div>
                 </button>
               </div>
@@ -1399,37 +1418,6 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                 )}
               </div>
             )}
-            {showCollectionDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10 max-h-64 overflow-y-auto">
-                <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
-                  <button
-                    onClick={() => setShowCollectionDropdown(false)}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Select a collection to import</span>
-                </div>
-                {collections.length === 0 ? (
-                  <div className="p-4 text-xs text-gray-500 dark:text-gray-400">No collections available. Create collections first.</div>
-                ) : (
-                  collections.map(col => (
-                    <button
-                      key={col.id}
-                      onClick={() => handleImportCollection(col.id)}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 dark:text-gray-200"
-                    >
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                      </svg>
-                      <span className="font-medium dark:text-gray-200">{col.name}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -1450,6 +1438,14 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
             {flowResult.error && (
               <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-xs text-red-700 dark:text-red-400">
                 {flowResult.error}
+              </div>
+            )}
+            {flowResult.warnings && flowResult.warnings.length > 0 && (
+              <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800">
+                <div className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">Warnings</div>
+                {flowResult.warnings.map((w, i) => (
+                  <div key={i} className="text-xs text-amber-600 dark:text-amber-400">⚠ {w}</div>
+                ))}
               </div>
             )}
             <div className="space-y-2">
@@ -1509,6 +1505,14 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                     <div className="mt-1 text-xs text-red-600 dark:text-red-400">
                       {stepResult.postScriptResult.errors.map((err, i) => (
                         <div key={i}>{err}</div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Show goto warnings */}
+                  {stepResult.warnings && stepResult.warnings.length > 0 && (
+                    <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                      {stepResult.warnings.map((w, i) => (
+                        <div key={i}>⚠ {w}</div>
                       ))}
                     </div>
                   )}

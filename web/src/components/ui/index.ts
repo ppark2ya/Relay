@@ -10,3 +10,4 @@ export type { FormDataItem } from './FormDataEditor';
 export { InlineCreateForm } from './InlineCreateForm';
 export { Modal } from './Modal';
 export { CodeEditor } from './CodeEditor';
+export type { ScriptDiagnostic } from './CodeEditor';
