@@ -895,6 +895,8 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
   const [editStates, setEditStates] = useState<Record<number, StepEditState>>({});
   const [selectedStepIds, setSelectedStepIds] = useState<Set<number>>(new Set());
+  const [expandedResultIds, setExpandedResultIds] = useState<Set<string>>(new Set());
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const sensors = useSensors(
@@ -976,12 +978,43 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     setFlowResult(prev => prev ? { ...prev, success: false, error: 'Cancelled' } : null);
   };
 
+  const toggleResultExpand = (key: string) => {
+    setExpandedResultIds(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleCopyBody = (key: string, body: string) => {
+    navigator.clipboard.writeText(body);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 1500);
+  };
+
+  const formatBodySize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  };
+
+  const formatBody = (body: string) => {
+    try {
+      return JSON.stringify(JSON.parse(body), null, 2);
+    } catch {
+      return body;
+    }
+  };
+
   const handleRun = () => {
     if (!flow) return;
     setFlowResult(null);
     setIsRunning(true);
     setRunningStepId(null);
     setCompletedStepIds(new Set());
+    setExpandedResultIds(new Set());
+    setCopiedKey(null);
     const stepIds = selectedStepIds.size > 0 ? Array.from(selectedStepIds) : undefined;
 
     const controller = new AbortController();
@@ -1647,10 +1680,16 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
               </div>
             )}
             <div className="space-y-2">
-              {flowResult.steps.map((stepResult) => (
+              {flowResult.steps.map((stepResult) => {
+                const resultKey = `${stepResult.stepId}-${stepResult.iteration || 0}`;
+                const isExpanded = expandedResultIds.has(resultKey);
+                const hasBody = !stepResult.skipped && stepResult.executeResult.body && !stepResult.executeResult.error;
+                const isBinary = stepResult.executeResult.isBinary;
+
+                return (
                 <div
-                  key={`${stepResult.stepId}-${stepResult.iteration || 0}`}
-                  className={`p-3 rounded-lg border ${
+                  key={resultKey}
+                  className={`rounded-lg border ${
                     stepResult.skipped
                       ? 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
                       : stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400
@@ -1658,70 +1697,112 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                       : 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium dark:text-gray-200">
-                      {stepResult.requestName || 'Untitled'}
-                      {stepResult.loopCount && stepResult.loopCount > 1 && (
-                        <span className="ml-1 text-purple-600 dark:text-purple-400">
-                          ({stepResult.iteration}/{stepResult.loopCount})
+                  <div
+                    className={`p-3 ${hasBody || isBinary ? 'cursor-pointer select-none' : ''}`}
+                    onClick={() => (hasBody || isBinary) && toggleResultExpand(resultKey)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium dark:text-gray-200">
+                        {stepResult.requestName || 'Untitled'}
+                        {stepResult.loopCount && stepResult.loopCount > 1 && (
+                          <span className="ml-1 text-purple-600 dark:text-purple-400">
+                            ({stepResult.iteration}/{stepResult.loopCount})
+                          </span>
+                        )}
+                      </span>
+                      {stepResult.skipped ? (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Skipped: {stepResult.skipReason}</span>
+                      ) : (
+                        <>
+                          <span className={`text-xs ${stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                            {stepResult.executeResult.statusCode || 'Error'}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{stepResult.executeResult.durationMs}ms</span>
+                          {stepResult.executeResult.bodySize > 0 && (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">{formatBodySize(stepResult.executeResult.bodySize)}</span>
+                          )}
+                        </>
+                      )}
+                      {/* Show assertion results if available */}
+                      {stepResult.postScriptResult && (stepResult.postScriptResult.assertionsPassed > 0 || stepResult.postScriptResult.assertionsFailed > 0) && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          stepResult.postScriptResult.assertionsFailed > 0
+                            ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                        }`}>
+                          {stepResult.postScriptResult.assertionsPassed}/{stepResult.postScriptResult.assertionsPassed + stepResult.postScriptResult.assertionsFailed} assertions
                         </span>
                       )}
-                    </span>
-                    {stepResult.skipped ? (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Skipped: {stepResult.skipReason}</span>
-                    ) : (
-                      <>
-                        <span className={`text-xs ${stepResult.executeResult.error || stepResult.executeResult.statusCode >= 400 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                          {stepResult.executeResult.statusCode || 'Error'}
+                      {/* Show flow action if not next */}
+                      {stepResult.postScriptResult && stepResult.postScriptResult.flowAction !== 'next' && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                          {stepResult.postScriptResult.flowAction}
+                          {stepResult.postScriptResult.gotoStepName && ` → ${stepResult.postScriptResult.gotoStepName}`}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{stepResult.executeResult.durationMs}ms</span>
-                      </>
+                      )}
+                      <div className="ml-auto flex items-center gap-1">
+                        {hasBody && !isBinary && (
+                          <button
+                            className="text-xs px-1.5 py-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400"
+                            onClick={(e) => { e.stopPropagation(); handleCopyBody(resultKey, stepResult.executeResult.body); }}
+                          >
+                            {copiedKey === resultKey ? 'Copied!' : 'Copy'}
+                          </button>
+                        )}
+                        {(hasBody || isBinary) && (
+                          <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    {/* Body preview when collapsed */}
+                    {!isExpanded && hasBody && !isBinary && stepResult.executeResult.body && (
+                      <div className="mt-1 text-xs text-gray-400 dark:text-gray-500 truncate font-mono">
+                        {stepResult.executeResult.body.slice(0, 100)}
+                      </div>
                     )}
-                    {/* Show assertion results if available */}
-                    {stepResult.postScriptResult && (stepResult.postScriptResult.assertionsPassed > 0 || stepResult.postScriptResult.assertionsFailed > 0) && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${
-                        stepResult.postScriptResult.assertionsFailed > 0
-                          ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                          : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                      }`}>
-                        {stepResult.postScriptResult.assertionsPassed}/{stepResult.postScriptResult.assertionsPassed + stepResult.postScriptResult.assertionsFailed} assertions
-                      </span>
+                    {stepResult.executeResult.error && (
+                      <div className="mt-1 text-xs text-red-600 dark:text-red-400">{stepResult.executeResult.error}</div>
                     )}
-                    {/* Show flow action if not next */}
-                    {stepResult.postScriptResult && stepResult.postScriptResult.flowAction !== 'next' && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-                        {stepResult.postScriptResult.flowAction}
-                        {stepResult.postScriptResult.gotoStepName && ` → ${stepResult.postScriptResult.gotoStepName}`}
-                      </span>
+                    {/* Show assertion errors */}
+                    {stepResult.postScriptResult?.errors && stepResult.postScriptResult.errors.length > 0 && (
+                      <div className="mt-1 text-xs text-red-600 dark:text-red-400">
+                        {stepResult.postScriptResult.errors.map((err, i) => (
+                          <div key={i}>{err}</div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Show goto warnings */}
+                    {stepResult.warnings && stepResult.warnings.length > 0 && (
+                      <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        {stepResult.warnings.map((w, i) => (
+                          <div key={i}>⚠ {w}</div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Show extracted variables */}
+                    {Object.keys(stepResult.extractedVars || {}).length > 0 && (
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Variables: {Object.entries(stepResult.extractedVars).map(([k, v]) => `${k}=${v}`).join(', ')}
+                      </div>
                     )}
                   </div>
-                  {stepResult.executeResult.error && (
-                    <div className="mt-1 text-xs text-red-600 dark:text-red-400">{stepResult.executeResult.error}</div>
-                  )}
-                  {/* Show assertion errors */}
-                  {stepResult.postScriptResult?.errors && stepResult.postScriptResult.errors.length > 0 && (
-                    <div className="mt-1 text-xs text-red-600 dark:text-red-400">
-                      {stepResult.postScriptResult.errors.map((err, i) => (
-                        <div key={i}>{err}</div>
-                      ))}
-                    </div>
-                  )}
-                  {/* Show goto warnings */}
-                  {stepResult.warnings && stepResult.warnings.length > 0 && (
-                    <div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                      {stepResult.warnings.map((w, i) => (
-                        <div key={i}>⚠ {w}</div>
-                      ))}
-                    </div>
-                  )}
-                  {/* Show extracted variables */}
-                  {Object.keys(stepResult.extractedVars || {}).length > 0 && (
-                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Variables: {Object.entries(stepResult.extractedVars).map(([k, v]) => `${k}=${v}`).join(', ')}
+                  {/* Expanded response body */}
+                  {isExpanded && (
+                    <div className="px-3 pb-3">
+                      {isBinary ? (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 italic">(Binary response)</div>
+                      ) : hasBody ? (
+                        <pre className="text-xs font-mono bg-gray-100 dark:bg-gray-900 rounded p-2 max-h-48 overflow-auto whitespace-pre-wrap break-all">
+                          {formatBody(stepResult.executeResult.body)}
+                        </pre>
+                      ) : null}
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
