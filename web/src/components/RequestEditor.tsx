@@ -599,6 +599,20 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     [cookieItems]
   );
 
+  // Check if body has content
+  const hasBodyContent = useMemo(() => {
+    if (bodyType === 'none') return false;
+    if (bodyType === 'form-urlencoded') return formItems.some(i => i.key.trim());
+    if (bodyType === 'formdata') return formDataItems.some(i => i.key.trim());
+    return body.trim().length > 0;
+  }, [bodyType, body, formItems, formDataItems]);
+
+  // Check if scripts have content
+  const hasScriptsContent = useMemo(() =>
+    preScript.trim().length > 0 || postScript.trim().length > 0,
+    [preScript, postScript]
+  );
+
   // Detect unsaved changes by comparing current form state with server data
   const hasChanges = useMemo(() => {
     if (!fullRequestData || isFromHistory) return false;
@@ -942,8 +956,8 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
           { key: 'params', label: 'Params', badge: validParamsCount },
           { key: 'headers', label: 'Headers', badge: validHeadersCount },
           { key: 'cookies', label: 'Cookies', badge: validCookiesCount },
-          { key: 'body', label: 'Body' },
-          { key: 'scripts', label: 'Scripts' },
+          { key: 'body', label: 'Body', dot: hasBodyContent },
+          { key: 'scripts', label: 'Scripts', dot: hasScriptsContent },
         ]}
         activeTab={method === 'WS' ? 'headers' : activeTab}
         onTabChange={key => setActiveTab(key as Tab)}

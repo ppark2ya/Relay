@@ -333,11 +333,15 @@ function SortableStep({
                 ×{step.loopCount}
               </span>
             )}
+            {step.bodyType && step.bodyType !== 'none' && step.body && step.body.trim() && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700" title="Body has content">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                Body
+              </span>
+            )}
             {(step.preScript || step.postScript) && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700" title={`${step.preScript ? 'Pre-script' : ''}${step.preScript && step.postScript ? ' + ' : ''}${step.postScript ? 'Post-script' : ''}`}>
-                <svg className="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700" title={`${step.preScript ? 'Pre-script' : ''}${step.preScript && step.postScript ? ' + ' : ''}${step.postScript ? 'Post-script' : ''}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                 Script
               </span>
             )}
@@ -620,7 +624,18 @@ function SortableStep({
                 </FormField>
 
                 {/* Body Type + Body - full width */}
-                <FormField label="Body">
+                <FormField label={
+                  <span className="flex items-center gap-1.5">
+                    Body
+                    {edit.bodyType !== 'none' && (
+                      edit.bodyType === 'form-urlencoded' ? edit.formItems.some(i => i.key.trim()) :
+                      edit.bodyType === 'formdata' ? edit.formDataItems.some(i => i.key.trim()) :
+                      edit.body.trim().length > 0
+                    ) && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    )}
+                  </span>
+                }>
                   <div className="flex gap-2 mb-2">
                     {BODY_TYPES.map(bt => (
                       <button
@@ -733,6 +748,9 @@ function SortableStep({
                 <FormField label={
                   <span className="flex items-center gap-1">
                     Scripts
+                    {(edit.preScript.trim() || edit.postScript.trim()) && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    )}
                     <span className="relative group/scripts">
                       <svg className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
