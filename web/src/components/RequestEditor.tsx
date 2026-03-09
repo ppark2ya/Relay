@@ -7,6 +7,13 @@ import { useClickOutside } from '../hooks/useClickOutside';
 import type { Request, ExecuteResult, ScriptResult, WSConnectionStatus } from '../types';
 import { TabNav, KeyValueEditor, FormDataEditor, EmptyState, METHOD_BG_COLORS, METHOD_TEXT_COLORS, CodeEditor } from './ui';
 import type { FormDataItem, ScriptDiagnostic } from './ui';
+import {
+  METHODS_WITH_WS as METHODS, COMMON_HEADERS,
+  type ScriptMode,
+  detectScriptMode, normalizeBodyType, parseHeaders, serializeHeaderItems,
+  parseFormBody, buildFormBody, parseFormDataBody, serializeFormDataItems,
+  buildGraphqlBody, parseGraphqlBody,
+} from './shared';
 
 interface WSControls {
   status: WSConnectionStatus;
@@ -25,36 +32,6 @@ interface RequestEditorProps {
   onScriptResults?: (pre: ScriptResult | undefined, post: ScriptResult | undefined) => void;
   ws?: WSControls;
 }
-
-type ScriptMode = 'dsl' | 'javascript';
-
-const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS', 'WS'];
-
-/** Normalize legacy body type values to unified types */
-function normalizeBodyType(bt: string): string {
-  if (bt === 'raw') return 'text';
-  if (bt === 'form') return 'form-urlencoded';
-  return bt;
-}
-
-const COMMON_HEADERS = [
-  'Accept',
-  'Accept-Encoding',
-  'Accept-Language',
-  'Authorization',
-  'Cache-Control',
-  'Content-Type',
-  'Cookie',
-  'Host',
-  'If-Modified-Since',
-  'If-None-Match',
-  'Origin',
-  'Referer',
-  'User-Agent',
-  'X-Requested-With',
-  'X-Forwarded-For',
-  'X-API-Key',
-];
 
 type Tab = 'params' | 'headers' | 'cookies' | 'body' | 'scripts';
 
@@ -181,59 +158,6 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setParamItems(params);
   }, []);
 
-  // Parse form-urlencoded body string into key-value items
-  const parseFormBody = useCallback((bodyStr: string) => {
-    if (!bodyStr.trim()) return [];
-    return bodyStr.split('&').map(pair => {
-      const [k, ...rest] = pair.split('=');
-      return {
-        key: decodeURIComponent(k || ''),
-        value: decodeURIComponent(rest.join('=')),
-        enabled: true,
-      };
-    });
-  }, []);
-
-  // Serialize form items to URL-encoded string
-  const buildFormBody = useCallback((items: Array<{ key: string; value: string; enabled: boolean }>) => {
-    return items
-      .filter(i => i.enabled && i.key.trim())
-      .map(i => `${encodeURIComponent(i.key)}=${encodeURIComponent(i.value)}`)
-      .join('&');
-  }, []);
-
-  // Parse cookies from JSON string (same format as headers)
-  const parseCookies = useCallback((cookiesJson: string) => {
-    try {
-      const parsed = JSON.parse(cookiesJson || '{}');
-      return Object.entries(parsed).map(([key, val]) => {
-        if (typeof val === 'object' && val !== null && 'value' in val) {
-          const obj = val as { value: string; enabled: boolean };
-          return { key, value: obj.value, enabled: obj.enabled ?? true };
-        }
-        return { key, value: String(val), enabled: true };
-      });
-    } catch {
-      return [];
-    }
-  }, []);
-
-  // Parse headers from JSON string
-  const parseHeaders = useCallback((headersJson: string) => {
-    try {
-      const parsed = JSON.parse(headersJson || '{}');
-      return Object.entries(parsed).map(([key, val]) => {
-        if (typeof val === 'object' && val !== null && 'value' in val) {
-          const obj = val as { value: string; enabled: boolean };
-          return { key, value: obj.value, enabled: obj.enabled ?? true };
-        }
-        return { key, value: String(val), enabled: true };
-      });
-    } catch {
-      return [];
-    }
-  }, []);
-
   // Sync form state with full request data (React recommended render-time pattern)
   const [syncedRequestId, setSyncedRequestId] = useState<number | null>(null);
 
@@ -245,42 +169,26 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setBodyType(normalizeBodyType(fullRequestData.bodyType || 'none'));
 
     if (fullRequestData.bodyType === 'graphql' && fullRequestData.body) {
-      try {
-        const parsed = JSON.parse(fullRequestData.body);
-        setBody(parsed.query || '');
-        setGraphqlVariables(parsed.variables ? JSON.stringify(parsed.variables, null, 2) : '');
-      } catch {
-        setBody(fullRequestData.body || '');
-        setGraphqlVariables('');
-      }
+      const gql = parseGraphqlBody(fullRequestData.body);
+      setBody(gql.query);
+      setGraphqlVariables(gql.variables);
     } else {
       setBody(fullRequestData.body || '');
       setGraphqlVariables('');
     }
 
     setFormItems(fullRequestData.bodyType === 'form' || fullRequestData.bodyType === 'form-urlencoded' ? parseFormBody(fullRequestData.body || '') : []);
-    if (fullRequestData.bodyType === 'formdata' && fullRequestData.body) {
-      try {
-        const parsed = JSON.parse(fullRequestData.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean; contentType?: string }>;
-        setFormDataItems(parsed.map(item => ({ ...item, file: undefined })));
-      } catch {
-        setFormDataItems([]);
-      }
-    } else {
-      setFormDataItems([]);
-    }
+    setFormDataItems(fullRequestData.bodyType === 'formdata' && fullRequestData.body ? parseFormDataBody(fullRequestData.body) : []);
     setHeaderItems(parseHeaders(fullRequestData.headers || '{}'));
-    setCookieItems(parseCookies(fullRequestData.cookies || '{}'));
+    setCookieItems(parseHeaders(fullRequestData.cookies || '{}'));
     parseParamsFromUrl(fullRequestData.url);
     setProxyId(fullRequestData.proxyId ?? null);
     setPreScript(fullRequestData.preScript || '');
     setPostScript(fullRequestData.postScript || '');
     setPreScriptDiagnostics([]);
     setPostScriptDiagnostics([]);
-    // Detect script mode from content
-    const detectMode = (s: string): ScriptMode => s.trimStart().startsWith('{') ? 'dsl' : 'javascript';
-    setPreScriptMode(fullRequestData.preScript ? detectMode(fullRequestData.preScript) : 'javascript');
-    setPostScriptMode(fullRequestData.postScript ? detectMode(fullRequestData.postScript) : 'javascript');
+    setPreScriptMode(detectScriptMode(fullRequestData.preScript || ''));
+    setPostScriptMode(detectScriptMode(fullRequestData.postScript || ''));
   }
 
   // Sync form state from history-loaded synthetic request (id=0)
@@ -296,18 +204,9 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     setBody(request.body || '');
     setGraphqlVariables('');
     setFormItems(request.bodyType === 'form' || request.bodyType === 'form-urlencoded' ? parseFormBody(request.body || '') : []);
-    if (request.bodyType === 'formdata' && request.body) {
-      try {
-        const parsed = JSON.parse(request.body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean; contentType?: string }>;
-        setFormDataItems(parsed.map(item => ({ ...item, file: undefined })));
-      } catch {
-        setFormDataItems([]);
-      }
-    } else {
-      setFormDataItems([]);
-    }
+    setFormDataItems(request.bodyType === 'formdata' && request.body ? parseFormDataBody(request.body) : []);
     setHeaderItems(parseHeaders(request.headers || '{}'));
-    setCookieItems(parseCookies(request.cookies || '{}'));
+    setCookieItems(parseHeaders(request.cookies || '{}'));
     parseParamsFromUrl(request.url);
     setProxyId(null);
   }
@@ -334,38 +233,9 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     parseParamsFromUrl(newUrl);
   };
 
-  // Get cookies JSON for saving (includes enabled state)
-  const getCookiesJsonForSave = () => {
-    const obj: Record<string, { value: string; enabled: boolean }> = {};
-    cookieItems.forEach(({ key, value, enabled }) => {
-      if (key.trim()) obj[key] = { value, enabled };
-    });
-    return JSON.stringify(obj, null, 2);
-  };
-
-  // Get headers JSON for saving (includes enabled state)
-  const getHeadersJsonForSave = () => {
-    const obj: Record<string, { value: string; enabled: boolean }> = {};
-    headerItems.forEach(({ key, value, enabled }) => {
-      if (key.trim()) obj[key] = { value, enabled };
-    });
-    return JSON.stringify(obj, null, 2);
-  };
-
-  // Build body for GraphQL type
-  const buildGraphqlBody = () => {
-    const graphqlPayload: { query: string; variables?: Record<string, unknown> } = {
-      query: body,
-    };
-    if (graphqlVariables.trim()) {
-      try {
-        graphqlPayload.variables = JSON.parse(graphqlVariables);
-      } catch {
-        // Invalid JSON, ignore variables
-      }
-    }
-    return JSON.stringify(graphqlPayload);
-  };
+  const getCookiesJsonForSave = () => serializeHeaderItems(cookieItems);
+  const getHeadersJsonForSave = () => serializeHeaderItems(headerItems);
+  const buildGraphqlBodyForSave = () => buildGraphqlBody(body, graphqlVariables);
 
   const handleSave = () => {
     if (request) {
@@ -375,12 +245,11 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
 
       // Build body based on type
       const bodyToSave = bodyType === 'graphql'
-        ? buildGraphqlBody()
+        ? buildGraphqlBodyForSave()
         : bodyType === 'form-urlencoded'
         ? buildFormBody(formItems)
         : bodyType === 'formdata'
-        ? JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize, contentType }) =>
-            ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}), ...(contentType ? { contentType } : {}) })))
+        ? serializeFormDataItems(formDataItems)
         : body;
 
       updateRequest.mutate({
@@ -470,7 +339,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     const headersJson = JSON.stringify(headersObj, null, 2);
 
     // Build body based on type
-    const bodyToSend = bodyType === 'graphql' ? buildGraphqlBody() : bodyType === 'form-urlencoded' ? buildFormBody(formItems) : body;
+    const bodyToSend = bodyType === 'graphql' ? buildGraphqlBodyForSave() : bodyType === 'form-urlencoded' ? buildFormBody(formItems) : body;
 
     const onSettled = () => {
       onExecutingChange?.(false);
@@ -504,8 +373,7 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
 
       // If all file items have fileIds (persisted), use JSON execute — backend loads from disk
       if (!hasRuntimeFiles && allFilesHaveIds && enabledItems.length > 0) {
-        const formDataBody = JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize, contentType }) =>
-          ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}), ...(contentType ? { contentType } : {}) })));
+        const formDataBody = serializeFormDataItems(formDataItems);
         if (isFromHistory) {
           executeAdhoc.mutate({
             data: { method, url, headers: headersJson, body: formDataBody, proxyId: proxyIdForExec },
@@ -620,12 +488,11 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     const savedBodyType = normalizeBodyType(fullRequestData.bodyType || 'none');
 
     const currentBody = bodyType === 'graphql'
-      ? buildGraphqlBody()
+      ? buildGraphqlBodyForSave()
       : bodyType === 'form-urlencoded'
       ? buildFormBody(formItems)
       : bodyType === 'formdata'
-      ? JSON.stringify(formDataItems.map(({ key, value, type, enabled, fileId, fileSize }) =>
-          ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}) })))
+      ? serializeFormDataItems(formDataItems)
       : body;
 
     return (

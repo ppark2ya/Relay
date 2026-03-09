@@ -35,36 +35,17 @@ import { useClickOutside } from '../hooks/useClickOutside';
 import type { Flow, FlowResult, FlowStep, StepResult } from '../types';
 import type { FormDataItem } from './ui';
 import { CodeEditor, EmptyState, FormDataEditor, FormField, INPUT_CLASS, KeyValueEditor, MethodBadge } from './ui';
+import {
+  METHODS, BODY_TYPES, COMMON_HEADERS,
+  type ScriptMode, type HeadersMode,
+  detectScriptMode, parseHeaders, serializeHeaderItems, parseFormBody, buildFormBody,
+  parseFormDataBody, serializeFormDataItems, buildGraphqlBody, parseGraphqlBody,
+} from './shared';
 
 interface FlowEditorProps {
   flow: Flow | null;
   onUpdate: (flow: Flow) => void;
 }
-
-const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
-const BODY_TYPES = ['none', 'json', 'text', 'xml', 'form-urlencoded', 'formdata', 'graphql'];
-
-const COMMON_HEADERS = [
-  'Accept',
-  'Accept-Encoding',
-  'Accept-Language',
-  'Authorization',
-  'Cache-Control',
-  'Content-Type',
-  'Cookie',
-  'Host',
-  'If-Modified-Since',
-  'If-None-Match',
-  'Origin',
-  'Referer',
-  'User-Agent',
-  'X-Requested-With',
-  'X-Forwarded-For',
-  'X-API-Key',
-];
-
-type ScriptMode = 'dsl' | 'javascript';
-type HeadersMode = 'key-value' | 'raw';
 
 interface StepEditState {
   name: string;
@@ -90,56 +71,6 @@ interface StepEditState {
   continueOnError: boolean;
 }
 
-// Detect if a script is JavaScript (not JSON DSL)
-function detectScriptMode(script: string): ScriptMode {
-  const trimmed = script.trim();
-  if (!trimmed) return 'javascript'; // Default for empty
-  // JSON DSL starts with {
-  return trimmed.startsWith('{') ? 'dsl' : 'javascript';
-}
-
-function parseHeaders(headersJson: string): Array<{ key: string; value: string; enabled: boolean }> {
-  try {
-    const parsed = JSON.parse(headersJson || '{}');
-    return Object.entries(parsed).map(([key, val]) => {
-      if (typeof val === 'object' && val !== null && 'value' in val) {
-        const obj = val as { value: string; enabled: boolean };
-        return { key, value: obj.value, enabled: obj.enabled ?? true };
-      }
-      return { key, value: String(val), enabled: true };
-    });
-  } catch {
-    return [];
-  }
-}
-
-function serializeHeaderItems(items: Array<{ key: string; value: string; enabled: boolean }>): string {
-  const obj: Record<string, { value: string; enabled: boolean }> = {};
-  items.forEach(({ key, value, enabled }) => {
-    if (key.trim()) obj[key] = { value, enabled };
-  });
-  return JSON.stringify(obj, null, 2);
-}
-
-function parseFormBody(bodyStr: string): Array<{ key: string; value: string; enabled: boolean }> {
-  if (!bodyStr.trim()) return [];
-  return bodyStr.split('&').map(pair => {
-    const [k, ...rest] = pair.split('=');
-    return {
-      key: decodeURIComponent(k || ''),
-      value: decodeURIComponent(rest.join('=')),
-      enabled: true,
-    };
-  });
-}
-
-function buildFormBody(items: Array<{ key: string; value: string; enabled: boolean }>): string {
-  return items
-    .filter(i => i.enabled && i.key.trim())
-    .map(i => `${encodeURIComponent(i.key)}=${encodeURIComponent(i.value)}`)
-    .join('&');
-}
-
 function stepToEditState(step: FlowStep): StepEditState {
   const bodyType = step.bodyType || 'none';
   const body = step.body || '';
@@ -150,22 +81,13 @@ function stepToEditState(step: FlowStep): StepEditState {
   let formDataItems: FormDataItem[] = [];
 
   if (bodyType === 'graphql' && body) {
-    try {
-      const parsed = JSON.parse(body);
-      parsedBody = parsed.query || '';
-      graphqlVariables = parsed.variables ? JSON.stringify(parsed.variables, null, 2) : '';
-    } catch {
-      parsedBody = body;
-    }
+    const gql = parseGraphqlBody(body);
+    parsedBody = gql.query;
+    graphqlVariables = gql.variables;
   } else if (bodyType === 'form-urlencoded') {
     formItems = parseFormBody(body);
   } else if (bodyType === 'formdata') {
-    try {
-      const parsed = JSON.parse(body) as Array<{ key: string; value: string; type: 'text' | 'file'; enabled: boolean; contentType?: string }>;
-      formDataItems = parsed.map(item => ({ ...item, file: undefined }));
-    } catch {
-      formDataItems = [];
-    }
+    formDataItems = parseFormDataBody(body);
   }
 
   const headersStr = step.headers || '{}';
@@ -1260,16 +1182,11 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     // Build body based on bodyType
     let bodyToSave = edit.body;
     if (edit.bodyType === 'graphql') {
-      const graphqlPayload: { query: string; variables?: Record<string, unknown> } = { query: edit.body };
-      if (edit.graphqlVariables.trim()) {
-        try { graphqlPayload.variables = JSON.parse(edit.graphqlVariables); } catch { /* ignore */ }
-      }
-      bodyToSave = JSON.stringify(graphqlPayload);
+      bodyToSave = buildGraphqlBody(edit.body, edit.graphqlVariables);
     } else if (edit.bodyType === 'form-urlencoded') {
       bodyToSave = buildFormBody(edit.formItems);
     } else if (edit.bodyType === 'formdata') {
-      bodyToSave = JSON.stringify(edit.formDataItems.map(({ key, value, type, enabled, fileId, fileSize, contentType }) =>
-        ({ key, value, type, enabled, ...(fileId ? { fileId, fileSize } : {}), ...(contentType ? { contentType } : {}) })));
+      bodyToSave = serializeFormDataItems(edit.formDataItems);
     }
 
     // Build headers: use headerItems (key-value mode) or raw text
