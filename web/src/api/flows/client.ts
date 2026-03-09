@@ -36,6 +36,9 @@ export const updateFlowStep = (flowId: number, stepId: number, data: Partial<Flo
 export const deleteFlowStep = (flowId: number, stepId: number) =>
   api.delete(`flows/${flowId}/steps/${stepId}`);
 
+export const importCollection = (flowId: number, collectionId: number) =>
+  api.post(`flows/${flowId}/import-collection`, { json: { collectionId } }).json<FlowStep[]>();
+
 export const runFlowStream = async (
   id: number,
   stepIds: number[] | undefined,
