@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { xml } from '@codemirror/lang-xml';
@@ -141,7 +141,7 @@ export function CodeEditor({
     return () => cancelAnimationFrame(raf);
   }, [diagnostics]);
 
-  const extensions = useMemo(() => {
+  const extensions = (() => {
     const exts = [
       EditorView.lineWrapping,
       isDark ? darkHighlightTheme : lightHighlightTheme,
@@ -155,7 +155,7 @@ export function CodeEditor({
     if (language === 'css') exts.push(css());
     if (language === 'javascript') exts.push(javascript());
     return exts;
-  }, [language, isDark]);
+  })();
 
   return (
     <CodeMirror

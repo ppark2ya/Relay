@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useCollections } from '../api/collections';
 import { useFlows } from '../api/flows';
 import { useHistory } from '../api/history';
@@ -36,9 +36,9 @@ export function GlobalSearch({ isOpen, onClose, onSelectRequest, onSelectFlow, o
   const { data: flows = [] } = useFlows();
   const { data: history = [] } = useHistory();
 
-  const allRequests = useMemo(() => flattenRequests(collections), [collections]);
+  const allRequests = flattenRequests(collections);
 
-  const results = useMemo((): SearchResult[] => {
+  const results = ((): SearchResult[] => {
     if (!query.trim()) return [];
 
     const items: SearchResult[] = [];
@@ -65,7 +65,7 @@ export function GlobalSearch({ isOpen, onClose, onSelectRequest, onSelectFlow, o
     }
 
     return items;
-  }, [query, allRequests, flows, history]);
+  })();
 
   // Reset selected index when query changes
   useEffect(() => {
@@ -89,7 +89,7 @@ export function GlobalSearch({ isOpen, onClose, onSelectRequest, onSelectFlow, o
     selected?.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex]);
 
-  const handleSelect = useCallback((result: SearchResult) => {
+  const handleSelect = (result: SearchResult) => {
     onClose();
     if (result.type === 'request') {
       onSelectRequest((result.item as FlatRequest).request);
@@ -98,9 +98,9 @@ export function GlobalSearch({ isOpen, onClose, onSelectRequest, onSelectFlow, o
     } else {
       onSelectHistory(result.item as History);
     }
-  }, [onClose, onSelectRequest, onSelectFlow, onSelectHistory]);
+  };
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
@@ -113,7 +113,7 @@ export function GlobalSearch({ isOpen, onClose, onSelectRequest, onSelectFlow, o
     } else if (e.key === 'Escape') {
       onClose();
     }
-  }, [results, selectedIndex, handleSelect, onClose]);
+  };
 
   if (!isOpen) return null;
 

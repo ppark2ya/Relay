@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 
 export type View = 'requests' | 'flows' | 'history';
 
@@ -64,23 +64,23 @@ export function useNavigation(onUrlChange?: (state: NavState) => void): UseNavig
     return () => window.removeEventListener('popstate', handlePopState);
   }, [onUrlChange]);
 
-  const navigateToRequest = useCallback((id: number) => {
+  const navigateToRequest = (id: number) => {
     const url = buildUrl('requests', id);
     window.history.pushState(null, '', url);
     setState({ view: 'requests', resourceId: id });
-  }, []);
+  };
 
-  const navigateToFlow = useCallback((id: number) => {
+  const navigateToFlow = (id: number) => {
     const url = buildUrl('flows', id);
     window.history.pushState(null, '', url);
     setState({ view: 'flows', resourceId: id });
-  }, []);
+  };
 
-  const navigateToView = useCallback((view: View) => {
+  const navigateToView = (view: View) => {
     const url = buildUrl(view);
     window.history.pushState(null, '', url);
     setState({ view, resourceId: null });
-  }, []);
+  };
 
   return {
     view: state.view,

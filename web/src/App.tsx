@@ -1,9 +1,9 @@
-import { useState, useCallback, useRef, useMemo, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useRef, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Sidebar } from './components/Sidebar';
-import { RequestEditor } from './components/RequestEditor';
+import { Sidebar } from './components/sidebar';
+import { RequestEditor } from './components/request';
 import { ResponseViewer } from './components/ResponseViewer';
-import { FlowEditor } from './components/FlowEditor';
+import { FlowEditor } from './components/flow';
 import { WebSocketPanel } from './components/WebSocketPanel';
 import { Header } from './components/Header';
 import { useNavigation } from './hooks/useNavigation';
@@ -26,10 +26,10 @@ function AppContent() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [currentMethod, setCurrentMethod] = useState('GET');
   const cancelRef = useRef<(() => void) | null>(null);
-  const cancelCallbacks = useMemo(() => ({
+  const cancelCallbacks = {
     onCancelReady: (fn: (() => void) | null) => { cancelRef.current = fn; },
     cancel: () => cancelRef.current?.(),
-  }), []);
+  };
 
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
 
@@ -50,7 +50,7 @@ function AppContent() {
     localStorage.setItem('requestPanelWidth', String(requestPanelWidth));
   }, [requestPanelWidth]);
 
-  const handlePanelResizeStart = useCallback((e: ReactMouseEvent) => {
+  const handlePanelResizeStart = (e: ReactMouseEvent) => {
     e.preventDefault();
     isPanelResizing.current = true;
     const container = (e.target as HTMLElement).parentElement!;
@@ -74,7 +74,7 @@ function AppContent() {
     document.addEventListener('mouseup', onMouseUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, []);
+  };
 
   // Cmd+K / Ctrl+K global shortcut
   useEffect(() => {
@@ -94,13 +94,13 @@ function AppContent() {
   const ws = useWebSocket();
 
   // Clear local overrides when browser back/forward changes the URL
-  const handleUrlChange = useCallback(() => {
+  const handleUrlChange = () => {
     setLocalRequest(null);
     setLocalFlow(null);
     // response/scriptResults cleared here; derived effectiveResponse restores from cache
     setResponse(null);
     setScriptResults(null);
-  }, []);
+  };
 
   const { view, resourceId, navigateToRequest, navigateToFlow, navigateToView } = useNavigation(handleUrlChange);
 
@@ -128,22 +128,22 @@ function AppContent() {
       : null
   );
 
-  const handleMethodChange = useCallback((method: string) => {
+  const handleMethodChange = (method: string) => {
     setCurrentMethod(method);
     // Disconnect WS when switching away from WS method
     if (method !== 'WS' && ws.status !== 'disconnected') {
       ws.disconnect();
     }
-  }, [ws]);
+  };
 
-  const handleExecuteResult = useCallback((result: ExecuteResult) => {
+  const handleExecuteResult = (result: ExecuteResult) => {
     setResponse(result);
     if (selectedRequest?.id && selectedRequest.id > 0) {
       responseCache.set(selectedRequest.id, { response: result, scriptResults: null });
     }
-  }, [selectedRequest, responseCache]);
+  };
 
-  const handleScriptResults = useCallback((pre: ScriptResult | undefined, post: ScriptResult | undefined) => {
+  const handleScriptResults = (pre: ScriptResult | undefined, post: ScriptResult | undefined) => {
     const sr = (pre || post) ? { pre, post } : null;
     setScriptResults(sr);
     if (selectedRequest?.id && selectedRequest.id > 0) {
@@ -152,9 +152,9 @@ function AppContent() {
         cached.scriptResults = sr;
       }
     }
-  }, [selectedRequest, responseCache]);
+  };
 
-  const handleSelectRequest = useCallback((request: Request | null) => {
+  const handleSelectRequest = (request: Request | null) => {
     setLocalRequest(request);
     // Restore from cache or clear
     if (request && request.id > 0) {
@@ -174,22 +174,22 @@ function AppContent() {
     } else if (!request) {
       navigateToView('requests');
     }
-  }, [navigateToRequest, navigateToView, ws, responseCache]);
+  };
 
-  const handleSelectFlow = useCallback((flow: Flow | null) => {
+  const handleSelectFlow = (flow: Flow | null) => {
     setLocalFlow(flow);
     if (flow) {
       navigateToFlow(flow.id);
     } else {
       navigateToView('flows');
     }
-  }, [navigateToFlow, navigateToView]);
+  };
 
-  const handleViewChange = useCallback((newView: 'requests' | 'flows' | 'history') => {
+  const handleViewChange = (newView: 'requests' | 'flows' | 'history') => {
     navigateToView(newView);
-  }, [navigateToView]);
+  };
 
-  const handleSelectHistory = useCallback((item: History) => {
+  const handleSelectHistory = (item: History) => {
     // Infer bodyType from Content-Type header
     let bodyType = 'none';
     try {
@@ -245,7 +245,7 @@ function AppContent() {
     setResponse(historyResponse);
     // Navigate to requests view but don't put history item in URL
     navigateToView('requests');
-  }, [navigateToView]);
+  };
 
   const isWSMode = currentMethod === 'WS';
 

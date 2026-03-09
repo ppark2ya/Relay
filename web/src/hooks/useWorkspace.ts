@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWorkspaces } from '../api/workspaces';
 
@@ -23,12 +23,12 @@ export function useWorkspaceProvider(): WorkspaceContextValue {
   });
   const queryClient = useQueryClient();
 
-  const switchWorkspace = useCallback((id: number) => {
+  const switchWorkspace = (id: number) => {
     setCurrentWorkspaceId(id);
     localStorage.setItem('workspaceId', String(id));
     // Invalidate all queries to re-fetch data for the new workspace
     queryClient.invalidateQueries();
-  }, [queryClient]);
+  };
 
   return { currentWorkspaceId, switchWorkspace };
 }
