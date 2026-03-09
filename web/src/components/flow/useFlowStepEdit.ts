@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
 import type { DragEndEvent } from '@dnd-kit/core';
 import {
@@ -96,7 +96,7 @@ export function useFlowStepEdit(flow: Flow | null) {
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
   const [selectedStepIds, setSelectedStepIds] = useState<Set<number>>(new Set());
 
-  const hasStepChanges = useCallback((stepId: number): boolean => {
+  const hasStepChanges = (stepId: number): boolean => {
     const edit = editStates[stepId];
     const step = steps.find(s => s.id === stepId);
     if (!edit || !step) return false;
@@ -116,7 +116,7 @@ export function useFlowStepEdit(flow: Flow | null) {
       edit.postScript !== (step.postScript || '') ||
       edit.continueOnError !== (step.continueOnError || false)
     );
-  }, [editStates, steps]);
+  };
 
   const handleExpandStep = (stepId: number) => {
     if (expandedStepId === stepId) {
@@ -137,7 +137,7 @@ export function useFlowStepEdit(flow: Flow | null) {
     }));
   };
 
-  const handleSaveStep = useCallback((stepId: number) => {
+  const handleSaveStep = (stepId: number) => {
     if (!flow) return;
     const edit = editStates[stepId];
     if (!edit) return;
@@ -189,7 +189,7 @@ export function useFlowStepEdit(flow: Flow | null) {
         }));
       },
     });
-  }, [flow, editStates, steps, updateStep]);
+  };
 
   const handleDeleteStep = (stepId: number) => {
     if (flow) {

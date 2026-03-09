@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useFlow, useUpdateFlow } from '../../api/flows';
 import type { Flow } from '../../types';
 
@@ -21,7 +21,7 @@ export function useFlowForm(
     setDescription(flowData.description || '');
   }
 
-  const handleSave = useCallback(() => {
+  const handleSave = () => {
     if (flow) {
       updateFlow.mutate({
         id: flow.id,
@@ -30,7 +30,7 @@ export function useFlowForm(
         onSuccess: (data) => onUpdate(data),
       });
     }
-  }, [flow, name, description, updateFlow, onUpdate]);
+  };
 
   return {
     name, setName,

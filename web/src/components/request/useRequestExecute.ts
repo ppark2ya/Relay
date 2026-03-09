@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useRef } from 'react';
 import { useExecuteRequest, useExecuteAdhoc, useExecuteRequestWithFiles, useExecuteAdhocWithFiles } from '../../api/requests';
 import type { Request, ExecuteResult, ScriptResult } from '../../types';
 import type { FormDataItem, ScriptDiagnostic } from '../ui';
@@ -45,10 +45,10 @@ export function useRequestExecute({
   const executeRequestWithFiles = useExecuteRequestWithFiles();
   const executeAdhocWithFiles = useExecuteAdhocWithFiles();
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = () => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-  }, []);
+  };
 
   const handleExecute = () => {
     if (!request) return;

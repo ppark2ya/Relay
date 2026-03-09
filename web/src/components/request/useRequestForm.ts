@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState } from 'react';
 import { useUpdateRequest, useRequest } from '../../api/requests';
 import { useEnvironments } from '../../api/environments';
 import { useProxies } from '../../api/proxies';
@@ -45,19 +45,19 @@ export function useRequestForm(
   const { data: fullRequestData } = useRequest(request?.id || 0);
 
   const activeEnv = environments.find(e => e.isActive);
-  const envVariables = useMemo(() => {
+  const envVariables = (() => {
     if (!activeEnv?.variables) return {};
     try {
       return JSON.parse(activeEnv.variables) as Record<string, string>;
     } catch {
       return {};
     }
-  }, [activeEnv?.variables]);
+  })();
 
   const activeGlobalProxy = proxies.find(p => p.isActive);
 
   // Parse query params from URL
-  const parseParamsFromUrl = useCallback((urlString: string) => {
+  const parseParamsFromUrl = (urlString: string) => {
     const qIndex = urlString.indexOf('?');
     if (qIndex === -1 || qIndex === urlString.length - 1) {
       setParamItems([]);
@@ -79,7 +79,7 @@ export function useRequestForm(
       }
     });
     setParamItems(params);
-  }, []);
+  };
 
   // Render-time sync with full request data
   const [syncedRequestId, setSyncedRequestId] = useState<number | null>(null);
@@ -195,7 +195,7 @@ export function useRequestForm(
     }
   };
 
-  const handleImportCookies = useCallback((imported: Array<{ key: string; value: string; enabled: boolean }>) => {
+  const handleImportCookies = (imported: Array<{ key: string; value: string; enabled: boolean }>) => {
     setCookieItems(prev => {
       const existing = new Map(prev.filter(c => c.key.trim()).map(c => [c.key, c]));
       for (const c of imported) {
@@ -203,37 +203,25 @@ export function useRequestForm(
       }
       return Array.from(existing.values());
     });
-  }, []);
+  };
 
   // Computed values
-  const validParamsCount = useMemo(() =>
-    paramItems.filter(p => p.key.trim() && p.enabled).length,
-    [paramItems],
-  );
+  const validParamsCount = paramItems.filter(p => p.key.trim() && p.enabled).length;
 
-  const validHeadersCount = useMemo(() =>
-    headerItems.filter(h => h.key.trim() && h.enabled).length,
-    [headerItems],
-  );
+  const validHeadersCount = headerItems.filter(h => h.key.trim() && h.enabled).length;
 
-  const validCookiesCount = useMemo(() =>
-    cookieItems.filter(c => c.key.trim() && c.enabled).length,
-    [cookieItems],
-  );
+  const validCookiesCount = cookieItems.filter(c => c.key.trim() && c.enabled).length;
 
-  const hasBodyContent = useMemo(() => {
+  const hasBodyContent = (() => {
     if (bodyType === 'none') return false;
     if (bodyType === 'form-urlencoded') return formItems.some(i => i.key.trim());
     if (bodyType === 'formdata') return formDataItems.some(i => i.key.trim());
     return body.trim().length > 0;
-  }, [bodyType, body, formItems, formDataItems]);
+  })();
 
-  const hasScriptsContent = useMemo(() =>
-    preScript.trim().length > 0 || postScript.trim().length > 0,
-    [preScript, postScript],
-  );
+  const hasScriptsContent = preScript.trim().length > 0 || postScript.trim().length > 0;
 
-  const hasChanges = useMemo(() => {
+  const hasChanges = (() => {
     if (!fullRequestData || isFromHistory) return false;
 
     const savedBodyType = normalizeBodyType(fullRequestData.bodyType || 'none');
@@ -258,7 +246,7 @@ export function useRequestForm(
       preScript !== (fullRequestData.preScript || '') ||
       postScript !== (fullRequestData.postScript || '')
     );
-  }, [fullRequestData, isFromHistory, name, method, url, bodyType, body, formItems, formDataItems, graphqlVariables, headerItems, cookieItems, proxyId, preScript, postScript]);
+  })();
 
   return {
     // Form state

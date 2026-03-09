@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useReorderCollections } from '../../api/collections';
@@ -67,7 +67,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     localStorage.setItem('sidebarWidth', String(sidebarWidth));
   }, [sidebarWidth]);
 
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+  const handleResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
     isResizing.current = true;
     const startX = e.clientX;
@@ -91,34 +91,24 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     document.addEventListener('mouseup', onMouseUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, [sidebarWidth]);
+  };
 
   // Filter data based on filterQuery
-  const filteredCollections = useMemo(() => {
-    if (!filterQuery.trim()) return { collections, expandedIds: null as Set<number> | null };
-    return filterCollectionTree(collections, filterQuery);
-  }, [collections, filterQuery]);
+  const filteredCollections = !filterQuery.trim()
+    ? { collections, expandedIds: null as Set<number> | null }
+    : filterCollectionTree(collections, filterQuery);
 
-  const filteredFlows = useMemo(() => {
-    if (!filterQuery.trim()) return flows;
-    return filterFlows(flows, filterQuery);
-  }, [flows, filterQuery]);
+  const filteredFlows = !filterQuery.trim() ? flows : filterFlows(flows, filterQuery);
 
-  const filteredHistory = useMemo(() => {
-    if (!filterQuery.trim()) return history;
-    return filterHistory(history, filterQuery);
-  }, [history, filterQuery]);
+  const filteredHistory = !filterQuery.trim() ? history : filterHistory(history, filterQuery);
 
-  const filteredDateGroups = useMemo(
-    () => groupHistoryByDate(filteredHistory),
-    [filteredHistory],
-  );
+  const filteredDateGroups = groupHistoryByDate(filteredHistory);
 
-  // Reset filter when tab changes
-  const prevView = useRef(view);
-  if (prevView.current !== view) {
-    prevView.current = view;
-    if (filterQuery) setFilterQuery('');
+  // Reset filter when tab changes (React 19 pattern: adjust state during render)
+  const [prevView, setPrevView] = useState(view);
+  if (prevView !== view) {
+    setPrevView(view);
+    setFilterQuery('');
   }
 
   const isDndDisabled = !!filterQuery.trim();
@@ -135,7 +125,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     });
   };
 
-  const closeNewFlow = useCallback(() => setShowNewFlow(false), []);
+  const closeNewFlow = () => setShowNewFlow(false);
   const newFlowRef = useClickOutside<HTMLDivElement>(closeNewFlow, showNewFlow);
 
   const handleCreateCollection = () => {
@@ -180,7 +170,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   };
 
   // --- Collection/Request DnD handler ---
-  const handleCollectionDragEnd = useCallback((event: DragEndEvent) => {
+  const handleCollectionDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -269,10 +259,10 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
         collectionId: overColId,
       }]);
     }
-  }, [filteredCollections.collections, reorderCollections, reorderRequests]);
+  };
 
   // --- Flow DnD handler ---
-  const handleFlowDragEnd = useCallback((event: DragEndEvent) => {
+  const handleFlowDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -289,7 +279,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
       sortOrder: idx + 1,
     }));
     reorderFlows.mutate(orders);
-  }, [filteredFlows, reorderFlows]);
+  };
 
   return (
     <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden" style={{ width: sidebarWidth, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH }}>

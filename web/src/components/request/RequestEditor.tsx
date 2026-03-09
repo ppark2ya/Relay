@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { uploadFile, deleteFile } from '../../api/files';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import type { Request, ExecuteResult, ScriptResult, WSConnectionStatus } from '../../types';
@@ -81,13 +81,13 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
     onMethodChange?.(form.method);
   }, [form.method, onMethodChange]);
 
-  const closeMethodDropdown = useCallback(() => setShowMethodDropdown(false), []);
+  const closeMethodDropdown = () => setShowMethodDropdown(false);
   const methodDropdownRef = useClickOutside<HTMLDivElement>(closeMethodDropdown, showMethodDropdown);
 
-  const closeEnvVars = useCallback(() => setShowEnvVars(false), []);
+  const closeEnvVars = () => setShowEnvVars(false);
   const envVarsRef = useClickOutside<HTMLDivElement>(closeEnvVars, showEnvVars);
 
-  const closeProxySelector = useCallback(() => setShowProxySelector(false), []);
+  const closeProxySelector = () => setShowProxySelector(false);
   const proxySelectorRef = useClickOutside<HTMLDivElement>(closeProxySelector, showProxySelector);
 
   // Cmd+S / Ctrl+S to save

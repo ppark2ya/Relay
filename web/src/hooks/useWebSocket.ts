@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { WSMessage, WSConnectionStatus } from '../types';
 
 interface RelayEnvelope {
@@ -20,7 +20,7 @@ export function useWebSocket() {
   const [messages, setMessages] = useState<WSMessage[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const connect = useCallback((url: string, headers: string, proxyId?: number | null, wsConnectionId?: number, subprotocols?: string[]) => {
+  const connect = (url: string, headers: string, proxyId?: number | null, wsConnectionId?: number, subprotocols?: string[]) => {
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -115,9 +115,9 @@ export function useWebSocket() {
       setStatus('disconnected');
       wsRef.current = null;
     };
-  }, []);
+  };
 
-  const send = useCallback((payload: string, format: 'text' | 'binary' = 'text') => {
+  const send = (payload: string, format: 'text' | 'binary' = 'text') => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'send', payload, format }));
       setMessages(prev => [...prev, {
@@ -128,20 +128,20 @@ export function useWebSocket() {
         timestamp: new Date().toISOString(),
       }]);
     }
-  }, []);
+  };
 
-  const disconnect = useCallback(() => {
+  const disconnect = () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'close' }));
     }
     wsRef.current?.close();
     wsRef.current = null;
     setStatus('disconnected');
-  }, []);
+  };
 
-  const clearMessages = useCallback(() => {
+  const clearMessages = () => {
     setMessages([]);
-  }, []);
+  };
 
   // Cleanup on unmount
   useEffect(() => {

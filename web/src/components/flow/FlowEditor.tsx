@@ -11,7 +11,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCollections } from '../../api/collections';
 import type { Collection } from '../../api/collections/types';
 import { useImportCollection } from '../../api/flows';
@@ -54,11 +54,11 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     })
   );
 
-  const closeAddMenu = useCallback(() => {
+  const closeAddMenu = () => {
     setShowAddMenu(false);
     setShowRequestDropdown(false);
     setShowCollectionDropdown(false);
-  }, []);
+  };
   const addMenuRef = useClickOutside<HTMLDivElement>(closeAddMenu, showAddMenu || showRequestDropdown || showCollectionDropdown);
 
   // Build collection name lookup maps

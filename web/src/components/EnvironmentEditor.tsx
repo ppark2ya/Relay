@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useEnvironments,
   useCreateEnvironment,
@@ -34,7 +34,7 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
   const [syncedEnvId, setSyncedEnvId] = useState<number | null>(null);
 
   // Auto-select first environment or active one
-  const effectiveEnvId = useMemo(() => {
+  const effectiveEnvId = (() => {
     if (selectedEnvId !== null && environments.some(e => e.id === selectedEnvId)) {
       return selectedEnvId;
     }
@@ -43,12 +43,9 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
       return (active || environments[0]).id;
     }
     return null;
-  }, [isOpen, environments, selectedEnvId]);
+  })();
 
-  const selectedEnv = useMemo(() =>
-    environments.find(e => e.id === effectiveEnvId) || null,
-    [environments, effectiveEnvId]
-  );
+  const selectedEnv = environments.find(e => e.id === effectiveEnvId) || null;
 
   // Sync form fields when selected env changes (React recommended pattern)
   if (selectedEnv && selectedEnv.id !== syncedEnvId) {
@@ -66,17 +63,17 @@ export function EnvironmentEditor({ isOpen, onClose }: EnvironmentEditorProps) {
     }
   }
 
-  const setSelectedEnv = useCallback((env: Environment | null) => {
+  const setSelectedEnv = (env: Environment | null) => {
     setSelectedEnvId(env?.id || null);
-  }, []);
+  };
 
-  const closeModal = useCallback(() => {
+  const closeModal = () => {
     onClose();
     setSelectedEnvId(null);
     setSyncedEnvId(null);
     setShowNewEnvInput(false);
     setNewEnvName('');
-  }, [onClose]);
+  };
 
   const handleCreateEnv = () => {
     if (newEnvName.trim()) {
