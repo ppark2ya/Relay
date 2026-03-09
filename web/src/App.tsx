@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/sidebar';
-import { RequestEditor } from './components/RequestEditor';
+import { RequestEditor } from './components/request';
 import { ResponseViewer } from './components/ResponseViewer';
 import { FlowEditor } from './components/FlowEditor';
 import { WebSocketPanel } from './components/WebSocketPanel';
