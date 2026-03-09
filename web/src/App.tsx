@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/sidebar';
 import { RequestEditor } from './components/request';
 import { ResponseViewer } from './components/ResponseViewer';
-import { FlowEditor } from './components/FlowEditor';
+import { FlowEditor } from './components/flow';
 import { WebSocketPanel } from './components/WebSocketPanel';
 import { Header } from './components/Header';
 import { useNavigation } from './hooks/useNavigation';
