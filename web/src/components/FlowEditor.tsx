@@ -40,6 +40,7 @@ import {
   type ScriptMode, type HeadersMode,
   detectScriptMode, parseHeaders, serializeHeaderItems, parseFormBody, buildFormBody,
   parseFormDataBody, serializeFormDataItems, buildGraphqlBody, parseGraphqlBody,
+  ScriptEditor,
 } from './shared';
 
 interface FlowEditorProps {
@@ -696,78 +697,19 @@ function SortableStep({
                     </span>
                   </span>
                 }>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setStepScriptTab('pre')}
-                        className={`px-3 py-1 text-xs rounded-md font-medium ${
-                          stepScriptTab === 'pre'
-                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        Pre-Script
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStepScriptTab('post')}
-                        className={`px-3 py-1 text-xs rounded-md font-medium ${
-                          stepScriptTab === 'post'
-                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        Post-Script
-                      </button>
-                    </div>
-                    <div className="flex gap-1 ml-auto">
-                      <button
-                        type="button"
-                        onClick={() => onEditChange(step.id, stepScriptTab === 'pre' ? 'preScriptMode' : 'postScriptMode', 'dsl')}
-                        className={`px-2 py-0.5 text-xs rounded border ${
-                          (stepScriptTab === 'pre' ? edit.preScriptMode : edit.postScriptMode) === 'dsl'
-                            ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                            : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        DSL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onEditChange(step.id, stepScriptTab === 'pre' ? 'preScriptMode' : 'postScriptMode', 'javascript')}
-                        className={`px-2 py-0.5 text-xs rounded border ${
-                          (stepScriptTab === 'pre' ? edit.preScriptMode : edit.postScriptMode) === 'javascript'
-                            ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                            : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        JavaScript
-                      </button>
-                    </div>
-                  </div>
-                  {stepScriptTab === 'pre' && (
-                    <CodeEditor
-                      value={edit.preScript}
-                      onChange={val => onEditChange(step.id, 'preScript', val)}
-                      language={edit.preScriptMode === 'javascript' ? 'javascript' : 'json'}
-                      placeholder={edit.preScriptMode === 'javascript'
-                        ? '// Pre-request script\npm.variables.set("timestamp", Date.now().toString());'
-                        : '{"setVariables": [{"name": "counter", "operation": "increment"}]}'}
-                      height="200px"
-                    />
-                  )}
-                  {stepScriptTab === 'post' && (
-                    <CodeEditor
-                      value={edit.postScript}
-                      onChange={val => onEditChange(step.id, 'postScript', val)}
-                      language={edit.postScriptMode === 'javascript' ? 'javascript' : 'json'}
-                      placeholder={edit.postScriptMode === 'javascript'
-                        ? `// Post-request script (Postman-compatible)\npm.test("Status is 200", function() {\n    pm.response.to.have.status(200);\n});\n\nlet data = pm.response.json();\npm.environment.set("userId", data.id);`
-                        : '{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'}
-                      height="200px"
-                    />
-                  )}
+                  <ScriptEditor
+                    preScript={edit.preScript}
+                    postScript={edit.postScript}
+                    preScriptMode={edit.preScriptMode}
+                    postScriptMode={edit.postScriptMode}
+                    onPreScriptChange={val => onEditChange(step.id, 'preScript', val)}
+                    onPostScriptChange={val => onEditChange(step.id, 'postScript', val)}
+                    onPreScriptModeChange={mode => onEditChange(step.id, 'preScriptMode', mode)}
+                    onPostScriptModeChange={mode => onEditChange(step.id, 'postScriptMode', mode)}
+                    activeTab={stepScriptTab}
+                    onTabChange={setStepScriptTab}
+                    height="200px"
+                  />
                 </FormField>
 
                 {/* Continue On Error */}

@@ -20,3 +20,5 @@ export {
   buildGraphqlBody,
   parseGraphqlBody,
 } from './http-utils';
+
+export { ScriptEditor } from './ScriptEditor';

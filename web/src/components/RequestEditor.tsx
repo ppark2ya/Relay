@@ -13,6 +13,7 @@ import {
   detectScriptMode, normalizeBodyType, parseHeaders, serializeHeaderItems,
   parseFormBody, buildFormBody, parseFormDataBody, serializeFormDataItems,
   buildGraphqlBody, parseGraphqlBody,
+  ScriptEditor,
 } from './shared';
 
 interface WSControls {
@@ -979,93 +980,20 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
 
         {activeTab === 'scripts' && method !== 'WS' && (
           <div className="flex-1 flex flex-col min-h-0 gap-2">
-            {/* Script Sub-tabs */}
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => setScriptTab('pre')}
-                  className={`px-3 py-1 text-xs rounded-md font-medium ${
-                    scriptTab === 'pre'
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  Pre-Script
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setScriptTab('post')}
-                  className={`px-3 py-1 text-xs rounded-md font-medium ${
-                    scriptTab === 'post'
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  Post-Script
-                </button>
-              </div>
-              <div className="flex gap-1 ml-auto">
-                <button
-                  type="button"
-                  onClick={() => scriptTab === 'pre' ? setPreScriptMode('dsl') : setPostScriptMode('dsl')}
-                  className={`px-2 py-0.5 text-xs rounded border ${
-                    (scriptTab === 'pre' ? preScriptMode : postScriptMode) === 'dsl'
-                      ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                      : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  DSL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scriptTab === 'pre' ? setPreScriptMode('javascript') : setPostScriptMode('javascript')}
-                  className={`px-2 py-0.5 text-xs rounded border ${
-                    (scriptTab === 'pre' ? preScriptMode : postScriptMode) === 'javascript'
-                      ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                      : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  JavaScript
-                </button>
-              </div>
-            </div>
-
-            {/* Pre-Script Editor */}
-            {scriptTab === 'pre' && (
-              <div className="flex-1 min-h-0 relative">
-                <div className="absolute inset-0">
-                  <CodeEditor
-                    value={preScript}
-                    onChange={v => { setPreScript(v); setPreScriptDiagnostics([]); }}
-                    language={preScriptMode === 'javascript' ? 'javascript' : 'json'}
-                    placeholder={preScriptMode === 'javascript'
-                      ? '// Pre-request script\npm.variables.set("timestamp", Date.now().toString());'
-                      : '{"setVariables": [{"name": "counter", "operation": "increment"}]}'}
-                    height="100%"
-                    diagnostics={preScriptDiagnostics}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Post-Script Editor */}
-            {scriptTab === 'post' && (
-              <div className="flex-1 min-h-0 relative">
-                <div className="absolute inset-0">
-                  <CodeEditor
-                    value={postScript}
-                    onChange={v => { setPostScript(v); setPostScriptDiagnostics([]); }}
-                    language={postScriptMode === 'javascript' ? 'javascript' : 'json'}
-                    placeholder={postScriptMode === 'javascript'
-                      ? `// Post-request script (Postman-compatible)\npm.test("Status is 200", function() {\n    pm.response.to.have.status(200);\n});\n\nlet data = pm.response.json();\npm.environment.set("userId", data.id);`
-                      : '{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'}
-                    height="100%"
-                    diagnostics={postScriptDiagnostics}
-                  />
-                </div>
-              </div>
-            )}
+            <ScriptEditor
+              preScript={preScript}
+              postScript={postScript}
+              preScriptMode={preScriptMode}
+              postScriptMode={postScriptMode}
+              onPreScriptChange={v => { setPreScript(v); setPreScriptDiagnostics([]); }}
+              onPostScriptChange={v => { setPostScript(v); setPostScriptDiagnostics([]); }}
+              onPreScriptModeChange={setPreScriptMode}
+              onPostScriptModeChange={setPostScriptMode}
+              activeTab={scriptTab}
+              onTabChange={setScriptTab}
+              preScriptDiagnostics={preScriptDiagnostics}
+              postScriptDiagnostics={postScriptDiagnostics}
+            />
           </div>
         )}
       </div>
