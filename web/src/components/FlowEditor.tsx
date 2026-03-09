@@ -254,40 +254,40 @@ function SortableStep({
   const isStepSkipped = stepResult?.skipped;
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-stretch gap-3">
+    <div ref={setNodeRef} style={style} className="flex items-stretch gap-2">
       {/* Checkbox + Drag handle + Step number */}
       <div className="flex flex-col items-center">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <input
             type="checkbox"
             checked={isSelected}
             onClick={(e) => onToggleSelection(step.id, e)}
             onChange={() => {}}
-            className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
           />
           <div
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="cursor-grab active:cursor-grabbing p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
             </svg>
           </div>
-          <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-xs font-medium ${
+          <div className={`w-6 h-6 rounded-full text-white flex items-center justify-center text-[10px] font-medium ${
             isRunningStep ? 'bg-yellow-500' : isStepError ? 'bg-red-500' : isStepSuccess ? 'bg-green-500' : isStepSkipped ? 'bg-gray-400' : 'bg-blue-600'
           }`}>
             {isRunningStep ? (
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             ) : isStepError ? (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
             ) : isStepSuccess ? (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
             ) : (
@@ -296,12 +296,12 @@ function SortableStep({
           </div>
         </div>
         {index < stepsLength - 1 && (
-          <div className="w-0.5 flex-1 bg-gray-300 dark:bg-gray-600 my-1 ml-10" />
+          <div className="w-0.5 flex-1 bg-gray-300 dark:bg-gray-600 my-0.5 ml-8" />
         )}
       </div>
 
       {/* Step content */}
-      <div className={`flex-1 rounded-lg border overflow-hidden group ${
+      <div className={`flex-1 rounded-md border overflow-hidden group ${
         isStepError
           ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700'
           : isStepSuccess
@@ -312,7 +312,7 @@ function SortableStep({
       }`}>
         <div
           onClick={() => onExpand(step.id)}
-          className={`p-4 cursor-pointer ${
+          className={`px-3 py-2 cursor-pointer ${
             isStepError
               ? 'hover:bg-red-100 dark:hover:bg-red-900/40'
               : isStepSuccess
@@ -320,35 +320,35 @@ function SortableStep({
               : 'hover:bg-gray-50 dark:hover:bg-gray-700'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <MethodBadge method={step.method} />
-            <span className="font-medium dark:text-gray-200 flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            <MethodBadge method={step.method} className="text-[10px]" />
+            <span className="text-xs font-medium dark:text-gray-200 flex items-center gap-1">
               {(edit?.name ?? step.name) || 'Untitled Step'}
               {hasChanges && (
-                <span className="w-2 h-2 rounded-full bg-blue-500" title="Unsaved changes" />
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" title="Unsaved changes" />
               )}
             </span>
             {step.loopCount > 1 && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-700">
+              <span className="inline-flex items-center px-1 py-px rounded text-[10px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-700">
                 ×{step.loopCount}
               </span>
             )}
             {step.bodyType && step.bodyType !== 'none' && step.body && step.body.trim() && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700" title="Body has content">
+              <span className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[10px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700" title="Body has content">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                 Body
               </span>
             )}
             {(step.preScript || step.postScript) && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700" title={`${step.preScript ? 'Pre-script' : ''}${step.preScript && step.postScript ? ' + ' : ''}${step.postScript ? 'Post-script' : ''}`}>
+              <span className="inline-flex items-center gap-0.5 px-1 py-px rounded text-[10px] font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700" title={`${step.preScript ? 'Pre-script' : ''}${step.preScript && step.postScript ? ' + ' : ''}${step.postScript ? 'Post-script' : ''}`}>
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                 Script
               </span>
             )}
-            <span className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1">{step.url}</span>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate flex-1">{step.url}</span>
             {isStepError && stepResult && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700">
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 {stepResult.executeResult.statusCode || 'ERR'}
@@ -357,48 +357,48 @@ function SortableStep({
               </span>
             )}
             {isStepSuccess && stepResult && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700">
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 {stepResult.executeResult.statusCode}
                 <span className="text-green-400">·</span>
                 {stepResult.executeResult.durationMs}ms
                 {stepResult.loopCount && stepResult.loopCount > 1 && (
-                  <span className="ml-1 text-green-500">({stepResult.iteration}/{stepResult.loopCount})</span>
+                  <span className="ml-0.5 text-green-500">({stepResult.iteration}/{stepResult.loopCount})</span>
                 )}
               </span>
             )}
             {isStepSkipped && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
+              <span className="inline-flex items-center px-1.5 py-px rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
                 Skipped
               </span>
             )}
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(step.id); }}
-              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
+              className="opacity-0 group-hover:opacity-100 p-0.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
           </div>
           {isStepError && stepResult && stepResult.executeResult.error && (
-            <div className="mt-2 ml-7 flex items-start gap-1.5 text-xs text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded px-2 py-1.5">
-              <svg className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="mt-1 ml-5 flex items-start gap-1 text-[10px] text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded px-1.5 py-1">
+              <svg className="w-3 h-3 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <span className="break-all">{stepResult.executeResult.error}</span>
             </div>
           )}
           {step.delayMs > 0 && (
-            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 ml-7">
+            <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400 ml-5">
               Delay: {step.delayMs}ms
             </div>
           )}
           {step.extractVars && step.extractVars !== '{}' && (
-            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 ml-7">
-              Extract: <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{step.extractVars}</code>
+            <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400 ml-5">
+              Extract: <code className="bg-gray-100 dark:bg-gray-700 px-0.5 rounded">{step.extractVars}</code>
             </div>
           )}
         </div>
@@ -1321,7 +1321,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
       {/* Flow Steps */}
       <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
         <div className="max-w-3xl mx-auto">
-          <div className="space-y-3">
+          <div className="space-y-2">
             {steps.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 <p>No steps in this flow yet.</p>
@@ -1368,12 +1368,12 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           </div>
 
           {/* Add Step Button */}
-          <div className="mt-4 relative" ref={addMenuRef}>
+          <div className="mt-3 relative" ref={addMenuRef}>
             <button
               onClick={() => setShowAddMenu(!showAddMenu)}
-              className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:border-blue-500 hover:text-blue-500 flex items-center justify-center gap-2"
+              className="w-full py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md text-xs text-gray-500 dark:text-gray-400 hover:border-blue-500 hover:text-blue-500 flex items-center justify-center gap-1.5"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Add Step
