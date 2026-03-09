@@ -951,44 +951,50 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
       />
 
       {/* Tab Content */}
-      <div className="p-4 flex-1 overflow-y-auto min-h-0">
+      <div className="p-4 flex-1 min-h-0 flex flex-col overflow-hidden">
         {activeTab === 'params' && method !== 'WS' && (
-          <KeyValueEditor
-            items={paramItems}
-            onChange={items => handleParamChange(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
-            showEnabled
-            keyPlaceholder="Parameter name"
-            valuePlaceholder="Value"
-            addLabel="+ Add Parameter"
-          />
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <KeyValueEditor
+              items={paramItems}
+              onChange={items => handleParamChange(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
+              showEnabled
+              keyPlaceholder="Parameter name"
+              valuePlaceholder="Value"
+              addLabel="+ Add Parameter"
+            />
+          </div>
         )}
 
         {(activeTab === 'headers' || method === 'WS') && (
-          <KeyValueEditor
-            items={headerItems}
-            onChange={items => setHeaderItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
-            showEnabled
-            keyPlaceholder="Header name"
-            valuePlaceholder="Value"
-            addLabel="+ Add Header"
-            suggestions={COMMON_HEADERS}
-          />
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <KeyValueEditor
+              items={headerItems}
+              onChange={items => setHeaderItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
+              showEnabled
+              keyPlaceholder="Header name"
+              valuePlaceholder="Value"
+              addLabel="+ Add Header"
+              suggestions={COMMON_HEADERS}
+            />
+          </div>
         )}
 
         {activeTab === 'cookies' && method !== 'WS' && (
-          <KeyValueEditor
-            items={cookieItems}
-            onChange={items => setCookieItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
-            showEnabled
-            keyPlaceholder="Cookie name"
-            valuePlaceholder="Value"
-            addLabel="+ Add Cookie"
-          />
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <KeyValueEditor
+              items={cookieItems}
+              onChange={items => setCookieItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
+              showEnabled
+              keyPlaceholder="Cookie name"
+              valuePlaceholder="Value"
+              addLabel="+ Add Cookie"
+            />
+          </div>
         )}
 
         {activeTab === 'body' && method !== 'WS' && (
-          <div className="space-y-2">
-            <div className="flex gap-4 text-xs">
+          <div className="flex-1 flex flex-col min-h-0 gap-2">
+            <div className="flex gap-4 text-xs shrink-0">
               {['none', 'json', 'text', 'xml', 'form-urlencoded', 'formdata', 'graphql'].map(type => (
                 <label key={type} className="flex items-center gap-1 dark:text-gray-200">
                   <input
@@ -1002,40 +1008,51 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
               ))}
             </div>
             {bodyType === 'graphql' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Query</label>
-                  <CodeEditor
-                    value={body}
-                    onChange={setBody}
-                    language="graphql"
-                    placeholder="{ health }"
-                    height="96px"
-                  />
+              <div className="flex-1 flex flex-col min-h-0 gap-3">
+                <div className="flex-1 flex flex-col min-h-0">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1 shrink-0">Query</label>
+                  <div className="flex-1 min-h-0 relative">
+                    <div className="absolute inset-0">
+                      <CodeEditor
+                        value={body}
+                        onChange={setBody}
+                        language="graphql"
+                        placeholder="{ health }"
+                        height="100%"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Variables (JSON)</label>
-                  <CodeEditor
-                    value={graphqlVariables}
-                    onChange={setGraphqlVariables}
-                    language="json"
-                    placeholder='{ "id": "123" }'
-                    height="80px"
-                  />
+                <div className="flex-1 flex flex-col min-h-0">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1 shrink-0">Variables (JSON)</label>
+                  <div className="flex-1 min-h-0 relative">
+                    <div className="absolute inset-0">
+                      <CodeEditor
+                        value={graphqlVariables}
+                        onChange={setGraphqlVariables}
+                        language="json"
+                        placeholder='{ "id": "123" }'
+                        height="100%"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
             {bodyType === 'form-urlencoded' && (
-              <KeyValueEditor
-                items={formItems}
-                onChange={items => setFormItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
-                showEnabled
-                keyPlaceholder="Field name"
-                valuePlaceholder="Value"
-                addLabel="+ Add Field"
-              />
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <KeyValueEditor
+                  items={formItems}
+                  onChange={items => setFormItems(items.map(i => ({ ...i, enabled: i.enabled ?? true })))}
+                  showEnabled
+                  keyPlaceholder="Field name"
+                  valuePlaceholder="Value"
+                  addLabel="+ Add Field"
+                />
+              </div>
             )}
             {bodyType === 'formdata' && (
+              <div className="flex-1 overflow-y-auto min-h-0">
               <FormDataEditor
                 items={formDataItems}
                 onChange={setFormDataItems}
@@ -1061,23 +1078,28 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
                   try { await deleteFile(fileId); } catch { /* ignore */ }
                 }}
               />
+              </div>
             )}
             {bodyType !== 'none' && bodyType !== 'graphql' && bodyType !== 'form-urlencoded' && bodyType !== 'formdata' && (
-              <CodeEditor
-                value={body}
-                onChange={setBody}
-                language={bodyType === 'json' ? 'json' : bodyType === 'xml' ? 'xml' : undefined}
-                placeholder={bodyType === 'json' ? '{\n  "key": "value"\n}' : bodyType === 'xml' ? '<root>\n  <item>value</item>\n</root>' : 'Request body'}
-                height="128px"
-              />
+              <div className="flex-1 min-h-0 relative">
+                <div className="absolute inset-0">
+                  <CodeEditor
+                    value={body}
+                    onChange={setBody}
+                    language={bodyType === 'json' ? 'json' : bodyType === 'xml' ? 'xml' : undefined}
+                    placeholder={bodyType === 'json' ? '{\n  "key": "value"\n}' : bodyType === 'xml' ? '<root>\n  <item>value</item>\n</root>' : 'Request body'}
+                    height="100%"
+                  />
+                </div>
+              </div>
             )}
           </div>
         )}
 
         {activeTab === 'scripts' && method !== 'WS' && (
-          <div className="space-y-2">
+          <div className="flex-1 flex flex-col min-h-0 gap-2">
             {/* Script Sub-tabs */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="flex gap-1">
                 <button
                   type="button"
@@ -1130,30 +1152,38 @@ export function RequestEditor({ request, onExecute, onUpdate, onExecutingChange,
 
             {/* Pre-Script Editor */}
             {scriptTab === 'pre' && (
-              <CodeEditor
-                value={preScript}
-                onChange={v => { setPreScript(v); setPreScriptDiagnostics([]); }}
-                language={preScriptMode === 'javascript' ? 'javascript' : 'json'}
-                placeholder={preScriptMode === 'javascript'
-                  ? '// Pre-request script\npm.variables.set("timestamp", Date.now().toString());'
-                  : '{"setVariables": [{"name": "counter", "operation": "increment"}]}'}
-                height="180px"
-                diagnostics={preScriptDiagnostics}
-              />
+              <div className="flex-1 min-h-0 relative">
+                <div className="absolute inset-0">
+                  <CodeEditor
+                    value={preScript}
+                    onChange={v => { setPreScript(v); setPreScriptDiagnostics([]); }}
+                    language={preScriptMode === 'javascript' ? 'javascript' : 'json'}
+                    placeholder={preScriptMode === 'javascript'
+                      ? '// Pre-request script\npm.variables.set("timestamp", Date.now().toString());'
+                      : '{"setVariables": [{"name": "counter", "operation": "increment"}]}'}
+                    height="100%"
+                    diagnostics={preScriptDiagnostics}
+                  />
+                </div>
+              </div>
             )}
 
             {/* Post-Script Editor */}
             {scriptTab === 'post' && (
-              <CodeEditor
-                value={postScript}
-                onChange={v => { setPostScript(v); setPostScriptDiagnostics([]); }}
-                language={postScriptMode === 'javascript' ? 'javascript' : 'json'}
-                placeholder={postScriptMode === 'javascript'
-                  ? `// Post-request script (Postman-compatible)\npm.test("Status is 200", function() {\n    pm.response.to.have.status(200);\n});\n\nlet data = pm.response.json();\npm.environment.set("userId", data.id);`
-                  : '{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'}
-                height="180px"
-                diagnostics={postScriptDiagnostics}
-              />
+              <div className="flex-1 min-h-0 relative">
+                <div className="absolute inset-0">
+                  <CodeEditor
+                    value={postScript}
+                    onChange={v => { setPostScript(v); setPostScriptDiagnostics([]); }}
+                    language={postScriptMode === 'javascript' ? 'javascript' : 'json'}
+                    placeholder={postScriptMode === 'javascript'
+                      ? `// Post-request script (Postman-compatible)\npm.test("Status is 200", function() {\n    pm.response.to.have.status(200);\n});\n\nlet data = pm.response.json();\npm.environment.set("userId", data.id);`
+                      : '{"assertions": [{"type": "status", "operator": "eq", "value": 200}]}'}
+                    height="100%"
+                    diagnostics={postScriptDiagnostics}
+                  />
+                </div>
+              </div>
             )}
           </div>
         )}

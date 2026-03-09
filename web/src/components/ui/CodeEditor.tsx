@@ -171,7 +171,7 @@ export function CodeEditor({
         foldGutter: false,
         highlightActiveLine: !readOnly,
       }}
-      className="border border-gray-300 dark:border-gray-600 rounded text-xs overflow-hidden"
+      className={`border border-gray-300 dark:border-gray-600 rounded text-xs overflow-hidden${height === '100%' ? ' h-full' : ''}`}
       theme={isDark ? 'dark' : 'light'}
     />
   );
