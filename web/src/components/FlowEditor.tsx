@@ -1,7 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
 import {
-  DndContext,
   closestCenter,
+  DndContext,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -16,25 +15,26 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCollections } from '../api/collections';
+import type { Collection } from '../api/collections/types';
+import { deleteFile, uploadFile } from '../api/files';
 import {
+  runFlowStream,
+  useCreateFlowStep,
+  useDeleteFlowStep,
   useFlow,
   useFlowSteps,
-  useUpdateFlow,
-  useCreateFlowStep,
-  useUpdateFlowStep,
-  useDeleteFlowStep,
   useImportCollection,
-  runFlowStream,
+  useUpdateFlow,
+  useUpdateFlowStep,
 } from '../api/flows';
-import { useRequests } from '../api/requests';
-import { useCollections } from '../api/collections';
 import { useProxies } from '../api/proxies';
-import type { Collection } from '../api/collections/types';
+import { useRequests } from '../api/requests';
 import { useClickOutside } from '../hooks/useClickOutside';
-import { uploadFile, deleteFile } from '../api/files';
-import type { Flow, FlowStep, FlowResult, StepResult } from '../types';
-import { MethodBadge, EmptyState, FormField, INPUT_CLASS, CodeEditor, KeyValueEditor, FormDataEditor } from './ui';
+import type { Flow, FlowResult, FlowStep, StepResult } from '../types';
 import type { FormDataItem } from './ui';
+import { CodeEditor, EmptyState, FormDataEditor, FormField, INPUT_CLASS, KeyValueEditor, MethodBadge } from './ui';
 
 interface FlowEditorProps {
   flow: Flow | null;
@@ -895,6 +895,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const [expandedStepId, setExpandedStepId] = useState<number | null>(null);
   const [editStates, setEditStates] = useState<Record<number, StepEditState>>({});
   const [selectedStepIds, setSelectedStepIds] = useState<Set<number>>(new Set());
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -967,6 +968,14 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     }
   }, [flow, name, description, updateFlow, onUpdate]);
 
+  const handleCancel = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setIsRunning(false);
+    setRunningStepId(null);
+    setFlowResult(prev => prev ? { ...prev, success: false, error: 'Cancelled' } : null);
+  };
+
   const handleRun = () => {
     if (!flow) return;
     setFlowResult(null);
@@ -974,6 +983,9 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
     setRunningStepId(null);
     setCompletedStepIds(new Set());
     const stepIds = selectedStepIds.size > 0 ? Array.from(selectedStepIds) : undefined;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const accumulatedSteps: StepResult[] = [];
 
@@ -1014,7 +1026,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
           error,
         });
       },
-    });
+    }, controller.signal);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -1069,6 +1081,17 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
       return next;
     });
   };
+
+  const toggleAllSteps = () => {
+    if (selectedStepIds.size === steps.length) {
+      setSelectedStepIds(new Set());
+    } else {
+      setSelectedStepIds(new Set(steps.map(s => s.id)));
+    }
+  };
+
+  const allStepsSelected = steps.length > 0 && selectedStepIds.size === steps.length;
+  const someStepsSelected = selectedStepIds.size > 0 && selectedStepIds.size < steps.length;
 
   // Build collection name lookup maps
   const collectionNameMap = new Map<number, string>();
@@ -1356,6 +1379,17 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
             )}
           </button>
           {isRunning && (
+            <button
+              onClick={handleCancel}
+              className="px-4 py-2 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="6" width="12" height="12" rx="1" />
+              </svg>
+              Cancel
+            </button>
+          )}
+          {isRunning && (
             <span className="text-sm text-gray-500 dark:text-gray-400">
               {completedStepIds.size}/{steps.length} steps
             </span>
@@ -1380,6 +1414,26 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                 <p className="text-xs">Add a blank step or copy from an existing request.</p>
               </div>
             ) : (
+              <>
+              {steps.length > 1 && (
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-0.5">
+                    <input
+                      type="checkbox"
+                      ref={(el) => {
+                        if (el) el.indeterminate = someStepsSelected;
+                      }}
+                      checked={allStepsSelected}
+                      onChange={toggleAllSteps}
+                      className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                  </div>
+                  <label onClick={toggleAllSteps} className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+                    All
+                    {selectedStepIds.size > 0 && ` (${selectedStepIds.size}/${steps.length})`}
+                  </label>
+                </div>
+              )}
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -1417,6 +1471,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
                   }
                 </SortableContext>
               </DndContext>
+              </>
             )}
           </div>
 
