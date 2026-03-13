@@ -144,15 +144,15 @@ test.describe('Flow Loop and Selection Features', () => {
     await configureStep(page, { name: 'Step 2', url: `${JSON_PLACEHOLDER}/posts/2` });
     await saveStep(page);
 
-    // Select first step using checkbox
-    const checkboxes = page.locator('input[type="checkbox"]');
-    await checkboxes.first().click();
+    // Select first step using checkbox (scope to step cards to skip "All" checkbox)
+    const stepCheckboxes = page.locator('.flex.items-stretch.gap-2 input[type="checkbox"]');
+    await stepCheckboxes.first().click();
 
     // Verify "Run Selected (1)" button appears
     await expect(page.getByRole('button', { name: /Run Selected \(1\)/ })).toBeVisible();
 
     // Select second step too
-    await checkboxes.nth(1).click();
+    await stepCheckboxes.nth(1).click();
 
     // Verify "Run Selected (2)" button
     await expect(page.getByRole('button', { name: /Run Selected \(2\)/ })).toBeVisible();
@@ -174,9 +174,9 @@ test.describe('Flow Loop and Selection Features', () => {
     await configureStep(page, { name: 'Second Step', url: `${JSON_PLACEHOLDER}/posts/2` });
     await saveStep(page);
 
-    // Select only the second step
-    const checkboxes = page.locator('input[type="checkbox"]');
-    await checkboxes.nth(1).click();
+    // Select only the second step (scope to step cards to skip "All" checkbox)
+    const stepCheckboxes = page.locator('.flex.items-stretch.gap-2 input[type="checkbox"]');
+    await stepCheckboxes.nth(1).click();
 
     // Run selected
     await page.getByRole('button', { name: /Run Selected/ }).click();

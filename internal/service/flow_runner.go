@@ -330,10 +330,15 @@ outer:
 			// Stop on non-2xx HTTP status (unless continueOnError is set)
 			if execResult.StatusCode < 200 || execResult.StatusCode >= 300 {
 				result.Steps = append(result.Steps, stepResult)
+				emitStepComplete(stepResult)
 				if !step.ContinueOnError.Valid || step.ContinueOnError.Int64 == 0 {
 					result.Success = false
-					result.Error = fmt.Sprintf("step %q returned HTTP %d", step.Name, execResult.StatusCode)
-					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					if execResult.Error != "" {
+						result.Error = execResult.Error
+					} else {
+						result.Error = fmt.Sprintf("step %q returned HTTP %d", step.Name, execResult.StatusCode)
+					}
+					finalizeFlow()
 					return result, nil
 				}
 				iteration++
