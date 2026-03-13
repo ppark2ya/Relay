@@ -139,8 +139,9 @@ test.describe('Flow Scripts', () => {
 
     await runFlowAndWaitForResult(page);
 
-    // Both steps should have run - check for two result items
-    const stepResults = page.locator('.p-3.rounded-lg.border');
+    // Both steps should have run - check for two result items in Flow Result panel
+    const resultPanel = page.getByText('Flow Result').locator('..').locator('..');
+    const stepResults = resultPanel.locator('.rounded-lg.border');
     await expect(stepResults).toHaveCount(2);
 
     // Flow should be marked as success since continue on error was enabled
