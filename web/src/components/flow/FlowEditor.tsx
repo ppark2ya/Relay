@@ -25,6 +25,7 @@ import { useFlowRunner } from './useFlowRunner';
 import { useFlowStepEdit } from './useFlowStepEdit';
 import { SortableStep } from './SortableStep';
 import { FlowResultPanel } from './FlowResultPanel';
+import { useFlowLayout } from './useFlowLayout';
 
 interface FlowEditorProps {
   flow: Flow | null;
@@ -35,6 +36,7 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
   const form = useFlowForm(flow, onUpdate);
   const runner = useFlowRunner(flow);
   const stepEdit = useFlowStepEdit(flow);
+  const { layout, splitRatio, containerRef, toggleLayout, handleResizeStart } = useFlowLayout();
 
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showRequestDropdown, setShowRequestDropdown] = useState(false);
@@ -269,6 +271,23 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
             </span>
           )}
           <button
+            onClick={toggleLayout}
+            className="p-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200"
+            title={layout === 'vertical' ? 'Switch to horizontal layout' : 'Switch to vertical layout'}
+          >
+            {layout === 'vertical' ? (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <rect x="3" y="3" width="7" height="18" rx="1" />
+                <rect x="14" y="3" width="7" height="18" rx="1" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <rect x="3" y="3" width="18" height="7" rx="1" />
+                <rect x="3" y="14" width="18" height="7" rx="1" />
+              </svg>
+            )}
+          </button>
+          <button
             onClick={form.handleSave}
             disabled={form.updateFlow.isPending}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200"
@@ -278,232 +297,258 @@ export function FlowEditor({ flow, onUpdate }: FlowEditorProps) {
         </div>
       </div>
 
-      {/* Flow Steps */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-3xl mx-auto">
-          <div className="space-y-2">
-            {stepEdit.steps.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <p>No steps in this flow yet.</p>
-                <p className="text-xs">Add a blank step or copy from an existing request.</p>
-              </div>
-            ) : (
-              <>
-              {stepEdit.steps.length > 1 && (
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="flex items-center gap-0.5">
-                    <input
-                      type="checkbox"
-                      ref={(el) => {
-                        if (el) el.indeterminate = stepEdit.someStepsSelected;
-                      }}
-                      checked={stepEdit.allStepsSelected}
-                      onChange={stepEdit.toggleAllSteps}
-                      className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
+      {/* Steps + Result Container */}
+      <div
+        ref={containerRef}
+        className={`flex-1 flex overflow-hidden ${
+          layout === 'horizontal' ? 'flex-row' : 'flex-col'
+        }`}
+      >
+        {/* Flow Steps */}
+        <div
+          className={`overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900 ${
+            layout === 'horizontal' && runner.flowResult ? '' : 'flex-1'
+          }`}
+          style={
+            layout === 'horizontal' && runner.flowResult
+              ? { width: `${splitRatio}%` }
+              : undefined
+          }
+        >
+          <div className={layout === 'horizontal' ? '' : 'max-w-3xl mx-auto'}>
+            <div className="space-y-2">
+              {stepEdit.steps.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <p>No steps in this flow yet.</p>
+                  <p className="text-xs">Add a blank step or copy from an existing request.</p>
+                </div>
+              ) : (
+                <>
+                {stepEdit.steps.length > 1 && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="checkbox"
+                        ref={(el) => {
+                          if (el) el.indeterminate = stepEdit.someStepsSelected;
+                        }}
+                        checked={stepEdit.allStepsSelected}
+                        onChange={stepEdit.toggleAllSteps}
+                        className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </div>
+                    <label onClick={stepEdit.toggleAllSteps} className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+                      All
+                      {stepEdit.selectedStepIds.size > 0 && ` (${stepEdit.selectedStepIds.size}/${stepEdit.steps.length})`}
+                    </label>
                   </div>
-                  <label onClick={stepEdit.toggleAllSteps} className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
-                    All
-                    {stepEdit.selectedStepIds.size > 0 && ` (${stepEdit.selectedStepIds.size}/${stepEdit.steps.length})`}
-                  </label>
+                )}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={stepEdit.handleDragEnd}
+                >
+                  <SortableContext
+                    items={[...stepEdit.steps].sort((a, b) => a.stepOrder - b.stepOrder).map(s => s.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {[...stepEdit.steps]
+                      .sort((a, b) => a.stepOrder - b.stepOrder)
+                      .map((step, index) => (
+                        <SortableStep
+                          key={step.id}
+                          step={step}
+                          index={index}
+                          stepsLength={stepEdit.steps.length}
+                          isSelected={stepEdit.selectedStepIds.has(step.id)}
+                          hasChanges={stepEdit.hasStepChanges(step.id)}
+                          isRunningStep={runner.runningStepId === step.id}
+                          onToggleSelection={stepEdit.toggleStepSelection}
+                          onExpand={stepEdit.handleExpandStep}
+                          onDelete={stepEdit.handleDeleteStep}
+                          expandedStepId={stepEdit.expandedStepId}
+                          editState={stepEdit.editStates[step.id]}
+                          stepResults={runner.flowResult?.steps || []}
+                          onEditChange={stepEdit.handleEditChange}
+                          onSaveStep={stepEdit.handleSaveStep}
+                          updateStepPending={stepEdit.updateStep.isPending}
+                          proxies={proxies}
+                          activeGlobalProxy={activeGlobalProxy}
+                          collectionName={step.requestId ? requestCollectionMap.get(step.requestId) : undefined}
+                        />
+                      ))
+                    }
+                  </SortableContext>
+                </DndContext>
+                </>
+              )}
+            </div>
+
+            {/* Add Step Button */}
+            <div className="mt-3 relative" ref={addMenuRef}>
+              <button
+                onClick={() => setShowAddMenu(!showAddMenu)}
+                className="w-full py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md text-xs text-gray-500 dark:text-gray-400 hover:border-blue-500 hover:text-blue-500 flex items-center justify-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Step
+              </button>
+              {showAddMenu && !showRequestDropdown && !showCollectionDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10">
+                  <button
+                    onClick={handleAddBlankStep}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
+                  >
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <div>
+                      <div className="font-medium dark:text-gray-200">Add Blank Step</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Create an empty step and configure it manually</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setShowRequestDropdown(true)}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
+                  >
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <div>
+                      <div className="font-medium dark:text-gray-200">Copy From Request</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Copy data from an existing request as a template</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setShowCollectionDropdown(true)}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                  >
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    <div>
+                      <div className="font-medium dark:text-gray-200">Import from Collection</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Import all requests from a collection as steps</div>
+                    </div>
+                  </button>
                 </div>
               )}
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={stepEdit.handleDragEnd}
-              >
-                <SortableContext
-                  items={[...stepEdit.steps].sort((a, b) => a.stepOrder - b.stepOrder).map(s => s.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {[...stepEdit.steps]
-                    .sort((a, b) => a.stepOrder - b.stepOrder)
-                    .map((step, index) => (
-                      <SortableStep
-                        key={step.id}
-                        step={step}
-                        index={index}
-                        stepsLength={stepEdit.steps.length}
-                        isSelected={stepEdit.selectedStepIds.has(step.id)}
-                        hasChanges={stepEdit.hasStepChanges(step.id)}
-                        isRunningStep={runner.runningStepId === step.id}
-                        onToggleSelection={stepEdit.toggleStepSelection}
-                        onExpand={stepEdit.handleExpandStep}
-                        onDelete={stepEdit.handleDeleteStep}
-                        expandedStepId={stepEdit.expandedStepId}
-                        editState={stepEdit.editStates[step.id]}
-                        stepResults={runner.flowResult?.steps || []}
-                        onEditChange={stepEdit.handleEditChange}
-                        onSaveStep={stepEdit.handleSaveStep}
-                        updateStepPending={stepEdit.updateStep.isPending}
-                        proxies={proxies}
-                        activeGlobalProxy={activeGlobalProxy}
-                        collectionName={step.requestId ? requestCollectionMap.get(step.requestId) : undefined}
-                      />
-                    ))
-                  }
-                </SortableContext>
-              </DndContext>
-              </>
-            )}
-          </div>
-
-          {/* Add Step Button */}
-          <div className="mt-3 relative" ref={addMenuRef}>
-            <button
-              onClick={() => setShowAddMenu(!showAddMenu)}
-              className="w-full py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md text-xs text-gray-500 dark:text-gray-400 hover:border-blue-500 hover:text-blue-500 flex items-center justify-center gap-1.5"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Step
-            </button>
-            {showAddMenu && !showRequestDropdown && !showCollectionDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10">
-                <button
-                  onClick={handleAddBlankStep}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
-                >
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  <div>
-                    <div className="font-medium dark:text-gray-200">Add Blank Step</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Create an empty step and configure it manually</div>
+              {showRequestDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10 max-h-64 overflow-y-auto">
+                  <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+                    <button
+                      onClick={() => setShowRequestDropdown(false)}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Select a request to copy</span>
                   </div>
-                </button>
-                <button
-                  onClick={() => setShowRequestDropdown(true)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
-                >
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                  <div>
-                    <div className="font-medium dark:text-gray-200">Copy From Request</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Copy data from an existing request as a template</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setShowCollectionDropdown(true)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-                >
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                  </svg>
-                  <div>
-                    <div className="font-medium dark:text-gray-200">Import from Collection</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Import all requests from a collection as steps</div>
-                  </div>
-                </button>
-              </div>
-            )}
-            {showRequestDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10 max-h-64 overflow-y-auto">
-                <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
-                  <button
-                    onClick={() => setShowRequestDropdown(false)}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Select a request to copy</span>
-                </div>
-                {requests.length === 0 ? (
-                  <div className="p-4 text-xs text-gray-500 dark:text-gray-400">No requests available. Create requests first.</div>
-                ) : (
-                  (() => {
-                    // Group requests by collection
-                    const grouped = new Map<string, typeof requests>();
-                    for (const req of requests) {
-                      const colName = req.collectionId ? (collectionNameMap.get(req.collectionId) || 'Unknown') : 'No Collection';
-                      if (!grouped.has(colName)) grouped.set(colName, []);
-                      grouped.get(colName)!.push(req);
-                    }
-                    return Array.from(grouped.entries()).map(([colName, reqs]) => (
-                      <div key={colName}>
-                        <div className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-750 border-b border-gray-100 dark:border-gray-700">
-                          {colName}
+                  {requests.length === 0 ? (
+                    <div className="p-4 text-xs text-gray-500 dark:text-gray-400">No requests available. Create requests first.</div>
+                  ) : (
+                    (() => {
+                      // Group requests by collection
+                      const grouped = new Map<string, typeof requests>();
+                      for (const req of requests) {
+                        const colName = req.collectionId ? (collectionNameMap.get(req.collectionId) || 'Unknown') : 'No Collection';
+                        if (!grouped.has(colName)) grouped.set(colName, []);
+                        grouped.get(colName)!.push(req);
+                      }
+                      return Array.from(grouped.entries()).map(([colName, reqs]) => (
+                        <div key={colName}>
+                          <div className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-750 border-b border-gray-100 dark:border-gray-700">
+                            {colName}
+                          </div>
+                          {reqs.map(req => (
+                            <button
+                              key={req.id}
+                              onClick={() => handleCopyFromRequest(req.id)}
+                              className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 dark:text-gray-200"
+                            >
+                              <MethodBadge method={req.method} />
+                              <span className="font-medium dark:text-gray-200">{req.name}</span>
+                              <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{req.url}</span>
+                            </button>
+                          ))}
                         </div>
-                        {reqs.map(req => (
-                          <button
-                            key={req.id}
-                            onClick={() => handleCopyFromRequest(req.id)}
-                            className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 dark:text-gray-200"
-                          >
-                            <MethodBadge method={req.method} />
-                            <span className="font-medium dark:text-gray-200">{req.name}</span>
-                            <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{req.url}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ));
-                  })()
-                )}
-              </div>
-            )}
-            {showCollectionDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10 max-h-64 overflow-y-auto">
-                <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
-                  <button
-                    onClick={() => setShowCollectionDropdown(false)}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Select a collection to import</span>
+                      ));
+                    })()
+                  )}
                 </div>
-                {collections.length === 0 ? (
-                  <div className="p-4 text-xs text-gray-500 dark:text-gray-400">No collections available. Create collections first.</div>
-                ) : (
-                  (() => {
-                    const renderCollections = (cols: Collection[], depth = 0): React.ReactNode[] =>
-                      cols.flatMap(col => {
-                        const count = collectionRequestCounts.get(col.id) || 0;
-                        return [
-                          <button
-                            key={col.id}
-                            onClick={() => handleImportCollection(col.id)}
-                            disabled={count === 0 || importCollectionMutation.isPending}
-                            className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{ paddingLeft: `${16 + depth * 16}px` }}
-                          >
-                            <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                            </svg>
-                            <span className="font-medium dark:text-gray-200">{col.name}</span>
-                            <span className="text-xs text-gray-400 dark:text-gray-500">
-                              {count > 0 ? `${count} request${count > 1 ? 's' : ''}` : 'empty'}
-                            </span>
-                          </button>,
-                          ...(col.children ? renderCollections(col.children, depth + 1) : []),
-                        ];
-                      });
-                    return renderCollections(collections);
-                  })()
-                )}
-              </div>
-            )}
+              )}
+              {showCollectionDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 z-10 max-h-64 overflow-y-auto">
+                  <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+                    <button
+                      onClick={() => setShowCollectionDropdown(false)}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Select a collection to import</span>
+                  </div>
+                  {collections.length === 0 ? (
+                    <div className="p-4 text-xs text-gray-500 dark:text-gray-400">No collections available. Create collections first.</div>
+                  ) : (
+                    (() => {
+                      const renderCollections = (cols: Collection[], depth = 0): React.ReactNode[] =>
+                        cols.flatMap(col => {
+                          const count = collectionRequestCounts.get(col.id) || 0;
+                          return [
+                            <button
+                              key={col.id}
+                              onClick={() => handleImportCollection(col.id)}
+                              disabled={count === 0 || importCollectionMutation.isPending}
+                              className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                              style={{ paddingLeft: `${16 + depth * 16}px` }}
+                            >
+                              <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                              </svg>
+                              <span className="font-medium dark:text-gray-200">{col.name}</span>
+                              <span className="text-xs text-gray-400 dark:text-gray-500">
+                                {count > 0 ? `${count} request${count > 1 ? 's' : ''}` : 'empty'}
+                              </span>
+                            </button>,
+                            ...(col.children ? renderCollections(col.children, depth + 1) : []),
+                          ];
+                        });
+                      return renderCollections(collections);
+                    })()
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Flow Result */}
-      {runner.flowResult && (
-        <FlowResultPanel
-          flowResult={runner.flowResult}
-          expandedResultIds={runner.expandedResultIds}
-          copiedKey={runner.copiedKey}
-          onToggleExpand={runner.toggleResultExpand}
-          onCopyBody={runner.handleCopyBody}
-        />
-      )}
+        {/* Resize Handle - horizontal mode only, only when result exists */}
+        {layout === 'horizontal' && runner.flowResult && (
+          <div
+            className="w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500 bg-gray-200 dark:bg-gray-700 transition-colors shrink-0"
+            onMouseDown={handleResizeStart}
+          />
+        )}
+
+        {/* Flow Result */}
+        {runner.flowResult && (
+          <FlowResultPanel
+            flowResult={runner.flowResult}
+            expandedResultIds={runner.expandedResultIds}
+            copiedKey={runner.copiedKey}
+            onToggleExpand={runner.toggleResultExpand}
+            onCopyBody={runner.handleCopyBody}
+            layout={layout}
+          />
+        )}
+      </div>
     </div>
   );
 }

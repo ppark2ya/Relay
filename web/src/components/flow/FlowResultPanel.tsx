@@ -7,6 +7,7 @@ interface FlowResultPanelProps {
   copiedKey: string | null;
   onToggleExpand: (key: string) => void;
   onCopyBody: (key: string, body: string) => void;
+  layout: 'vertical' | 'horizontal';
 }
 
 export function FlowResultPanel({
@@ -15,9 +16,14 @@ export function FlowResultPanel({
   copiedKey,
   onToggleExpand,
   onCopyBody,
+  layout,
 }: FlowResultPanelProps) {
   return (
-    <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 max-h-80 overflow-y-auto">
+    <div className={
+      layout === 'horizontal'
+        ? 'bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto flex-1'
+        : 'bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 max-h-80 overflow-y-auto'
+    }>
       <div className="p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold dark:text-gray-100">

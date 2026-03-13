@@ -77,6 +77,12 @@ func main() {
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(middleware.CORS)
 
+	// Health check (outside /api to avoid workspace middleware)
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
 	// API routes
 	r.Route("/api", func(r chi.Router) {
 		r.Use(middleware.WorkspaceID)
