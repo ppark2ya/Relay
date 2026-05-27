@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { useErds, useGenerateKotlin, usePreviewErd, useUpdateErd } from '../api/erds';
 import type { ErdDocument, ErdGeneratedFile } from '../api/erds';
 import { CodeEditor, EmptyState, TabNav, type ScriptDiagnostic } from './ui';
@@ -49,7 +49,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
   const previewMutate = previewErd.mutate;
   const generateKotlinMutate = generateKotlin.mutate;
   const [dsl, setDsl] = useState(DEFAULT_DSL);
-  const [activeTab, setActiveTab] = useState<'preview' | 'kotlin'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'kotlin' | 'guide'>('preview');
   const [mermaid, setMermaid] = useState('');
   const [diagnostics, setDiagnostics] = useState<ScriptDiagnostic[]>([]);
   const [generatedFiles, setGeneratedFiles] = useState<ErdGeneratedFile[]>([]);
@@ -217,9 +217,10 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
               tabs={[
                 { key: 'preview', label: 'Preview' },
                 { key: 'kotlin', label: 'Kotlin' },
+                { key: 'guide', label: 'Guide' },
               ]}
               activeTab={activeTab}
-              onTabChange={key => setActiveTab(key as 'preview' | 'kotlin')}
+              onTabChange={key => setActiveTab(key as 'preview' | 'kotlin' | 'guide')}
               className="flex-1 border-b-0"
             />
             {activeTab === 'preview' && (
@@ -272,8 +273,144 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
               </div>
             </div>
           )}
+
+          {activeTab === 'guide' && (
+            <ErdDslGuide />
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ErdDslGuide() {
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-gray-800">
+      <div className="max-w-4xl px-5 py-4 space-y-5 text-xs text-gray-700 dark:text-gray-300">
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">ERD JSON DSL</h3>
+          <p>
+            The ERD DSL is a JSON document with optional package metadata, a list of entities, and a list of relationships.
+            It is separate from Relay Flow Script DSL and is used only for ERD preview and Kotlin JPA generation.
+          </p>
+          <pre className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 text-[11px] leading-5 text-gray-800 dark:text-gray-200">
+{`{
+  "packageName": "com.example.domain",
+  "entities": [],
+  "relations": []
+}`}
+          </pre>
+        </section>
+
+        <GuideSection title="Top-level properties">
+          <GuideTable
+            rows={[
+              ['packageName', 'string', 'Kotlin package name. Also controls generated file paths.'],
+              ['entities', 'array', 'Entity definitions rendered as ERD boxes and generated as Kotlin classes.'],
+              ['relations', 'array', 'Relationship definitions rendered as lines and generated as JPA associations.'],
+            ]}
+          />
+        </GuideSection>
+
+        <GuideSection title="entities">
+          <p>Each entity becomes one ERD node and one Kotlin file.</p>
+          <GuideTable
+            rows={[
+              ['name', 'string', 'Required. Kotlin class name and ERD entity label.'],
+              ['table', 'string', 'Optional. Database table name. If omitted, the generator derives a snake-case plural table name.'],
+              ['fields', 'array', 'Required. Scalar fields for columns and primary keys.'],
+            ]}
+          />
+        </GuideSection>
+
+        <GuideSection title="fields">
+          <p>Fields describe scalar columns. At least one field should use <code className="font-mono">"id": true</code>.</p>
+          <GuideTable
+            rows={[
+              ['name', 'string', 'Required. Kotlin property name.'],
+              ['type', 'string', 'Required. Kotlin type such as Long, String, BigDecimal, Boolean, or LocalDateTime.'],
+              ['column', 'string', 'Optional. Database column name. If omitted, the generator derives snake-case from name.'],
+              ['id', 'boolean', 'Marks the primary key and emits @Id plus @GeneratedValue.'],
+              ['nullable', 'boolean', 'Defaults to true. false emits a non-null Kotlin type and nullable = false.'],
+              ['unique', 'boolean', 'Emits unique = true in @Column and UK in the preview field label.'],
+            ]}
+          />
+        </GuideSection>
+
+        <GuideSection title="relations">
+          <p>Relations connect two entities in the preview and add JPA relationship properties to the source entity.</p>
+          <GuideTable
+            rows={[
+              ['from', 'string', 'Required. Source/owning entity. The generated Kotlin property is added here.'],
+              ['to', 'string', 'Required. Target entity. Must match an entity name.'],
+              ['type', 'string', 'Required. one-to-one, one-to-many, many-to-one, or many-to-many.'],
+              ['field', 'string', 'Required. Kotlin property name and ERD line label.'],
+              ['joinColumn', 'string', 'Used for owning single-side associations such as many-to-one and one-to-one.'],
+              ['nullable', 'boolean', 'Defaults to true. false emits optional = false and nullable = false where applicable.'],
+            ]}
+          />
+        </GuideSection>
+
+        <GuideSection title="Relation types">
+          <GuideTable
+            rows={[
+              ['many-to-one', 'Many source rows point to one target row. Example: many Order records reference one User.'],
+              ['one-to-many', 'One source row owns a list of target rows. Generated as MutableList<Target>.'],
+              ['one-to-one', 'One source row references exactly one target row. Useful for profile/detail tables.'],
+              ['many-to-many', 'Both sides can contain many records. Generated as MutableList<Target> in v1.'],
+            ]}
+          />
+        </GuideSection>
+
+        <GuideSection title="Kotlin JPA generation">
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Uses Spring Boot 3 style <code className="font-mono">jakarta.persistence.*</code> imports.</li>
+            <li>Generates <code className="font-mono">open class</code> entities for JPA proxy compatibility.</li>
+            <li>Generates <code className="font-mono">@Entity</code>, <code className="font-mono">@Table</code>, <code className="font-mono">@Id</code>, <code className="font-mono">@GeneratedValue</code>, and <code className="font-mono">@Column</code>.</li>
+            <li>Relation annotations are generated from <code className="font-mono">relations</code>: <code className="font-mono">@ManyToOne</code>, <code className="font-mono">@OneToMany</code>, <code className="font-mono">@OneToOne</code>, or <code className="font-mono">@ManyToMany</code>.</li>
+            <li><code className="font-mono">BigDecimal</code> fields add <code className="font-mono">java.math.BigDecimal</code> imports.</li>
+          </ul>
+        </GuideSection>
+
+        <GuideSection title="Complete example">
+          <pre className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 text-[11px] leading-5 text-gray-800 dark:text-gray-200">
+            {DEFAULT_DSL}
+          </pre>
+        </GuideSection>
+      </div>
+    </div>
+  );
+}
+
+function GuideSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-900 dark:text-gray-100">{title}</h4>
+      {children}
+    </section>
+  );
+}
+
+function GuideTable({ rows }: { rows: string[][] }) {
+  return (
+    <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+      <table className="w-full border-collapse text-left text-[11px]">
+        <tbody>
+          {rows.map(([name, type, description]) => (
+            <tr key={`${name}-${description}`} className="border-b last:border-b-0 border-gray-200 dark:border-gray-700">
+              <td className="w-32 align-top px-3 py-2 font-mono font-semibold text-blue-700 dark:text-blue-300">{name}</td>
+              {description ? (
+                <>
+                  <td className="w-36 align-top px-3 py-2 font-mono text-gray-500 dark:text-gray-400">{type}</td>
+                  <td className="align-top px-3 py-2">{description}</td>
+                </>
+              ) : (
+                <td className="align-top px-3 py-2" colSpan={2}>{type}</td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
