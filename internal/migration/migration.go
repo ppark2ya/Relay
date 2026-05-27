@@ -24,6 +24,7 @@ func Run(db *sql.DB) error {
 	migrateWorkspaceCollectionVariables(db)
 	migrateRequestScripts(db)
 	migrateSortOrder(db)
+	migrateErdDocuments(db)
 
 	return nil
 }
@@ -311,4 +312,17 @@ func migrateWorkspaceCollectionVariables(db *sql.DB) {
 	db.Exec("ALTER TABLE workspaces ADD COLUMN variables TEXT DEFAULT '{}'")
 	// Add variables column to collections for pm.collectionVariables
 	db.Exec("ALTER TABLE collections ADD COLUMN variables TEXT DEFAULT '{}'")
+}
+
+func migrateErdDocuments(db *sql.DB) {
+	db.Exec(`CREATE TABLE IF NOT EXISTS erd_documents (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		workspace_id INTEGER NOT NULL DEFAULT 1 REFERENCES workspaces(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		dsl TEXT DEFAULT '{"entities":[]}',
+		sort_order INTEGER NOT NULL DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`)
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_erd_documents_workspace ON erd_documents(workspace_id, sort_order)")
 }

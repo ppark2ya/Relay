@@ -14,6 +14,7 @@
 | **Proxies** | 글로벌 프록시, 요청별/Flow 단계별 프록시 오버라이드 |
 | **Flows** | 요청 체이닝 — 순차 실행, JSONPath 변수 추출, 조건부 실행, 루프 |
 | **Scripts** | Pre/Post 스크립트 — DSL(JSON) 또는 JavaScript(Postman 호환 API) |
+| **ERDs** | ERD 전용 JSON DSL로 관계선을 미리보고 Kotlin JPA Entity 코드 생성 |
 | **File Upload** | multipart form-data 파일 업로드 (서버에 영구 저장) |
 | **History** | 모든 실행 기록 자동 저장, 히스토리에서 바로 재실행 |
 | **Global Search** | Cmd/Ctrl+K로 요청, Flow, 히스토리 통합 검색 |
@@ -131,6 +132,15 @@ pm.environment.set("token", pm.response.json().data.accessToken);
 
 자세한 DSL 문법은 Flow 편집 화면의 **가이드** 버튼 또는 `docs/FLOW_SCRIPT_DSL.md` 참조.
 
+### ERDs
+
+1. 사이드바의 **ERDs** 탭에서 ERD 문서를 생성
+2. 왼쪽 JSON DSL 편집기에 Entity, Field, Relation 정의
+3. 오른쪽 **Preview** 탭에서 관계선을 포함한 ERD 확인
+4. **Kotlin** 탭에서 Spring Boot 3 / `jakarta.persistence` 기준 JPA Entity 코드 확인
+
+자세한 ERD DSL 문법은 `docs/ERD_DSL.md` 참조.
+
 ### 변수 계층
 
 변수는 다음 우선순위로 해석됩니다 (높은 순):
@@ -173,10 +183,11 @@ relay/
 │   ├── migration/              # DB 마이그레이션 실행기
 │   └── testutil/               # 테스트 유틸리티
 ├── db/
-│   ├── migrations/             # SQL 스키마 (001~008)
+│   ├── migrations/             # SQL 스키마 (001~009)
 │   └── queries/                # SQLC 쿼리 정의
 ├── docs/
-│   └── FLOW_SCRIPT_DSL.md     # Flow 스크립트 DSL 가이드
+│   ├── FLOW_SCRIPT_DSL.md     # Flow 스크립트 DSL 가이드
+│   └── ERD_DSL.md             # ERD JSON DSL 가이드
 ├── web/src/                    # React 프론트엔드
 │   ├── components/             # UI 컴포넌트
 │   ├── api/                    # 도메인별 API 모듈 (ky + TanStack Query)
@@ -227,6 +238,13 @@ Flows         GET/POST /api/flows
               POST /api/flows/:id/duplicate
               GET/POST /api/flows/:id/steps
               PUT/DELETE /api/flows/:id/steps/:stepId
+
+ERDs          GET/POST /api/erds
+              PUT /api/erds/reorder
+              GET/PUT/DELETE /api/erds/:id
+              POST /api/erds/:id/duplicate
+              POST /api/erds/preview
+              POST /api/erds/generate/kotlin
 
 Files         POST /api/files/upload
               POST /api/files/cleanup

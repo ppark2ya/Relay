@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export type View = 'requests' | 'flows' | 'history';
+export type View = 'requests' | 'flows' | 'history' | 'erds';
 
 interface NavState {
   view: View;
@@ -24,8 +24,19 @@ function parseUrl(pathname: string): NavState {
     }
   }
 
+  if (parts[0] === 'erds' && parts[1]) {
+    const id = parseInt(parts[1], 10);
+    if (!isNaN(id) && id > 0) {
+      return { view: 'erds', resourceId: id };
+    }
+  }
+
   if (parts[0] === 'history') {
     return { view: 'history', resourceId: null };
+  }
+
+  if (parts[0] === 'erds') {
+    return { view: 'erds', resourceId: null };
   }
 
   if (parts[0] === 'flows') {
@@ -38,8 +49,10 @@ function parseUrl(pathname: string): NavState {
 function buildUrl(view: View, resourceId?: number): string {
   if (resourceId && view === 'requests') return `/requests/${resourceId}`;
   if (resourceId && view === 'flows') return `/flows/${resourceId}`;
+  if (resourceId && view === 'erds') return `/erds/${resourceId}`;
   if (view === 'history') return '/history';
   if (view === 'flows') return '/flows';
+  if (view === 'erds') return '/erds';
   return '/';
 }
 
@@ -48,6 +61,7 @@ export interface UseNavigationReturn {
   resourceId: number | null;
   navigateToRequest: (id: number) => void;
   navigateToFlow: (id: number) => void;
+  navigateToErd: (id: number) => void;
   navigateToView: (view: View) => void;
 }
 
@@ -76,6 +90,12 @@ export function useNavigation(onUrlChange?: (state: NavState) => void): UseNavig
     setState({ view: 'flows', resourceId: id });
   }, []);
 
+  const navigateToErd = useCallback((id: number) => {
+    const url = buildUrl('erds', id);
+    window.history.pushState(null, '', url);
+    setState({ view: 'erds', resourceId: id });
+  }, []);
+
   const navigateToView = useCallback((view: View) => {
     const url = buildUrl(view);
     window.history.pushState(null, '', url);
@@ -87,6 +107,7 @@ export function useNavigation(onUrlChange?: (state: NavState) => void): UseNavig
     resourceId: state.resourceId,
     navigateToRequest,
     navigateToFlow,
+    navigateToErd,
     navigateToView,
   };
 }

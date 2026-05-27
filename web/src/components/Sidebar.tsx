@@ -19,20 +19,23 @@ import { CSS } from '@dnd-kit/utilities';
 import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useUpdateCollection, useReorderCollections } from '../api/collections';
 import { useCreateRequest, useDeleteRequest, useDuplicateRequest, useReorderRequests } from '../api/requests';
 import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useUpdateFlow, useReorderFlows } from '../api/flows';
+import { useErds, useCreateErd, useDeleteErd, useDuplicateErd, useUpdateErd, useReorderErds } from '../api/erds';
 import { useHistory, useDeleteHistory } from '../api/history';
 import { useClickOutside } from '../hooks/useClickOutside';
-import type { Request, Collection, Flow, History } from '../types';
+import type { Request, Collection, Flow, History, ErdDocument } from '../types';
 import { MethodBadge, TabNav, InlineCreateForm } from './ui';
-import { filterCollectionTree, filterFlows, filterHistory } from '../utils/searchUtils';
+import { filterCollectionTree, filterFlows, filterHistory, filterErds } from '../utils/searchUtils';
 
 interface SidebarProps {
-  view: 'requests' | 'flows' | 'history';
-  onViewChange: (view: 'requests' | 'flows' | 'history') => void;
+  view: 'requests' | 'flows' | 'history' | 'erds';
+  onViewChange: (view: 'requests' | 'flows' | 'history' | 'erds') => void;
   onSelectRequest: (request: Request | null) => void;
   onSelectFlow: (flow: Flow | null) => void;
+  onSelectErd: (erd: ErdDocument | null) => void;
   onSelectHistory: (history: History) => void;
   selectedRequestId?: number;
   selectedFlowId?: number;
+  selectedErdId?: number;
 }
 
 function groupHistoryByDate(history: History[]): { label: string; items: History[] }[] {
@@ -549,6 +552,125 @@ function SortableFlowItem({
   );
 }
 
+function SortableErdItem({
+  erd,
+  selectedErdId,
+  onSelectErd,
+  onDuplicateErd,
+  onDeleteErd,
+  editingErdId,
+  setEditingErdId,
+  editErdName,
+  setEditErdName,
+  updateErd,
+  isDndDisabled,
+}: {
+  erd: ErdDocument;
+  selectedErdId?: number;
+  onSelectErd: (erd: ErdDocument) => void;
+  onDuplicateErd: (id: number) => void;
+  onDeleteErd: (id: number, e: React.MouseEvent) => void;
+  editingErdId: number | null;
+  setEditingErdId: (id: number | null) => void;
+  editErdName: string;
+  setEditErdName: (name: string) => void;
+  updateErd: ReturnType<typeof useUpdateErd>;
+  isDndDisabled: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `erd-${erd.id}`, disabled: isDndDisabled, data: { type: 'erd', item: erd } });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => onSelectErd(erd)}
+      className={`px-2 py-1 rounded cursor-pointer group ${
+        selectedErdId === erd.id ? 'bg-blue-100 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+      }`}
+    >
+      <div className="flex items-center">
+        <div className="flex-1 min-w-0">
+          {editingErdId === erd.id ? (
+            <input
+              type="text"
+              value={editErdName}
+              data-rename-input
+              onChange={(e) => setEditErdName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const trimmed = editErdName.trim();
+                  if (trimmed && trimmed !== erd.name) {
+                    updateErd.mutate({ id: erd.id, data: { name: trimmed, dsl: erd.dsl } });
+                  }
+                  setEditingErdId(null);
+                }
+                if (e.key === 'Escape') {
+                  setEditingErdId(null);
+                }
+              }}
+              onBlur={() => {
+                const trimmed = editErdName.trim();
+                if (trimmed && trimmed !== erd.name) {
+                  updateErd.mutate({ id: erd.id, data: { name: trimmed, dsl: erd.dsl } });
+                }
+                setEditingErdId(null);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+              className="w-full text-xs font-medium bg-white dark:bg-gray-700 border border-blue-500 rounded px-1 py-0 outline-none dark:text-gray-200"
+            />
+          ) : (
+            <div
+              className="text-xs font-medium truncate dark:text-gray-200"
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setEditingErdId(erd.id);
+                setEditErdName(erd.name);
+              }}
+            >
+              {erd.name}
+            </div>
+          )}
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">JSON DSL</div>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDuplicateErd(erd.id); }}
+          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded ml-1"
+          title="Duplicate ERD"
+        >
+          <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </button>
+        <button
+          onClick={(e) => onDeleteErd(erd.id, e)}
+          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded ml-1"
+          title="Delete ERD"
+        >
+          <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // --- Helper: flatten all collections to find one by ID ---
 function findCollectionById(collections: Collection[], id: number): Collection | undefined {
   for (const c of collections) {
@@ -729,38 +851,55 @@ function CollectionTree({
   );
 }
 
-export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onSelectHistory, selectedRequestId, selectedFlowId }: SidebarProps) {
+export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onSelectErd, onSelectHistory, selectedRequestId, selectedFlowId, selectedErdId }: SidebarProps) {
   const { data: collections = [] } = useCollections();
   const { data: flows = [] } = useFlows();
+  const { data: erds = [] } = useErds();
   const { data: history = [] } = useHistory();
   const createCollection = useCreateCollection();
   const deleteCollection = useDeleteCollection();
   const createRequest = useCreateRequest();
   const deleteRequest = useDeleteRequest();
   const createFlow = useCreateFlow();
+  const createErd = useCreateErd();
   const deleteFlow = useDeleteFlow();
+  const deleteErd = useDeleteErd();
   const duplicateCollection = useDuplicateCollection();
   const duplicateRequest = useDuplicateRequest();
   const duplicateFlow = useDuplicateFlow();
+  const duplicateErd = useDuplicateErd();
   const deleteHistory = useDeleteHistory();
   const reorderCollections = useReorderCollections();
   const reorderRequests = useReorderRequests();
   const reorderFlows = useReorderFlows();
+  const reorderErds = useReorderErds();
 
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollection, setShowNewCollection] = useState(false);
   const [newFlowName, setNewFlowName] = useState('');
   const [showNewFlow, setShowNewFlow] = useState(false);
+  const [newErdName, setNewErdName] = useState('');
+  const [showNewErd, setShowNewErd] = useState(false);
   const [editingFlowId, setEditingFlowId] = useState<number | null>(null);
   const [editFlowName, setEditFlowName] = useState('');
   const updateFlow = useUpdateFlow();
+  const [editingErdId, setEditingErdId] = useState<number | null>(null);
+  const [editErdName, setEditErdName] = useState('');
+  const updateErd = useUpdateErd();
   const [expandedDateGroups, setExpandedDateGroups] = useState<Set<string>>(new Set(['Today', 'Yesterday']));
   const [filterQuery, setFilterQuery] = useState('');
 
   // Flow DnD
   const [activeDragFlow, setActiveDragFlow] = useState<Flow | null>(null);
+  const [activeDragErd, setActiveDragErd] = useState<ErdDocument | null>(null);
 
   const flowSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+  );
+
+  const erdSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
     }),
@@ -778,11 +917,16 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     }
     return DEFAULT_WIDTH;
   });
+  const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
   const isResizing = useRef(false);
 
   useEffect(() => {
     localStorage.setItem('sidebarWidth', String(sidebarWidth));
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', String(isCollapsed));
+  }, [isCollapsed]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -821,6 +965,11 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     return filterFlows(flows, filterQuery);
   }, [flows, filterQuery]);
 
+  const filteredErds = useMemo(() => {
+    if (!filterQuery.trim()) return erds;
+    return filterErds(erds, filterQuery);
+  }, [erds, filterQuery]);
+
   const filteredHistory = useMemo(() => {
     if (!filterQuery.trim()) return history;
     return filterHistory(history, filterQuery);
@@ -854,6 +1003,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
 
   const closeNewFlow = useCallback(() => setShowNewFlow(false), []);
   const newFlowRef = useClickOutside<HTMLDivElement>(closeNewFlow, showNewFlow);
+  const closeNewErd = useCallback(() => setShowNewErd(false), []);
+  const newErdRef = useClickOutside<HTMLDivElement>(closeNewErd, showNewErd);
 
   const handleCreateCollection = () => {
     if (newCollectionName.trim()) {
@@ -888,11 +1039,31 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     }
   };
 
+  const handleCreateErd = () => {
+    if (newErdName.trim()) {
+      createErd.mutate({ name: newErdName.trim() }, {
+        onSuccess: (erd) => {
+          onSelectErd(erd);
+        },
+      });
+      setNewErdName('');
+      setShowNewErd(false);
+    }
+  };
+
   const handleDeleteFlow = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
     deleteFlow.mutate(id);
     if (selectedFlowId === id) {
       onSelectFlow(null);
+    }
+  };
+
+  const handleDeleteErd = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteErd.mutate(id);
+    if (selectedErdId === id) {
+      onSelectErd(null);
     }
   };
 
@@ -1017,6 +1188,49 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   }, [filteredFlows, reorderFlows]);
 
   const flowIds = filteredFlows.map(f => `flow-${f.id}`);
+  const erdIds = filteredErds.map(erd => `erd-${erd.id}`);
+
+  const handleErdDragStart = (event: DragStartEvent) => {
+    const data = event.active.data.current;
+    if (data?.type === 'erd') {
+      setActiveDragErd(data.item as ErdDocument);
+    }
+  };
+
+  const handleErdDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveDragErd(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeId = String(active.id).replace('erd-', '');
+    const overId = String(over.id).replace('erd-', '');
+    const oldIndex = filteredErds.findIndex(erd => erd.id === parseInt(activeId, 10));
+    const newIndex = filteredErds.findIndex(erd => erd.id === parseInt(overId, 10));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(filteredErds, oldIndex, newIndex);
+    const orders = reordered.map((erd, idx) => ({
+      id: erd.id,
+      sortOrder: idx + 1,
+    }));
+    reorderErds.mutate(orders);
+  }, [filteredErds, reorderErds]);
+
+  if (isCollapsed) {
+    return (
+      <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-2" style={{ width: 44, minWidth: 44 }}>
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"
+          title="Expand sidebar"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+          </svg>
+        </button>
+      </aside>
+    );
+  }
 
   return (
     <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden" style={{ width: sidebarWidth, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH }}>
@@ -1025,15 +1239,25 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
         onMouseDown={handleResizeStart}
         className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400 active:bg-blue-500 z-10 transition-colors"
       />
+      <button
+        onClick={() => setIsCollapsed(true)}
+        className="absolute top-2 right-2 z-20 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500"
+        title="Collapse sidebar"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
+        </svg>
+      </button>
       {/* View Tabs */}
       <TabNav
         tabs={[
           { key: 'requests', label: 'Requests' },
           { key: 'flows', label: 'Flows' },
+          { key: 'erds', label: 'ERDs' },
           { key: 'history', label: 'History' },
         ]}
         activeTab={view}
-        onTabChange={key => onViewChange(key as 'requests' | 'flows' | 'history')}
+        onTabChange={key => onViewChange(key as 'requests' | 'flows' | 'history' | 'erds')}
         tabClassName="flex-1"
       />
 
@@ -1147,6 +1371,62 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                 {activeDragFlow && (
                   <div className="bg-white dark:bg-gray-800 rounded shadow-lg px-2 py-1 text-xs font-medium border border-gray-200 dark:border-gray-600">
                     {activeDragFlow.name}
+                  </div>
+                )}
+              </DragOverlay>
+            </DndContext>
+          </>
+        )}
+
+        {view === 'erds' && (
+          <>
+            <div className="mb-2" ref={newErdRef}>
+              <InlineCreateForm
+                isOpen={showNewErd}
+                onOpenChange={setShowNewErd}
+                value={newErdName}
+                onValueChange={setNewErdName}
+                onSubmit={handleCreateErd}
+                placeholder="ERD name"
+                buttonLabel="New ERD"
+              />
+            </div>
+            <DndContext
+              sensors={isDndDisabled ? undefined : erdSensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleErdDragStart}
+              onDragEnd={handleErdDragEnd}
+            >
+              <SortableContext items={erdIds} strategy={verticalListSortingStrategy}>
+                <div className="space-y-1">
+                  {filteredErds.length === 0 ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 p-2">
+                      {filterQuery.trim() ? 'No matching items' : 'No ERDs created yet'}
+                    </p>
+                  ) : (
+                    filteredErds.map(erd => (
+                      <SortableErdItem
+                        key={erd.id}
+                        erd={erd}
+                        selectedErdId={selectedErdId}
+                        onSelectErd={onSelectErd}
+                        onDuplicateErd={id => duplicateErd.mutate(id)}
+                        onDeleteErd={handleDeleteErd}
+                        editingErdId={editingErdId}
+                        setEditingErdId={setEditingErdId}
+                        editErdName={editErdName}
+                        setEditErdName={setEditErdName}
+                        updateErd={updateErd}
+                        isDndDisabled={isDndDisabled}
+                      />
+                    ))
+                  )}
+                </div>
+              </SortableContext>
+              <DragOverlay>
+                {activeDragErd && (
+                  <div className="bg-white dark:bg-gray-800 rounded shadow-lg px-2 py-1 text-xs font-medium border border-gray-200 dark:border-gray-600">
+                    {activeDragErd.name}
                   </div>
                 )}
               </DragOverlay>

@@ -5,6 +5,7 @@ export type { Request } from '../api/requests';
 export type { Environment } from '../api/environments';
 export type { Proxy } from '../api/proxies';
 export type { Flow, FlowStep, FlowResult, StepResult } from '../api/flows';
+export type { ErdDocument, ErdDiagnostic, ErdPreviewResult, ErdGeneratedFile, ErdKotlinResult } from '../api/erds';
 export type { ExecuteResult, ScriptResult, RequestExecuteResult } from '../api/shared/types';
 export type { History } from '../api/history';
 

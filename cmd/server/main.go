@@ -70,6 +70,7 @@ func main() {
 	historyHandler := handler.NewHistoryHandler(queries)
 	fileHandler := handler.NewFileHandler(db, queries, fileStorage)
 	wsHandler := handler.NewWebSocketHandler(wsRelay)
+	erdHandler := handler.NewErdHandler(queries)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -143,6 +144,17 @@ func main() {
 		r.Put("/flows/{id}/steps/{stepId}", flowHandler.UpdateStep)
 		r.Delete("/flows/{id}/steps/{stepId}", flowHandler.DeleteStep)
 
+		// ERDs
+		r.Get("/erds", erdHandler.List)
+		r.Post("/erds", erdHandler.Create)
+		r.Put("/erds/reorder", erdHandler.Reorder)
+		r.Post("/erds/preview", erdHandler.Preview)
+		r.Post("/erds/generate/kotlin", erdHandler.GenerateKotlin)
+		r.Get("/erds/{id}", erdHandler.Get)
+		r.Put("/erds/{id}", erdHandler.Update)
+		r.Delete("/erds/{id}", erdHandler.Delete)
+		r.Post("/erds/{id}/duplicate", erdHandler.Duplicate)
+
 		// Files
 		r.Post("/files/upload", fileHandler.Upload)
 		r.Post("/files/cleanup", fileHandler.Cleanup)
@@ -188,4 +200,3 @@ func main() {
 		log.Fatal("Server failed:", err)
 	}
 }
-
