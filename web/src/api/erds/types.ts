@@ -13,8 +13,27 @@ export interface ErdDiagnostic {
   severity: 'error' | 'warning';
 }
 
+export interface ErdPreviewEntity {
+  name: string;
+  fields: string[];
+}
+
+export interface ErdPreviewRelation {
+  from: string;
+  fromCardinality: string;
+  to: string;
+  toCardinality: string;
+  label: string;
+}
+
+export interface ErdPreviewDiagram {
+  entities: ErdPreviewEntity[];
+  relations: ErdPreviewRelation[];
+}
+
 export interface ErdPreviewResult {
   mermaid: string;
+  diagram?: ErdPreviewDiagram;
   diagnostics: ErdDiagnostic[] | null;
 }
 

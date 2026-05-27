@@ -185,6 +185,19 @@ func TestErd_PreviewAndGenerateKotlin(t *testing.T) {
 	if preview.Mermaid == "" {
 		t.Fatal("expected Mermaid output")
 	}
+	if preview.Diagram == nil {
+		t.Fatal("expected diagram output")
+	}
+	if len(preview.Diagram.Entities) != 2 {
+		t.Fatalf("expected 2 diagram entities, got %d", len(preview.Diagram.Entities))
+	}
+	if len(preview.Diagram.Relations) != 1 {
+		t.Fatalf("expected 1 diagram relation, got %d", len(preview.Diagram.Relations))
+	}
+	relation := preview.Diagram.Relations[0]
+	if relation.From != "Order" || relation.FromCardinality != "}o" || relation.To != "User" || relation.ToCardinality != "||" || relation.Label != "user" {
+		t.Fatalf("unexpected diagram relation: %#v", relation)
+	}
 
 	resp, err = postJSON(ts.URL+"/api/erds/generate/kotlin", fmt.Sprintf(`{"dsl":%q}`, dsl))
 	if err != nil {

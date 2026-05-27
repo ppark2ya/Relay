@@ -44,6 +44,24 @@ type ErdRelation struct {
 	Nullable   *bool  `json:"nullable"`
 }
 
+type ErdDiagram struct {
+	Entities  []ErdDiagramEntity   `json:"entities"`
+	Relations []ErdDiagramRelation `json:"relations"`
+}
+
+type ErdDiagramEntity struct {
+	Name   string   `json:"name"`
+	Fields []string `json:"fields"`
+}
+
+type ErdDiagramRelation struct {
+	From            string `json:"from"`
+	FromCardinality string `json:"fromCardinality"`
+	To              string `json:"to"`
+	ToCardinality   string `json:"toCardinality"`
+	Label           string `json:"label"`
+}
+
 type GeneratedFile struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
@@ -158,6 +176,34 @@ func GenerateMermaidERD(spec ErdSpec) string {
 	return b.String()
 }
 
+func GenerateErdDiagram(spec ErdSpec) ErdDiagram {
+	diagram := ErdDiagram{
+		Entities:  make([]ErdDiagramEntity, 0, len(spec.Entities)),
+		Relations: make([]ErdDiagramRelation, 0, len(spec.Relations)),
+	}
+	for _, entity := range spec.Entities {
+		fields := make([]string, 0, len(entity.Fields))
+		for _, field := range entity.Fields {
+			fields = append(fields, erdFieldDisplay(field))
+		}
+		diagram.Entities = append(diagram.Entities, ErdDiagramEntity{
+			Name:   entity.Name,
+			Fields: fields,
+		})
+	}
+	for _, relation := range spec.Relations {
+		left, right := mermaidCardinality(relation)
+		diagram.Relations = append(diagram.Relations, ErdDiagramRelation{
+			From:            relation.From,
+			FromCardinality: left,
+			To:              relation.To,
+			ToCardinality:   right,
+			Label:           relation.Field,
+		})
+	}
+	return diagram
+}
+
 func GenerateKotlinEntities(spec ErdSpec) []GeneratedFile {
 	files := make([]GeneratedFile, 0, len(spec.Entities))
 	for _, entity := range spec.Entities {
@@ -187,6 +233,25 @@ func mermaidCardinality(relation ErdRelation) (string, string) {
 	default:
 		return "||", "||"
 	}
+}
+
+func erdFieldDisplay(field ErdField) string {
+	var b strings.Builder
+	b.WriteString(field.Type)
+	b.WriteString(" ")
+	b.WriteString(field.Name)
+	var markers []string
+	if field.ID {
+		markers = append(markers, "PK")
+	}
+	if field.Unique {
+		markers = append(markers, "UK")
+	}
+	if len(markers) > 0 {
+		b.WriteString(" ")
+		b.WriteString(strings.Join(markers, ","))
+	}
+	return b.String()
 }
 
 func entityRelations(relations []ErdRelation, entityName string) []ErdRelation {

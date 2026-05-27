@@ -9,4 +9,13 @@ export {
   usePreviewErd,
   useGenerateKotlin,
 } from './hooks';
-export type { ErdDocument, ErdDiagnostic, ErdPreviewResult, ErdGeneratedFile, ErdKotlinResult } from './types';
+export type {
+  ErdDocument,
+  ErdDiagnostic,
+  ErdPreviewEntity,
+  ErdPreviewRelation,
+  ErdPreviewDiagram,
+  ErdPreviewResult,
+  ErdGeneratedFile,
+  ErdKotlinResult,
+} from './types';

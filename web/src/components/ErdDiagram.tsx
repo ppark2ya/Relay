@@ -1,94 +1,39 @@
-import { useEffect } from 'react';
-import { buildEntityLayout, buildRelationConnector, type DiagramBox } from './ErdDiagramGeometry';
-
-interface DiagramEntity {
-  name: string;
-  fields: string[];
-}
-
-interface DiagramRelation {
-  from: string;
-  fromCardinality: string;
-  to: string;
-  toCardinality: string;
-  label: string;
-}
+import { useMemo } from 'react';
+import {
+  BaseEdge,
+  Controls,
+  EdgeLabelRenderer,
+  Handle,
+  ReactFlow,
+  ReactFlowProvider,
+  Position,
+  getSmoothStepPath,
+  type EdgeProps,
+  type NodeProps,
+} from '@xyflow/react';
+import type { ErdPreviewDiagram } from '../api/erds';
+import {
+  buildErdFlowElements,
+  type ErdEntityNode,
+  type ErdRelationEdge,
+} from './ErdDiagramGeometry';
 
 interface ErdDiagramProps {
-  mermaid: string;
-  zoom: number;
-  onSizeChange?: (size: { width: number; height: number }) => void;
+  diagram: ErdPreviewDiagram;
 }
 
-const ENTITY_WIDTH = 220;
-const HEADER_HEIGHT = 34;
-const FIELD_HEIGHT = 22;
-const ENTITY_GAP = 120;
-const ROW_GAP = 44;
-const TOP = 72;
-const LEFT = 96;
-const CONNECTOR_MARGIN = 36;
+const nodeTypes = {
+  erdEntity: ErdEntityNodeView,
+};
 
-export function ErdDiagram({ mermaid, zoom, onSizeChange }: ErdDiagramProps) {
-  const { entities, relations } = parseMermaidErd(mermaid);
-  const layout = buildEntityLayout({
-    entities,
-    relations,
-    entityWidth: ENTITY_WIDTH,
-    headerHeight: HEADER_HEIGHT,
-    fieldHeight: FIELD_HEIGHT,
-    entityGap: ENTITY_GAP,
-    rowGap: ROW_GAP,
-    top: TOP,
-    left: LEFT,
-  });
-  const boxes = layout.boxes;
-  const boxByName = layout.boxByName;
-  const relationPairIndexes = new Map<string, number>();
-  const endpointSlotCounts = countEndpointSlots(relations, boxByName);
-  const endpointSlotIndexes = new Map<string, number>();
-  const renderedRelations = relations.map((relation, index) => {
-    const from = boxByName.get(relation.from);
-    const to = boxByName.get(relation.to);
-    if (!from || !to) return null;
-    const pairKey = [relation.from, relation.to].sort().join('::');
-    const pairIndex = relationPairIndexes.get(pairKey) ?? 0;
-    relationPairIndexes.set(pairKey, pairIndex + 1);
-    const fromSide = relationEndpointSide(from, to);
-    const toSide = relationEndpointSide(to, from);
-    const fromSlotKey = endpointSlotKey(relation.from, fromSide);
-    const toSlotKey = endpointSlotKey(relation.to, toSide);
-    const fromSlotIndex = endpointSlotIndexes.get(fromSlotKey) ?? 0;
-    const toSlotIndex = endpointSlotIndexes.get(toSlotKey) ?? 0;
-    endpointSlotIndexes.set(fromSlotKey, fromSlotIndex + 1);
-    endpointSlotIndexes.set(toSlotKey, toSlotIndex + 1);
-    const connector = buildRelationConnector({
-      from,
-      to,
-      fromIndex: index,
-      pairIndex,
-      entityWidth: ENTITY_WIDTH,
-      fromSlot: { index: fromSlotIndex, count: endpointSlotCounts.get(fromSlotKey) ?? 1 },
-      toSlot: { index: toSlotIndex, count: endpointSlotCounts.get(toSlotKey) ?? 1 },
-    });
+const edgeTypes = {
+  erdRelation: ErdRelationEdgeView,
+};
 
-    return { relation, connector };
-  });
-  const connectorBounds = renderedRelations.flatMap(item => item ? [item.connector.bounds] : []);
-  const width = Math.max(
-    layout.width,
-    connectorBounds.length === 0 ? 1 : Math.max(...connectorBounds.map(bounds => bounds.maxX)) + CONNECTOR_MARGIN,
-  );
-  const height = Math.max(
-    layout.height,
-    connectorBounds.length === 0 ? 1 : Math.max(...connectorBounds.map(bounds => bounds.maxY)) + CONNECTOR_MARGIN,
-  );
+export function ErdDiagram({ diagram }: ErdDiagramProps) {
+  const { nodes, edges } = useMemo(() => buildErdFlowElements(diagram), [diagram]);
 
-  useEffect(() => {
-    onSizeChange?.({ width, height });
-  }, [height, onSizeChange, width]);
-
-  if (entities.length === 0) {
+  if (diagram.entities.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">
         No entities to preview
@@ -97,120 +42,93 @@ export function ErdDiagram({ mermaid, zoom, onSizeChange }: ErdDiagramProps) {
   }
 
   return (
-    <div className="min-w-max min-h-max p-8" style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
-      <svg width={width} height={height} className="overflow-visible">
-        {renderedRelations.map((item) => {
-          if (!item) return null;
-          const { relation, connector } = item;
-          return (
-            <g key={`${relation.from}-${relation.to}-${relation.label}`}>
-              <path
-                d={connector.path}
-                fill="none"
-                stroke="#64748b"
-                strokeWidth="1.5"
-              />
-              <text
-                x={connector.from.labelX}
-                y={connector.from.y - 6}
-                fontSize="11"
-                textAnchor={connector.from.labelAnchor}
-                fill="#475569"
-              >
-                {relation.fromCardinality}
-              </text>
-              <text
-                x={connector.to.labelX}
-                y={connector.to.y - 6}
-                fontSize="11"
-                textAnchor={connector.to.labelAnchor}
-                fill="#475569"
-              >
-                {relation.toCardinality}
-              </text>
-              <text x={connector.labelX} y={connector.labelY} fontSize="11" textAnchor="middle" fill="#334155">
-                {relation.label}
-              </text>
-            </g>
-          );
-        })}
+    <ReactFlowProvider>
+      <ReactFlow<ErdEntityNode, ErdRelationEdge>
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        minZoom={0.4}
+        maxZoom={2}
+        fitView
+        fitViewOptions={{ padding: 0.18 }}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        zoomOnDoubleClick={false}
+        className="bg-gray-50 dark:bg-gray-900"
+      >
+        <Controls showInteractive={false} position="top-right" />
+      </ReactFlow>
+    </ReactFlowProvider>
+  );
+}
 
-        {boxes.map(({ entity, x, y, height }) => (
-          <g key={entity.name}>
-            <rect x={x} y={y} width={ENTITY_WIDTH} height={height} rx="6" fill="#ffffff" stroke="#cbd5e1" />
-            <rect x={x} y={y} width={ENTITY_WIDTH} height={HEADER_HEIGHT} rx="6" fill="#eff6ff" stroke="#bfdbfe" />
-            <text x={x + 14} y={y + 22} fontSize="13" fontWeight="700" fill="#1e3a8a">{entity.name}</text>
-            {entity.fields.map((field, fieldIndex) => (
-              <text key={field} x={x + 14} y={y + HEADER_HEIGHT + 22 + fieldIndex * FIELD_HEIGHT} fontSize="12" fill="#334155">
-                {field}
-              </text>
-            ))}
-          </g>
-        ))}
-      </svg>
+function ErdEntityNodeView({ data }: NodeProps<ErdEntityNode>) {
+  return (
+    <div className="w-[220px] overflow-hidden rounded-md border border-slate-300 bg-white text-slate-700 shadow-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+      <Handle type="target" position={Position.Left} className="opacity-0" />
+      <Handle type="source" position={Position.Right} className="opacity-0" />
+      <div className="border-b border-blue-200 bg-blue-50 px-3.5 py-2 text-[13px] font-bold text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200">
+        {data.name}
+      </div>
+      <div className="py-2">
+        {data.fields.length > 0 ? data.fields.map((field) => (
+          <div key={field} className="truncate px-3.5 py-0.5 text-xs leading-5">
+            {field}
+          </div>
+        )) : (
+          <div className="px-3.5 py-0.5 text-xs leading-5 text-gray-400 dark:text-gray-500">
+            No fields
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function parseMermaidErd(mermaid: string): { entities: DiagramEntity[]; relations: DiagramRelation[] } {
-  const entities: DiagramEntity[] = [];
-  const relations: DiagramRelation[] = [];
-  const lines = mermaid.split('\n').map(line => line.trim()).filter(Boolean);
-  let current: DiagramEntity | null = null;
+function ErdRelationEdgeView({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+}: EdgeProps<ErdRelationEdge>) {
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    borderRadius: 12,
+  });
 
-  for (const line of lines) {
-    if (line === 'erDiagram') continue;
-    if (line.endsWith('{')) {
-      current = { name: line.replace('{', '').trim(), fields: [] };
-      entities.push(current);
-      continue;
-    }
-    if (line === '}') {
-      current = null;
-      continue;
-    }
-    if (current) {
-      current.fields.push(line);
-      continue;
-    }
-
-    const match = line.match(/^(\w+)\s+(\S+)--(\S+)\s+(\w+)\s+:\s+(.+)$/);
-    if (match) {
-      relations.push({
-        from: match[1],
-        fromCardinality: match[2],
-        toCardinality: match[3],
-        to: match[4],
-        label: match[5],
-      });
-    }
-  }
-
-  return { entities, relations };
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} style={{ stroke: '#64748b', strokeWidth: 1.5 }} />
+      <EdgeLabelRenderer>
+        <ErdEdgeLabel x={sourceX} y={sourceY - 14} text={data?.fromCardinality ?? ''} />
+        <ErdEdgeLabel x={labelX} y={labelY - 10} text={data?.label ?? ''} />
+        <ErdEdgeLabel x={targetX} y={targetY - 14} text={data?.toCardinality ?? ''} />
+      </EdgeLabelRenderer>
+    </>
+  );
 }
 
-function countEndpointSlots(relations: DiagramRelation[], boxByName: Map<string, DiagramBox>) {
-  const counts = new Map<string, number>();
-  for (const relation of relations) {
-    const from = boxByName.get(relation.from);
-    const to = boxByName.get(relation.to);
-    if (!from || !to) continue;
-    const fromSide = relationEndpointSide(from, to);
-    const toSide = relationEndpointSide(to, from);
-    increment(counts, endpointSlotKey(relation.from, fromSide));
-    increment(counts, endpointSlotKey(relation.to, toSide));
-  }
-  return counts;
-}
-
-function relationEndpointSide(from: DiagramBox, to: DiagramBox) {
-  return from.x + ENTITY_WIDTH / 2 <= to.x + ENTITY_WIDTH / 2 ? 'right' : 'left';
-}
-
-function endpointSlotKey(entityName: string, side: string) {
-  return `${entityName}:${side}`;
-}
-
-function increment(map: Map<string, number>, key: string) {
-  map.set(key, (map.get(key) ?? 0) + 1);
+function ErdEdgeLabel({ x, y, text }: { x: number; y: number; text: string }) {
+  if (!text) return null;
+  return (
+    <div
+      className="absolute rounded bg-white/90 px-1.5 py-0.5 text-[11px] leading-none text-slate-700 shadow-sm dark:bg-gray-800/90 dark:text-gray-200"
+      style={{
+        transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`,
+      }}
+    >
+      {text}
+    </div>
+  );
 }

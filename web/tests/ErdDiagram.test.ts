@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ErdDiagram } from '../src/components/ErdDiagram';
-import { buildEntityLayout, buildRelationConnector } from '../src/components/ErdDiagramGeometry';
+import { buildEntityLayout, buildErdFlowElements, buildRelationConnector } from '../src/components/ErdDiagramGeometry';
 
 const userBox = { x: 48, y: 64, height: 94 };
 const orderBox = { x: 388, y: 64, height: 94 };
@@ -101,23 +101,65 @@ describe('buildEntityLayout', () => {
 });
 
 describe('ErdDiagram', () => {
-  test('renders relationship lines without directional arrows', () => {
+  test('mounts a React Flow preview for structured diagram data', () => {
     const markup = renderToStaticMarkup(createElement(ErdDiagram, {
-      mermaid: `erDiagram
-  User {
-    Long id PK
-  }
-  Order {
-    Long id PK
-  }
-  Order }o--|| User : user
-`,
-      zoom: 1,
+      diagram: {
+        entities: [
+          { name: 'User', fields: ['Long id PK'] },
+          { name: 'Order', fields: ['Long id PK'] },
+        ],
+        relations: [
+          { from: 'Order', fromCardinality: '}o', to: 'User', toCardinality: '||', label: 'user' },
+        ],
+      },
     }));
 
-    expect(markup).toContain('>||<');
-    expect(markup).toContain('>}o<');
-    expect(markup).not.toContain('marker-end');
-    expect(markup).not.toContain('erd-arrow');
+    expect(markup).toContain('react-flow');
+  });
+
+  test('renders an empty state when no entities are present', () => {
+    const markup = renderToStaticMarkup(createElement(ErdDiagram, {
+      diagram: { entities: [], relations: [] },
+    }));
+
+    expect(markup).toContain('No entities to preview');
+  });
+});
+
+describe('buildErdFlowElements', () => {
+  test('converts ERD preview data into read-only React Flow nodes and edges', () => {
+    const elements = buildErdFlowElements({
+      entities: [
+        { name: 'User', fields: ['Long id PK', 'String email UK'] },
+        { name: 'Order', fields: ['Long id PK', 'BigDecimal amount'] },
+      ],
+      relations: [
+        { from: 'Order', fromCardinality: '}o', to: 'User', toCardinality: '||', label: 'user' },
+      ],
+    });
+
+    expect(elements.nodes).toHaveLength(2);
+    expect(elements.edges).toHaveLength(1);
+    expect(elements.nodes[0]).toMatchObject({
+      id: 'User',
+      type: 'erdEntity',
+      sourcePosition: 'right',
+      targetPosition: 'left',
+      draggable: false,
+      selectable: false,
+      data: { name: 'User', fields: ['Long id PK', 'String email UK'] },
+    });
+    expect(elements.edges[0]).toMatchObject({
+      id: 'Order-user-User-0',
+      source: 'Order',
+      target: 'User',
+      type: 'erdRelation',
+      selectable: false,
+      data: {
+        fromCardinality: '}o',
+        toCardinality: '||',
+        label: 'user',
+      },
+    });
   });
 });

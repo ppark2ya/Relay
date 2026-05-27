@@ -88,6 +88,34 @@ func TestGenerateMermaidERD_IncludesFieldsAndRelationLines(t *testing.T) {
 	}
 }
 
+func TestGenerateErdDiagram_IncludesEntitiesAndRelations(t *testing.T) {
+	doc, diagnostics := ParseErdDSL(sampleErdDSL)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+	}
+
+	diagram := GenerateErdDiagram(doc)
+
+	if len(diagram.Entities) != 2 {
+		t.Fatalf("expected 2 diagram entities, got %d", len(diagram.Entities))
+	}
+	if diagram.Entities[0].Name != "User" {
+		t.Fatalf("expected first entity User, got %q", diagram.Entities[0].Name)
+	}
+	wantFields := []string{"Long id PK", "String email UK"}
+	if strings.Join(diagram.Entities[0].Fields, "\n") != strings.Join(wantFields, "\n") {
+		t.Fatalf("unexpected User fields: %#v", diagram.Entities[0].Fields)
+	}
+
+	if len(diagram.Relations) != 1 {
+		t.Fatalf("expected 1 diagram relation, got %d", len(diagram.Relations))
+	}
+	relation := diagram.Relations[0]
+	if relation.From != "Order" || relation.FromCardinality != "}o" || relation.To != "User" || relation.ToCardinality != "||" || relation.Label != "user" {
+		t.Fatalf("unexpected relation: %#v", relation)
+	}
+}
+
 func TestGenerateKotlinEntities_UsesJakartaAndRelations(t *testing.T) {
 	doc, diagnostics := ParseErdDSL(sampleErdDSL)
 	if len(diagnostics) != 0 {

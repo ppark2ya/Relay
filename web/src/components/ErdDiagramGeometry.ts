@@ -1,3 +1,6 @@
+import { Position, type Edge, type Node } from '@xyflow/react';
+import type { ErdPreviewDiagram } from '../api/erds';
+
 interface ConnectorBox {
   x: number;
   y: number;
@@ -39,6 +42,25 @@ interface EntityLayout {
   width: number;
   height: number;
   entityWidth: number;
+}
+
+export interface ErdEntityNodeData extends Record<string, unknown> {
+  name: string;
+  fields: string[];
+}
+
+export interface ErdRelationEdgeData extends Record<string, unknown> {
+  fromCardinality: string;
+  toCardinality: string;
+  label: string;
+}
+
+export type ErdEntityNode = Node<ErdEntityNodeData, 'erdEntity'>;
+export type ErdRelationEdge = Edge<ErdRelationEdgeData, 'erdRelation'>;
+
+export interface ErdFlowElements {
+  nodes: ErdEntityNode[];
+  edges: ErdRelationEdge[];
 }
 
 interface RelationConnectorInput {
@@ -161,6 +183,48 @@ export function buildEntityLayout({
       : left * 2 + sortedColumns.length * entityWidth + Math.max(0, sortedColumns.length - 1) * entityGap,
     height: boxes.length === 0 ? 1 : top * 2 + maxColumnHeight,
     entityWidth,
+  };
+}
+
+export function buildErdFlowElements(diagram: ErdPreviewDiagram): ErdFlowElements {
+  const layout = buildEntityLayout({
+    entities: diagram.entities,
+    relations: diagram.relations,
+    entityWidth: DEFAULT_ENTITY_WIDTH,
+    headerHeight: DEFAULT_HEADER_HEIGHT,
+    fieldHeight: DEFAULT_FIELD_HEIGHT,
+    entityGap: DEFAULT_ENTITY_GAP,
+    rowGap: DEFAULT_ROW_GAP,
+    top: DEFAULT_TOP,
+    left: DEFAULT_LEFT,
+  });
+
+  return {
+    nodes: layout.boxes.map(({ entity, x, y }) => ({
+      id: entity.name,
+      type: 'erdEntity',
+      position: { x, y },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+      data: {
+        name: entity.name,
+        fields: entity.fields,
+      },
+      draggable: false,
+      selectable: false,
+    })),
+    edges: diagram.relations.map((relation, index) => ({
+      id: `${relation.from}-${relation.label}-${relation.to}-${index}`,
+      source: relation.from,
+      target: relation.to,
+      type: 'erdRelation',
+      selectable: false,
+      data: {
+        fromCardinality: relation.fromCardinality,
+        toCardinality: relation.toCardinality,
+        label: relation.label,
+      },
+    })),
   };
 }
 
