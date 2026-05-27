@@ -226,6 +226,9 @@ func (h *ErdHandler) Preview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	spec, diagnostics := service.ParseErdDSL(req.DSL)
+	if diagnostics == nil {
+		diagnostics = []service.ErdDiagnostic{}
+	}
 	resp := ErdPreviewResponse{Diagnostics: diagnostics}
 	if len(diagnostics) == 0 {
 		resp.Mermaid = service.GenerateMermaidERD(spec)

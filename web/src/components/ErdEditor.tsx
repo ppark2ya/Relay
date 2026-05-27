@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
-import { useErds, useGenerateKotlin, usePreviewErd, useUpdateErd } from '../api/erds';
+import { useErds, useUpdateErd } from '../api/erds';
+import * as erdApi from '../api/erds/client';
 import type { ErdDocument, ErdGeneratedFile } from '../api/erds';
 import { CodeEditor, EmptyState, TabNav, type ScriptDiagnostic } from './ui';
 import { ErdDiagram } from './ErdDiagram';
+import { normalizeErdDiagnostics } from './ErdDiagnostics';
 
 interface ErdEditorProps {
   erd: ErdDocument | null;
@@ -44,16 +46,16 @@ const DEFAULT_DSL = `{
 export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
   const updateErd = useUpdateErd();
   const { data: erds = [] } = useErds();
-  const previewErd = usePreviewErd();
-  const generateKotlin = useGenerateKotlin();
-  const previewMutate = previewErd.mutate;
-  const generateKotlinMutate = generateKotlin.mutate;
-  const [dsl, setDsl] = useState(DEFAULT_DSL);
+  const erdDraftId = erd?.id ?? 0;
+  const [draft, setDraft] = useState(() => ({ erdId: erdDraftId, dsl: erd?.dsl || DEFAULT_DSL }));
+  const dsl = draft.erdId === erdDraftId ? draft.dsl : erd?.dsl || DEFAULT_DSL;
   const [activeTab, setActiveTab] = useState<'preview' | 'kotlin' | 'guide'>('preview');
   const [mermaid, setMermaid] = useState('');
   const [diagnostics, setDiagnostics] = useState<ScriptDiagnostic[]>([]);
   const [generatedFiles, setGeneratedFiles] = useState<ErdGeneratedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
+  const [kotlinStatus, setKotlinStatus] = useState<'idle' | 'loading' | 'ready' | 'empty' | 'error'>('idle');
+  const [kotlinMessage, setKotlinMessage] = useState('Kotlin files will appear after the ERD DSL is valid.');
   const [zoom, setZoom] = useState(1);
   const [diagramSize, setDiagramSize] = useState({ width: 1, height: 1 });
   const [editorWidth, setEditorWidth] = useState(() => {
@@ -69,44 +71,80 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
   const requestSeq = useRef(0);
 
   useEffect(() => {
-    setDsl(erd?.dsl || DEFAULT_DSL);
-    setMermaid('');
-    setDiagnostics([]);
-    setGeneratedFiles([]);
-    setSelectedFile('');
-  }, [erd?.id, erd?.dsl]);
-
-  useEffect(() => {
     localStorage.setItem('erdEditorWidth', String(editorWidth));
   }, [editorWidth]);
 
   useEffect(() => {
-    if (!erd) return;
+    if (!erdDraftId) return;
     const seq = ++requestSeq.current;
+    let cancelled = false;
     const handle = window.setTimeout(() => {
-      previewMutate(dsl, {
-        onSuccess: (result) => {
-          if (seq !== requestSeq.current) return;
+      setGeneratedFiles([]);
+      setSelectedFile('');
+      setKotlinStatus('loading');
+      setKotlinMessage('Generating Kotlin files...');
+      void (async () => {
+        try {
+          const result = await erdApi.previewErd(dsl);
+          if (cancelled || seq !== requestSeq.current) return;
+          const previewDiagnostics = normalizeErdDiagnostics(result.diagnostics);
           setMermaid(result.mermaid);
-          setDiagnostics(result.diagnostics.map(d => ({
+          setDiagnostics(previewDiagnostics.map(d => ({
             line: d.line || 1,
             message: d.message,
             severity: d.severity,
           })));
-          if (result.diagnostics.length === 0) {
-            generateKotlinMutate(dsl, {
-              onSuccess: (generated) => {
-                if (seq !== requestSeq.current) return;
-                setGeneratedFiles(generated.files);
-                setSelectedFile(prev => prev || generated.files[0]?.path || '');
-              },
-            });
+
+          if (previewDiagnostics.length === 0) {
+            try {
+              const generated = await withRequestTimeout(
+                erdApi.generateKotlin(dsl),
+                10000,
+                'Kotlin generation timed out.',
+              );
+              if (cancelled || seq !== requestSeq.current) return;
+              setGeneratedFiles(generated.files);
+              setSelectedFile(generated.files[0]?.path || '');
+              if (generated.files.length > 0) {
+                setKotlinStatus('ready');
+                setKotlinMessage('');
+              } else {
+                setKotlinStatus('empty');
+                setKotlinMessage('No Kotlin files were generated because the DSL has no entities.');
+              }
+            } catch (error) {
+              if (cancelled || seq !== requestSeq.current) return;
+              setGeneratedFiles([]);
+              setSelectedFile('');
+              setKotlinStatus('error');
+              setKotlinMessage(`Kotlin generation failed: ${formatMutationError(error)}`);
+            }
+          } else {
+            setGeneratedFiles([]);
+            setSelectedFile('');
+            setKotlinStatus('error');
+            setKotlinMessage('Fix the ERD DSL diagnostics before generating Kotlin files.');
           }
-        },
-      });
+        } catch (error) {
+          if (cancelled || seq !== requestSeq.current) return;
+          setMermaid('');
+          setDiagnostics([{ line: 1, message: `Preview failed: ${formatMutationError(error)}`, severity: 'error' }]);
+          setGeneratedFiles([]);
+          setSelectedFile('');
+          setKotlinStatus('error');
+          setKotlinMessage('Preview failed, so Kotlin files could not be generated.');
+        }
+      })();
     }, 350);
-    return () => window.clearTimeout(handle);
-  }, [dsl, erd, previewMutate, generateKotlinMutate]);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [dsl, erdDraftId]);
+
+  const handleDslChange = useCallback((value: string) => {
+    setDraft({ erdId: erdDraftId, dsl: value });
+  }, [erdDraftId]);
 
   const selectedContent = useMemo(
     () => generatedFiles.find(file => file.path === selectedFile)?.content || generatedFiles[0]?.content || '',
@@ -198,7 +236,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
           <div className="flex-1 min-h-0 p-3">
             <CodeEditor
               value={dsl}
-              onChange={setDsl}
+              onChange={handleDslChange}
               language="json"
               height="100%"
               diagnostics={diagnostics}
@@ -269,7 +307,11 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
                 </div>
               )}
               <div className="flex-1 min-h-0 p-3">
-                <CodeEditor value={selectedContent} language="javascript" height="100%" readOnly />
+                {kotlinStatus === 'ready' ? (
+                  <CodeEditor value={selectedContent} language="javascript" height="100%" readOnly />
+                ) : (
+                  <KotlinStateMessage status={kotlinStatus} message={kotlinMessage} />
+                )}
               </div>
             </div>
           )}
@@ -279,6 +321,41 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function formatMutationError(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return 'Unknown error';
+}
+
+function withRequestTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const handle = window.setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(handle);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(handle);
+        reject(error);
+      },
+    );
+  });
+}
+
+function KotlinStateMessage({ status, message }: { status: 'idle' | 'loading' | 'empty' | 'error'; message: string }) {
+  const tone = status === 'error'
+    ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'
+    : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300';
+
+  return (
+    <div className={`h-full rounded border p-4 text-xs ${tone}`}>
+      {message}
     </div>
   );
 }
@@ -324,7 +401,11 @@ function ErdDslGuide() {
         </GuideSection>
 
         <GuideSection title="fields">
-          <p>Fields describe scalar columns. At least one field should use <code className="font-mono">"id": true</code>.</p>
+          <p>
+            Fields describe scalar columns. At least one field should use <code className="font-mono">"id": true</code>.
+            Foreign key columns for JPA relationships are usually declared with <code className="font-mono">relations[].joinColumn</code>,
+            not duplicated here, unless you want a separate scalar Kotlin property too.
+          </p>
           <GuideTable
             rows={[
               ['name', 'string', 'Required. Kotlin property name.'],
@@ -338,14 +419,19 @@ function ErdDslGuide() {
         </GuideSection>
 
         <GuideSection title="relations">
-          <p>Relations connect two entities in the preview and add JPA relationship properties to the source entity.</p>
+          <p>
+            Relations connect two entities in the preview and add JPA relationship properties to the source entity.
+            The <code className="font-mono">field</code> value is the relation property name, such as
+            <code className="font-mono"> user</code>; <code className="font-mono">joinColumn</code> is the database FK column,
+            such as <code className="font-mono">user_id</code>.
+          </p>
           <GuideTable
             rows={[
               ['from', 'string', 'Required. Source/owning entity. The generated Kotlin property is added here.'],
               ['to', 'string', 'Required. Target entity. Must match an entity name.'],
               ['type', 'string', 'Required. one-to-one, one-to-many, many-to-one, or many-to-many.'],
-              ['field', 'string', 'Required. Kotlin property name and ERD line label.'],
-              ['joinColumn', 'string', 'Used for owning single-side associations such as many-to-one and one-to-one.'],
+              ['field', 'string', 'Required. Kotlin relationship property name and ERD line label. This is not the FK column name.'],
+              ['joinColumn', 'string', 'FK column used for owning single-side associations such as many-to-one and one-to-one.'],
               ['nullable', 'boolean', 'Defaults to true. false emits optional = false and nullable = false where applicable.'],
             ]}
           />
@@ -368,6 +454,7 @@ function ErdDslGuide() {
             <li>Generates <code className="font-mono">open class</code> entities for JPA proxy compatibility.</li>
             <li>Generates <code className="font-mono">@Entity</code>, <code className="font-mono">@Table</code>, <code className="font-mono">@Id</code>, <code className="font-mono">@GeneratedValue</code>, and <code className="font-mono">@Column</code>.</li>
             <li>Relation annotations are generated from <code className="font-mono">relations</code>: <code className="font-mono">@ManyToOne</code>, <code className="font-mono">@OneToMany</code>, <code className="font-mono">@OneToOne</code>, or <code className="font-mono">@ManyToMany</code>.</li>
+            <li>Explicit scalar fields are always generated as Kotlin properties, so a field named <code className="font-mono">user_id</code> is separate from a relation field named <code className="font-mono">user</code>.</li>
             <li><code className="font-mono">BigDecimal</code> fields add <code className="font-mono">java.math.BigDecimal</code> imports.</li>
           </ul>
         </GuideSection>

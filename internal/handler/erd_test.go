@@ -2,8 +2,10 @@ package handler_test
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"relay/internal/handler"
@@ -192,5 +194,33 @@ func TestErd_PreviewAndGenerateKotlin(t *testing.T) {
 	readJSON(t, resp, &generated)
 	if len(generated.Files) != 2 {
 		t.Fatalf("expected 2 generated files, got %d", len(generated.Files))
+	}
+}
+
+func TestErd_PreviewReturnsEmptyDiagnosticsArrayForValidDSL(t *testing.T) {
+	ts := setupErdTestServer(t)
+
+	dsl := `{
+	  "entities": [
+	    { "name": "User", "fields": [{ "name": "id", "type": "Long", "id": true }] }
+	  ],
+	  "relations": []
+	}`
+
+	resp, err := postJSON(ts.URL+"/api/erds/preview", fmt.Sprintf(`{"dsl":%q}`, dsl))
+	if err != nil {
+		t.Fatalf("preview ERD: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read preview response: %v", err)
+	}
+	if !strings.Contains(string(body), `"diagnostics":[]`) {
+		t.Fatalf("expected diagnostics to encode as an empty array, got %s", string(body))
 	}
 }

@@ -15,7 +15,7 @@ export interface ErdDiagnostic {
 
 export interface ErdPreviewResult {
   mermaid: string;
-  diagnostics: ErdDiagnostic[];
+  diagnostics: ErdDiagnostic[] | null;
 }
 
 export interface ErdGeneratedFile {
