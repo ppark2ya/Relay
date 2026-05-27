@@ -1,6 +1,7 @@
 import type { Collection } from '../api/collections';
 import type { Request } from '../api/requests';
 import type { Flow } from '../api/flows';
+import type { ErdDocument } from '../api/erds';
 import type { History } from '../api/history';
 
 export function matchesQuery(text: string, query: string): boolean {
@@ -46,6 +47,12 @@ export function filterCollectionTree(
 export function filterFlows(flows: Flow[], query: string): Flow[] {
   return flows.filter(
     (f) => matchesQuery(f.name, query) || matchesQuery(f.description, query),
+  );
+}
+
+export function filterErds(erds: ErdDocument[], query: string): ErdDocument[] {
+  return erds.filter(
+    (erd) => matchesQuery(erd.name, query) || matchesQuery(erd.dsl, query),
   );
 }
 

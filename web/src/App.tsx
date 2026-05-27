@@ -3,16 +3,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/sidebar';
 import { RequestEditor } from './components/request';
 import { ResponseViewer } from './components/ResponseViewer';
+import { ErdEditor } from './components/ErdEditor';
 import { FlowEditor } from './components/flow';
 import { WebSocketPanel } from './components/WebSocketPanel';
 import { Header } from './components/Header';
-import { useNavigation } from './hooks/useNavigation';
+import { useNavigation, type View } from './hooks/useNavigation';
 import { useRequest } from './api/requests';
 import { useFlow } from './api/flows';
+import { useErd } from './api/erds';
 import { useWebSocket } from './hooks/useWebSocket';
 import { WorkspaceContext, useWorkspaceProvider } from './hooks/useWorkspace';
 import { GlobalSearch } from './components/GlobalSearch';
-import type { Request, ExecuteResult, ScriptResult, Flow, History } from './types';
+import type { Request, ExecuteResult, ScriptResult, Flow, History, ErdDocument } from './types';
 
 const queryClient = new QueryClient();
 
@@ -20,6 +22,7 @@ function AppContent() {
   // Local state for selections made via sidebar/history clicks
   const [localRequest, setLocalRequest] = useState<Request | null>(null);
   const [localFlow, setLocalFlow] = useState<Flow | null>(null);
+  const [localErd, setLocalErd] = useState<ErdDocument | null>(null);
   const [response, setResponse] = useState<ExecuteResult | null>(null);
   const [scriptResults, setScriptResults] = useState<{ pre?: ScriptResult; post?: ScriptResult } | null>(null);
   const [responseCache] = useState(() => new Map<number, { response: ExecuteResult; scriptResults: { pre?: ScriptResult; post?: ScriptResult } | null }>());
@@ -97,23 +100,27 @@ function AppContent() {
   const handleUrlChange = () => {
     setLocalRequest(null);
     setLocalFlow(null);
+    setLocalErd(null);
     // response/scriptResults cleared here; derived effectiveResponse restores from cache
     setResponse(null);
     setScriptResults(null);
   };
 
-  const { view, resourceId, navigateToRequest, navigateToFlow, navigateToView } = useNavigation(handleUrlChange);
+  const { view, resourceId, navigateToRequest, navigateToFlow, navigateToErd, navigateToView } = useNavigation(handleUrlChange);
 
   // Fetch resource from URL for deep-link / direct navigation
   const requestQueryId = view === 'requests' && resourceId ? resourceId : 0;
   const flowQueryId = view === 'flows' && resourceId ? resourceId : 0;
+  const erdQueryId = view === 'erds' && resourceId ? resourceId : 0;
   const { data: urlRequest } = useRequest(requestQueryId);
   const { data: urlFlow } = useFlow(flowQueryId);
+  const { data: urlErd } = useErd(erdQueryId);
 
   // Derive selected items: local override takes priority (for history items with id=0),
   // then URL-fetched data, then null
   const selectedRequest = localRequest ?? (requestQueryId ? urlRequest ?? null : null);
   const selectedFlow = localFlow ?? (flowQueryId ? urlFlow ?? null : null);
+  const selectedErd = localErd ?? (erdQueryId ? urlErd ?? null : null);
 
   // Derive effective response: when response state is null, fall back to cache
   // This handles browser back/forward and URL navigation without needing useEffect
@@ -185,7 +192,16 @@ function AppContent() {
     }
   };
 
-  const handleViewChange = (newView: 'requests' | 'flows' | 'history') => {
+  const handleSelectErd = (erd: ErdDocument | null) => {
+    setLocalErd(erd);
+    if (erd) {
+      navigateToErd(erd.id);
+    } else {
+      navigateToView('erds');
+    }
+  };
+
+  const handleViewChange = (newView: View) => {
     navigateToView(newView);
   };
 
@@ -258,9 +274,11 @@ function AppContent() {
           onViewChange={handleViewChange}
           onSelectRequest={handleSelectRequest}
           onSelectFlow={handleSelectFlow}
+          onSelectErd={handleSelectErd}
           onSelectHistory={handleSelectHistory}
           selectedRequestId={selectedRequest?.id}
           selectedFlowId={selectedFlow?.id}
+          selectedErdId={selectedErd?.id}
         />
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className={`flex-1 flex flex-row overflow-hidden ${view === 'requests' ? '' : 'hidden'}`}>
@@ -352,6 +370,12 @@ function AppContent() {
             <FlowEditor
               flow={selectedFlow}
               onUpdate={setLocalFlow}
+            />
+          </div>
+          <div className={`flex-1 flex flex-col overflow-hidden ${view === 'erds' ? '' : 'hidden'}`}>
+            <ErdEditor
+              erd={selectedErd}
+              onUpdate={setLocalErd}
             />
           </div>
           {view === 'history' && (

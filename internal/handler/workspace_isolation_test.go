@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"relay/internal/handler"
@@ -32,6 +33,7 @@ func setupIsolationTestServer(t *testing.T, mockTarget *httptest.Server) *httpte
 	envH := handler.NewEnvironmentHandler(q)
 	flowH := handler.NewFlowHandler(q, fr, db)
 	histH := handler.NewHistoryHandler(q)
+	erdH := handler.NewErdHandler(q)
 
 	r := chi.NewRouter()
 	r.Use(middleware.WorkspaceID)
@@ -59,6 +61,13 @@ func setupIsolationTestServer(t *testing.T, mockTarget *httptest.Server) *httpte
 
 	// History
 	r.Get("/api/history", histH.List)
+
+	// ERDs
+	r.Get("/api/erds", erdH.List)
+	r.Post("/api/erds", erdH.Create)
+	r.Get("/api/erds/{id}", erdH.Get)
+	r.Put("/api/erds/{id}", erdH.Update)
+	r.Post("/api/erds/{id}/duplicate", erdH.Duplicate)
 
 	ts := httptest.NewServer(r)
 	t.Cleanup(ts.Close)
@@ -177,7 +186,9 @@ func TestIsolation_EnvironmentActivation(t *testing.T) {
 
 	// Create and activate env in workspace 1
 	resp, _ = postJSONWithWorkspace(ts.URL+"/api/environments", `{"name":"WS1 Prod","variables":"{}"}`, 1)
-	var env1 struct{ ID int64 `json:"id"` }
+	var env1 struct {
+		ID int64 `json:"id"`
+	}
 	readJSON(t, resp, &env1)
 
 	req, _ := http.NewRequest("POST", ts.URL+fmt.Sprintf("/api/environments/%d/activate", env1.ID), nil)
@@ -186,7 +197,9 @@ func TestIsolation_EnvironmentActivation(t *testing.T) {
 
 	// Create and activate env in workspace 2
 	resp, _ = postJSONWithWorkspace(ts.URL+"/api/environments", `{"name":"WS2 Staging","variables":"{}"}`, ws2.ID)
-	var env2 struct{ ID int64 `json:"id"` }
+	var env2 struct {
+		ID int64 `json:"id"`
+	}
 	readJSON(t, resp, &env2)
 
 	req, _ = http.NewRequest("POST", ts.URL+fmt.Sprintf("/api/environments/%d/activate", env2.ID), nil)
@@ -251,6 +264,67 @@ func TestIsolation_Flows(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Test: ERDs are isolated by workspace
+// ---------------------------------------------------------------------------
+func TestIsolation_Erds(t *testing.T) {
+	ts := setupIsolationTestServer(t, nil)
+
+	resp, _ := postJSON(ts.URL+"/api/workspaces", `{"name":"Team B"}`)
+	var ws2 handler.WorkspaceResponse
+	readJSON(t, resp, &ws2)
+
+	postJSONWithWorkspace(ts.URL+"/api/erds", `{"name":"WS1 ERD","dsl":"{\"entities\":[]}"}`, 1)
+	postJSONWithWorkspace(ts.URL+"/api/erds", `{"name":"WS2 ERD","dsl":"{\"entities\":[]}"}`, ws2.ID)
+
+	resp, _ = getWithWorkspace(ts.URL+"/api/erds", 1)
+	var erds1 []json.RawMessage
+	readJSON(t, resp, &erds1)
+	if len(erds1) != 1 {
+		t.Fatalf("workspace 1: expected 1 ERD, got %d", len(erds1))
+	}
+
+	resp, _ = getWithWorkspace(ts.URL+"/api/erds", ws2.ID)
+	var erds2 []json.RawMessage
+	readJSON(t, resp, &erds2)
+	if len(erds2) != 1 {
+		t.Fatalf("workspace 2: expected 1 ERD, got %d", len(erds2))
+	}
+}
+
+func TestIsolation_ErdsRejectCrossWorkspaceAccess(t *testing.T) {
+	ts := setupIsolationTestServer(t, nil)
+
+	resp, _ := postJSON(ts.URL+"/api/workspaces", `{"name":"Team B"}`)
+	var ws2 handler.WorkspaceResponse
+	readJSON(t, resp, &ws2)
+
+	resp, _ = postJSONWithWorkspace(ts.URL+"/api/erds", `{"name":"WS1 ERD","dsl":"{\"entities\":[]}"}`, 1)
+	var ws1Erd handler.ErdResponse
+	readJSON(t, resp, &ws1Erd)
+
+	resp, _ = getWithWorkspace(ts.URL+fmt.Sprintf("/api/erds/%d", ws1Erd.ID), ws2.ID)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected cross-workspace get to return 404, got %d", resp.StatusCode)
+	}
+
+	resp, _ = postJSONWithWorkspace(ts.URL+fmt.Sprintf("/api/erds/%d/duplicate", ws1Erd.ID), `{}`, ws2.ID)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected cross-workspace duplicate to return 404, got %d", resp.StatusCode)
+	}
+
+	req, _ := http.NewRequest("PUT", ts.URL+fmt.Sprintf("/api/erds/%d", ws1Erd.ID), strings.NewReader(`{"name":"Hijack","dsl":"{\"entities\":[]}"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Workspace-ID", fmt.Sprintf("%d", ws2.ID))
+	resp, _ = http.DefaultClient.Do(req)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected cross-workspace update to return 404, got %d", resp.StatusCode)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Test: History is isolated by workspace
 // ---------------------------------------------------------------------------
 func TestIsolation_History(t *testing.T) {
@@ -270,7 +344,9 @@ func TestIsolation_History(t *testing.T) {
 	// Create and execute request in workspace 1
 	resp, _ = postJSONWithWorkspace(ts.URL+"/api/requests",
 		fmt.Sprintf(`{"name":"WS1 Req","method":"GET","url":"%s/ws1"}`, mock.URL), 1)
-	var req1 struct{ ID int64 `json:"id"` }
+	var req1 struct {
+		ID int64 `json:"id"`
+	}
 	readJSON(t, resp, &req1)
 
 	execReq, _ := http.NewRequest("POST", ts.URL+fmt.Sprintf("/api/requests/%d/execute", req1.ID), nil)
@@ -282,7 +358,9 @@ func TestIsolation_History(t *testing.T) {
 	// Create and execute request in workspace 2
 	resp, _ = postJSONWithWorkspace(ts.URL+"/api/requests",
 		fmt.Sprintf(`{"name":"WS2 Req","method":"GET","url":"%s/ws2"}`, mock.URL), ws2.ID)
-	var req2 struct{ ID int64 `json:"id"` }
+	var req2 struct {
+		ID int64 `json:"id"`
+	}
 	readJSON(t, resp, &req2)
 
 	execReq, _ = http.NewRequest("POST", ts.URL+fmt.Sprintf("/api/requests/%d/execute", req2.ID), nil)

@@ -135,6 +135,17 @@ CREATE TABLE IF NOT EXISTS uploaded_files (
 );
 CREATE INDEX IF NOT EXISTS idx_uploaded_files_workspace ON uploaded_files(workspace_id);
 
+CREATE TABLE IF NOT EXISTS erd_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER NOT NULL DEFAULT 1 REFERENCES workspaces(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    dsl TEXT DEFAULT '{"entities":[]}',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_erd_documents_workspace ON erd_documents(workspace_id, sort_order);
+
 CREATE INDEX IF NOT EXISTS idx_requests_collection ON requests(collection_id);
 CREATE INDEX IF NOT EXISTS idx_collections_parent ON collections(parent_id);
 CREATE INDEX IF NOT EXISTS idx_flow_steps_flow ON flow_steps(flow_id);

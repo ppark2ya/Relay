@@ -4,29 +4,34 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useReorderCollections } from '../../api/collections';
 import { useCreateRequest, useDeleteRequest, useDuplicateRequest, useReorderRequests } from '../../api/requests';
 import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useReorderFlows } from '../../api/flows';
+import { useErds, useCreateErd, useDeleteErd, useDuplicateErd, useReorderErds } from '../../api/erds';
 import { useHistory, useDeleteHistory } from '../../api/history';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import type { Request, Flow, History } from '../../types';
+import type { Request, Flow, History, ErdDocument } from '../../types';
 import { TabNav, InlineCreateForm } from '../ui';
-import { filterCollectionTree, filterFlows, filterHistory } from '../../utils/searchUtils';
+import { filterCollectionTree, filterFlows, filterErds, filterHistory } from '../../utils/searchUtils';
 import { groupHistoryByDate, findCollectionById, findCollectionSiblings, findRequestSiblings } from './sidebar-utils';
 import { CollectionTree } from './CollectionTree';
 import { FlowList } from './FlowList';
+import { ErdList } from './ErdList';
 import { HistoryList } from './HistoryList';
 
 interface SidebarProps {
-  view: 'requests' | 'flows' | 'history';
-  onViewChange: (view: 'requests' | 'flows' | 'history') => void;
+  view: 'requests' | 'flows' | 'history' | 'erds';
+  onViewChange: (view: 'requests' | 'flows' | 'history' | 'erds') => void;
   onSelectRequest: (request: Request | null) => void;
   onSelectFlow: (flow: Flow | null) => void;
+  onSelectErd: (erd: ErdDocument | null) => void;
   onSelectHistory: (history: History) => void;
   selectedRequestId?: number;
   selectedFlowId?: number;
+  selectedErdId?: number;
 }
 
-export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onSelectHistory, selectedRequestId, selectedFlowId }: SidebarProps) {
+export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onSelectErd, onSelectHistory, selectedRequestId, selectedFlowId, selectedErdId }: SidebarProps) {
   const { data: collections = [] } = useCollections();
   const { data: flows = [] } = useFlows();
+  const { data: erds = [] } = useErds();
   const { data: history = [] } = useHistory();
   const createCollection = useCreateCollection();
   const deleteCollection = useDeleteCollection();
@@ -34,18 +39,24 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const deleteRequest = useDeleteRequest();
   const createFlow = useCreateFlow();
   const deleteFlow = useDeleteFlow();
+  const createErd = useCreateErd();
+  const deleteErd = useDeleteErd();
   const duplicateCollection = useDuplicateCollection();
   const duplicateRequest = useDuplicateRequest();
   const duplicateFlow = useDuplicateFlow();
+  const duplicateErd = useDuplicateErd();
   const deleteHistory = useDeleteHistory();
   const reorderCollections = useReorderCollections();
   const reorderRequests = useReorderRequests();
   const reorderFlows = useReorderFlows();
+  const reorderErds = useReorderErds();
 
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollection, setShowNewCollection] = useState(false);
   const [newFlowName, setNewFlowName] = useState('');
   const [showNewFlow, setShowNewFlow] = useState(false);
+  const [newErdName, setNewErdName] = useState('');
+  const [showNewErd, setShowNewErd] = useState(false);
   const [expandedDateGroups, setExpandedDateGroups] = useState<Set<string>>(new Set(['Today', 'Yesterday']));
   const [filterQuery, setFilterQuery] = useState('');
 
@@ -61,11 +72,16 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     }
     return DEFAULT_WIDTH;
   });
+  const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
   const isResizing = useRef(false);
 
   useEffect(() => {
     localStorage.setItem('sidebarWidth', String(sidebarWidth));
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', String(isCollapsed));
+  }, [isCollapsed]);
 
   const handleResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -100,6 +116,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
 
   const filteredFlows = !filterQuery.trim() ? flows : filterFlows(flows, filterQuery);
 
+  const filteredErds = !filterQuery.trim() ? erds : filterErds(erds, filterQuery);
+
   const filteredHistory = !filterQuery.trim() ? history : filterHistory(history, filterQuery);
 
   const filteredDateGroups = groupHistoryByDate(filteredHistory);
@@ -127,6 +145,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
 
   const closeNewFlow = () => setShowNewFlow(false);
   const newFlowRef = useClickOutside<HTMLDivElement>(closeNewFlow, showNewFlow);
+  const closeNewErd = () => setShowNewErd(false);
+  const newErdRef = useClickOutside<HTMLDivElement>(closeNewErd, showNewErd);
 
   const handleCreateCollection = () => {
     if (newCollectionName.trim()) {
@@ -161,11 +181,31 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     }
   };
 
+  const handleCreateErd = () => {
+    if (newErdName.trim()) {
+      createErd.mutate({ name: newErdName.trim() }, {
+        onSuccess: (erd) => {
+          onSelectErd(erd);
+        },
+      });
+      setNewErdName('');
+      setShowNewErd(false);
+    }
+  };
+
   const handleDeleteFlow = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
     deleteFlow.mutate(id);
     if (selectedFlowId === id) {
       onSelectFlow(null);
+    }
+  };
+
+  const handleDeleteErd = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteErd.mutate(id);
+    if (selectedErdId === id) {
+      onSelectErd(null);
     }
   };
 
@@ -281,6 +321,41 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     reorderFlows.mutate(orders);
   };
 
+  const handleErdDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeId = String(active.id).replace('erd-', '');
+    const overId = String(over.id).replace('erd-', '');
+
+    const oldIndex = filteredErds.findIndex(erd => erd.id === parseInt(activeId, 10));
+    const newIndex = filteredErds.findIndex(erd => erd.id === parseInt(overId, 10));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(filteredErds, oldIndex, newIndex);
+    const orders = reordered.map((erd, idx) => ({
+      id: erd.id,
+      sortOrder: idx + 1,
+    }));
+    reorderErds.mutate(orders);
+  };
+
+  if (isCollapsed) {
+    return (
+      <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-2" style={{ width: 44, minWidth: 44 }}>
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"
+          title="Expand sidebar"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+          </svg>
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden" style={{ width: sidebarWidth, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH }}>
       {/* Resize handle */}
@@ -293,36 +368,49 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
         tabs={[
           { key: 'requests', label: 'Requests' },
           { key: 'flows', label: 'Flows' },
+          { key: 'erds', label: 'ERDs' },
           { key: 'history', label: 'History' },
         ]}
         activeTab={view}
-        onTabChange={key => onViewChange(key as 'requests' | 'flows' | 'history')}
+        onTabChange={key => onViewChange(key as 'requests' | 'flows' | 'history' | 'erds')}
         tabClassName="flex-1"
       />
 
       {/* Filter */}
       <div className="px-2 pt-2">
-        <div className="relative">
-          <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            value={filterQuery}
-            onChange={(e) => setFilterQuery(e.target.value)}
-            placeholder="Filter..."
-            className="w-full pl-7 pr-6 py-1 text-xs bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none focus:border-blue-400 dark:focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder-gray-400"
-          />
-          {filterQuery && (
-            <button
-              onClick={() => setFilterQuery('')}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
-            >
-              <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
+        <div className="flex items-center gap-1">
+          <div className="relative flex-1 min-w-0">
+            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              placeholder="Filter..."
+              className="w-full pl-7 pr-6 py-1 text-xs bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none focus:border-blue-400 dark:focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+            />
+            {filterQuery && (
+              <button
+                onClick={() => setFilterQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+                title="Clear filter"
+              >
+                <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setIsCollapsed(true)}
+            className="shrink-0 p-1.5 rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"
+            title="Collapse sidebar"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -383,6 +471,32 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
               isDndDisabled={isDndDisabled}
               onDragEnd={handleFlowDragEnd}
               emptyMessage={filterQuery.trim() ? 'No matching items' : 'No flows created yet'}
+            />
+          </>
+        )}
+
+        {view === 'erds' && (
+          <>
+            <div className="mb-2" ref={newErdRef}>
+              <InlineCreateForm
+                isOpen={showNewErd}
+                onOpenChange={setShowNewErd}
+                value={newErdName}
+                onValueChange={setNewErdName}
+                onSubmit={handleCreateErd}
+                placeholder="ERD name"
+                buttonLabel="New ERD"
+              />
+            </div>
+            <ErdList
+              erds={filteredErds}
+              selectedErdId={selectedErdId}
+              onSelectErd={onSelectErd}
+              onDuplicateErd={id => duplicateErd.mutate(id)}
+              onDeleteErd={handleDeleteErd}
+              isDndDisabled={isDndDisabled}
+              onDragEnd={handleErdDragEnd}
+              emptyMessage={filterQuery.trim() ? 'No matching items' : 'No ERDs created yet'}
             />
           </>
         )}
