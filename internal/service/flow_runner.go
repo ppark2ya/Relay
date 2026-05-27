@@ -149,6 +149,19 @@ func (fr *FlowRunner) runInternal(ctx context.Context, flowID int64, selectedSte
 	stepIndex := 0
 outer:
 	for stepIndex < len(steps) {
+		// Check for cancellation before each step
+		select {
+		case <-ctx.Done():
+			result.Success = false
+			result.Error = "cancelled"
+			result.TotalTimeMs = time.Since(startTime).Milliseconds()
+			if callbacks != nil && callbacks.OnFlowComplete != nil {
+				callbacks.OnFlowComplete(FlowCompleteEvent{Success: false, TotalTimeMs: result.TotalTimeMs, Error: "cancelled"})
+			}
+			return result, nil
+		default:
+		}
+
 		step := steps[stepIndex]
 
 		// Skip step if not in selected list (when selection is provided)
@@ -282,9 +295,19 @@ outer:
 				}
 			}
 
-			// Apply delay
+			// Apply delay (context-aware)
 			if step.DelayMs.Valid && step.DelayMs.Int64 > 0 {
-				time.Sleep(time.Duration(step.DelayMs.Int64) * time.Millisecond)
+				select {
+				case <-ctx.Done():
+					result.Success = false
+					result.Error = "cancelled"
+					result.TotalTimeMs = time.Since(startTime).Milliseconds()
+					if callbacks != nil && callbacks.OnFlowComplete != nil {
+						callbacks.OnFlowComplete(FlowCompleteEvent{Success: false, TotalTimeMs: result.TotalTimeMs, Error: "cancelled"})
+					}
+					return result, nil
+				case <-time.After(time.Duration(step.DelayMs.Int64) * time.Millisecond):
+				}
 			}
 
 			// Execute request using inline fields
@@ -303,6 +326,24 @@ outer:
 				continue
 			}
 			stepResult.ExecuteResult = execResult
+
+			// Stop on non-2xx HTTP status (unless continueOnError is set)
+			if execResult.StatusCode < 200 || execResult.StatusCode >= 300 {
+				result.Steps = append(result.Steps, stepResult)
+				emitStepComplete(stepResult)
+				if !step.ContinueOnError.Valid || step.ContinueOnError.Int64 == 0 {
+					result.Success = false
+					if execResult.Error != "" {
+						result.Error = execResult.Error
+					} else {
+						result.Error = fmt.Sprintf("step %q returned HTTP %d", step.Name, execResult.StatusCode)
+					}
+					finalizeFlow()
+					return result, nil
+				}
+				iteration++
+				continue
+			}
 
 			// Update script context with response
 			scriptCtx.StatusCode = execResult.StatusCode

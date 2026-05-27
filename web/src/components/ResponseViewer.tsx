@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import type { ExecuteResult } from '../types';
 import { EmptyState, TabNav, CodeEditor } from './ui';
 
@@ -130,9 +130,9 @@ function isImageContentType(ct: string): boolean {
 export function ResponseViewer({ response, isLoading, onCancel, onImportCookies }: ResponseViewerProps) {
   const [activeTab, setActiveTab] = useState<Tab>('body');
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = () => {
     if (response) downloadResponse(response);
-  }, [response]);
+  };
 
   if (isLoading) {
     return (

@@ -1,10 +1,10 @@
-import { useState, useCallback, useRef, useMemo, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useRef, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Sidebar } from './components/Sidebar';
-import { RequestEditor } from './components/RequestEditor';
+import { Sidebar } from './components/sidebar';
+import { RequestEditor } from './components/request';
 import { ResponseViewer } from './components/ResponseViewer';
-import { FlowEditor } from './components/FlowEditor';
 import { ErdEditor } from './components/ErdEditor';
+import { FlowEditor } from './components/flow';
 import { WebSocketPanel } from './components/WebSocketPanel';
 import { Header } from './components/Header';
 import { useNavigation, type View } from './hooks/useNavigation';
@@ -25,13 +25,14 @@ function AppContent() {
   const [localErd, setLocalErd] = useState<ErdDocument | null>(null);
   const [response, setResponse] = useState<ExecuteResult | null>(null);
   const [scriptResults, setScriptResults] = useState<{ pre?: ScriptResult; post?: ScriptResult } | null>(null);
+  const [responseCache] = useState(() => new Map<number, { response: ExecuteResult; scriptResults: { pre?: ScriptResult; post?: ScriptResult } | null }>());
   const [isExecuting, setIsExecuting] = useState(false);
   const [currentMethod, setCurrentMethod] = useState('GET');
   const cancelRef = useRef<(() => void) | null>(null);
-  const cancelCallbacks = useMemo(() => ({
+  const cancelCallbacks = {
     onCancelReady: (fn: (() => void) | null) => { cancelRef.current = fn; },
     cancel: () => cancelRef.current?.(),
-  }), []);
+  };
 
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
 
@@ -52,7 +53,7 @@ function AppContent() {
     localStorage.setItem('requestPanelWidth', String(requestPanelWidth));
   }, [requestPanelWidth]);
 
-  const handlePanelResizeStart = useCallback((e: ReactMouseEvent) => {
+  const handlePanelResizeStart = (e: ReactMouseEvent) => {
     e.preventDefault();
     isPanelResizing.current = true;
     const container = (e.target as HTMLElement).parentElement!;
@@ -76,7 +77,7 @@ function AppContent() {
     document.addEventListener('mouseup', onMouseUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, []);
+  };
 
   // Cmd+K / Ctrl+K global shortcut
   useEffect(() => {
@@ -96,12 +97,14 @@ function AppContent() {
   const ws = useWebSocket();
 
   // Clear local overrides when browser back/forward changes the URL
-  const handleUrlChange = useCallback(() => {
+  const handleUrlChange = () => {
     setLocalRequest(null);
     setLocalFlow(null);
     setLocalErd(null);
+    // response/scriptResults cleared here; derived effectiveResponse restores from cache
     setResponse(null);
-  }, []);
+    setScriptResults(null);
+  };
 
   const { view, resourceId, navigateToRequest, navigateToFlow, navigateToErd, navigateToView } = useNavigation(handleUrlChange);
 
@@ -119,26 +122,56 @@ function AppContent() {
   const selectedFlow = localFlow ?? (flowQueryId ? urlFlow ?? null : null);
   const selectedErd = localErd ?? (erdQueryId ? urlErd ?? null : null);
 
-  const handleMethodChange = useCallback((method: string) => {
+  // Derive effective response: when response state is null, fall back to cache
+  // This handles browser back/forward and URL navigation without needing useEffect
+  const effectiveResponse = response ?? (
+    selectedRequest && selectedRequest.id > 0
+      ? responseCache.get(selectedRequest.id)?.response ?? null
+      : null
+  );
+  const effectiveScriptResults = scriptResults ?? (
+    selectedRequest && selectedRequest.id > 0
+      ? responseCache.get(selectedRequest.id)?.scriptResults ?? null
+      : null
+  );
+
+  const handleMethodChange = (method: string) => {
     setCurrentMethod(method);
     // Disconnect WS when switching away from WS method
     if (method !== 'WS' && ws.status !== 'disconnected') {
       ws.disconnect();
     }
-  }, [ws]);
+  };
 
-  const handleScriptResults = useCallback((pre: ScriptResult | undefined, post: ScriptResult | undefined) => {
-    if (pre || post) {
-      setScriptResults({ pre, post });
+  const handleExecuteResult = (result: ExecuteResult) => {
+    setResponse(result);
+    if (selectedRequest?.id && selectedRequest.id > 0) {
+      responseCache.set(selectedRequest.id, { response: result, scriptResults: null });
+    }
+  };
+
+  const handleScriptResults = (pre: ScriptResult | undefined, post: ScriptResult | undefined) => {
+    const sr = (pre || post) ? { pre, post } : null;
+    setScriptResults(sr);
+    if (selectedRequest?.id && selectedRequest.id > 0) {
+      const cached = responseCache.get(selectedRequest.id);
+      if (cached) {
+        cached.scriptResults = sr;
+      }
+    }
+  };
+
+  const handleSelectRequest = (request: Request | null) => {
+    setLocalRequest(request);
+    // Restore from cache or clear
+    if (request && request.id > 0) {
+      const cached = responseCache.get(request.id);
+      setResponse(cached?.response ?? null);
+      setScriptResults(cached?.scriptResults ?? null);
     } else {
+      setResponse(null);
       setScriptResults(null);
     }
-  }, []);
-
-  const handleSelectRequest = useCallback((request: Request | null) => {
-    setLocalRequest(request);
-    setResponse(null);
-    setScriptResults(null);
     // Disconnect WS when switching requests
     if (ws.status !== 'disconnected') {
       ws.disconnect();
@@ -148,31 +181,31 @@ function AppContent() {
     } else if (!request) {
       navigateToView('requests');
     }
-  }, [navigateToRequest, navigateToView, ws]);
+  };
 
-  const handleSelectFlow = useCallback((flow: Flow | null) => {
+  const handleSelectFlow = (flow: Flow | null) => {
     setLocalFlow(flow);
     if (flow) {
       navigateToFlow(flow.id);
     } else {
       navigateToView('flows');
     }
-  }, [navigateToFlow, navigateToView]);
+  };
 
-  const handleSelectErd = useCallback((erd: ErdDocument | null) => {
+  const handleSelectErd = (erd: ErdDocument | null) => {
     setLocalErd(erd);
     if (erd) {
       navigateToErd(erd.id);
     } else {
       navigateToView('erds');
     }
-  }, [navigateToErd, navigateToView]);
+  };
 
-  const handleViewChange = useCallback((newView: View) => {
+  const handleViewChange = (newView: View) => {
     navigateToView(newView);
-  }, [navigateToView]);
+  };
 
-  const handleSelectHistory = useCallback((item: History) => {
+  const handleSelectHistory = (item: History) => {
     // Infer bodyType from Content-Type header
     let bodyType = 'none';
     try {
@@ -228,7 +261,7 @@ function AppContent() {
     setResponse(historyResponse);
     // Navigate to requests view but don't put history item in URL
     navigateToView('requests');
-  }, [navigateToView]);
+  };
 
   const isWSMode = currentMethod === 'WS';
 
@@ -253,7 +286,7 @@ function AppContent() {
             <div className="flex flex-col min-h-0" style={{ width: `${requestPanelWidth}%` }}>
               <RequestEditor
                 request={selectedRequest}
-                onExecute={setResponse}
+                onExecute={handleExecuteResult}
                 onUpdate={setLocalRequest}
                 onExecutingChange={setIsExecuting}
                 onCancelReady={cancelCallbacks.onCancelReady}
@@ -281,42 +314,42 @@ function AppContent() {
                 />
               ) : (
                 <>
-                  {scriptResults && (scriptResults.pre || scriptResults.post) && (
+                  {effectiveScriptResults && (effectiveScriptResults.pre || effectiveScriptResults.post) && (
                     <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center gap-4 text-xs">
-                      {scriptResults.pre && (
+                      {effectiveScriptResults.pre && (
                         <span className="flex items-center gap-1.5">
                           <span className="font-medium text-gray-600 dark:text-gray-300">Pre-Script:</span>
-                          {scriptResults.pre.assertionsPassed > 0 && (
-                            <span className="text-green-600 dark:text-green-400">{scriptResults.pre.assertionsPassed} passed</span>
+                          {effectiveScriptResults.pre.assertionsPassed > 0 && (
+                            <span className="text-green-600 dark:text-green-400">{effectiveScriptResults.pre.assertionsPassed} passed</span>
                           )}
-                          {scriptResults.pre.assertionsFailed > 0 && (
-                            <span className="text-red-600 dark:text-red-400">{scriptResults.pre.assertionsFailed} failed</span>
+                          {effectiveScriptResults.pre.assertionsFailed > 0 && (
+                            <span className="text-red-600 dark:text-red-400">{effectiveScriptResults.pre.assertionsFailed} failed</span>
                           )}
-                          {scriptResults.pre.assertionsPassed === 0 && scriptResults.pre.assertionsFailed === 0 && (
-                            <span className={scriptResults.pre.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                              {scriptResults.pre.success ? 'OK' : 'Error'}
+                          {effectiveScriptResults.pre.assertionsPassed === 0 && effectiveScriptResults.pre.assertionsFailed === 0 && (
+                            <span className={effectiveScriptResults.pre.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                              {effectiveScriptResults.pre.success ? 'OK' : 'Error'}
                             </span>
                           )}
-                          {scriptResults.pre.errors?.map((e, i) => (
+                          {effectiveScriptResults.pre.errors?.map((e, i) => (
                             <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
                           ))}
                         </span>
                       )}
-                      {scriptResults.post && (
+                      {effectiveScriptResults.post && (
                         <span className="flex items-center gap-1.5">
                           <span className="font-medium text-gray-600 dark:text-gray-300">Post-Script:</span>
-                          {scriptResults.post.assertionsPassed > 0 && (
-                            <span className="text-green-600 dark:text-green-400">{scriptResults.post.assertionsPassed} passed</span>
+                          {effectiveScriptResults.post.assertionsPassed > 0 && (
+                            <span className="text-green-600 dark:text-green-400">{effectiveScriptResults.post.assertionsPassed} passed</span>
                           )}
-                          {scriptResults.post.assertionsFailed > 0 && (
-                            <span className="text-red-600 dark:text-red-400">{scriptResults.post.assertionsFailed} failed</span>
+                          {effectiveScriptResults.post.assertionsFailed > 0 && (
+                            <span className="text-red-600 dark:text-red-400">{effectiveScriptResults.post.assertionsFailed} failed</span>
                           )}
-                          {scriptResults.post.assertionsPassed === 0 && scriptResults.post.assertionsFailed === 0 && (
-                            <span className={scriptResults.post.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                              {scriptResults.post.success ? 'OK' : 'Error'}
+                          {effectiveScriptResults.post.assertionsPassed === 0 && effectiveScriptResults.post.assertionsFailed === 0 && (
+                            <span className={effectiveScriptResults.post.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                              {effectiveScriptResults.post.success ? 'OK' : 'Error'}
                             </span>
                           )}
-                          {scriptResults.post.errors?.map((e, i) => (
+                          {effectiveScriptResults.post.errors?.map((e, i) => (
                             <span key={i} className="text-red-600 dark:text-red-400">{e}</span>
                           ))}
                         </span>
@@ -324,7 +357,7 @@ function AppContent() {
                     </div>
                   )}
                   <ResponseViewer
-                    response={response}
+                    response={effectiveResponse}
                     isLoading={isExecuting}
                     onCancel={cancelCallbacks.cancel}
                     onImportCookies={(cookies) => importCookiesRef.current?.(cookies)}

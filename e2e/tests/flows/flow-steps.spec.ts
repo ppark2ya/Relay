@@ -74,7 +74,7 @@ test.describe('Flow Steps', () => {
 
     // The step card is inside the flow editor area (not sidebar)
     // Find the step group containing "Untitled Step" text
-    const stepCard = page.locator('.rounded-lg.border.overflow-hidden.group', { hasText: 'Untitled Step' });
+    const stepCard = page.locator('.rounded-md.border.overflow-hidden.group', { hasText: 'Untitled Step' });
     await stepCard.hover();
 
     // Click trash icon button (force: true because it's opacity-0 until hover)

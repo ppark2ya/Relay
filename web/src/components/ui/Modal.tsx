@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { useCallback } from 'react';
 import { useClickOutside } from '../../hooks/useClickOutside';
 
 interface ModalProps {
@@ -11,9 +10,9 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-3xl' }: ModalProps) {
-  const handleClose = useCallback(() => {
+  const handleClose = () => {
     onClose();
-  }, [onClose]);
+  };
 
   const modalRef = useClickOutside<HTMLDivElement>(handleClose, isOpen);
 

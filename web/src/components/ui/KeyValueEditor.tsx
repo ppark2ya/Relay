@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 interface KeyValueItem {
   key: string;
@@ -47,25 +47,25 @@ function AutocompleteInput({
     return lower.includes(input);
   });
 
-  const updatePosition = useCallback(() => {
+  const updatePosition = () => {
     if (inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();
       setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
     }
-  }, []);
+  };
 
-  const openDropdown = useCallback(() => {
+  const openDropdown = () => {
     updatePosition();
     setOpen(true);
-  }, [updatePosition]);
+  };
 
-  const handleSelect = useCallback((item: string) => {
+  const handleSelect = (item: string) => {
     onChange(item);
     setOpen(false);
     setHighlightIndex(-1);
-  }, [onChange]);
+  };
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!open || filtered.length === 0) {
       if (e.key === 'ArrowDown' && filtered.length > 0) {
         openDropdown();
@@ -96,7 +96,7 @@ function AutocompleteInput({
         setHighlightIndex(-1);
         break;
     }
-  }, [open, filtered, highlightIndex, handleSelect, openDropdown]);
+  };
 
   // Scroll highlighted item into view
   useEffect(() => {

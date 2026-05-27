@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useWorkspaces,
   useCreateWorkspace,
@@ -28,7 +28,7 @@ export function WorkspaceEditor({ isOpen, onClose, currentWorkspaceId, onSwitchW
   const [syncedWsId, setSyncedWsId] = useState<number | null>(null);
 
   // Auto-select current workspace or first one
-  const effectiveWsId = useMemo(() => {
+  const effectiveWsId = (() => {
     if (selectedWsId !== null && workspaces.some(w => w.id === selectedWsId)) {
       return selectedWsId;
     }
@@ -37,12 +37,9 @@ export function WorkspaceEditor({ isOpen, onClose, currentWorkspaceId, onSwitchW
       return (current || workspaces[0]).id;
     }
     return null;
-  }, [isOpen, workspaces, selectedWsId, currentWorkspaceId]);
+  })();
 
-  const selectedWs = useMemo(() =>
-    workspaces.find(w => w.id === effectiveWsId) || null,
-    [workspaces, effectiveWsId]
-  );
+  const selectedWs = workspaces.find(w => w.id === effectiveWsId) || null;
 
   // Sync form fields when selected workspace changes
   if (selectedWs && selectedWs.id !== syncedWsId) {
@@ -50,17 +47,17 @@ export function WorkspaceEditor({ isOpen, onClose, currentWorkspaceId, onSwitchW
     setName(selectedWs.name);
   }
 
-  const setSelectedWorkspace = useCallback((ws: Workspace | null) => {
+  const setSelectedWorkspace = (ws: Workspace | null) => {
     setSelectedWsId(ws?.id || null);
-  }, []);
+  };
 
-  const closeModal = useCallback(() => {
+  const closeModal = () => {
     onClose();
     setSelectedWsId(null);
     setSyncedWsId(null);
     setShowNewWsInput(false);
     setNewWsName('');
-  }, [onClose]);
+  };
 
   const handleCreateWorkspace = () => {
     if (newWsName.trim()) {

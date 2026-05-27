@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useProxies,
   useCreateProxy,
@@ -34,7 +34,7 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
   const [syncedProxyId, setSyncedProxyId] = useState<number | null>(null);
 
   // Auto-select first proxy or active one
-  const effectiveProxyId = useMemo(() => {
+  const effectiveProxyId = (() => {
     if (selectedProxyId !== null && proxies.some(p => p.id === selectedProxyId)) {
       return selectedProxyId;
     }
@@ -43,12 +43,9 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
       return (active || proxies[0]).id;
     }
     return null;
-  }, [isOpen, proxies, selectedProxyId]);
+  })();
 
-  const selectedProxy = useMemo(() =>
-    proxies.find(p => p.id === effectiveProxyId) || null,
-    [proxies, effectiveProxyId]
-  );
+  const selectedProxy = proxies.find(p => p.id === effectiveProxyId) || null;
 
   // Sync form fields when selected proxy changes (React recommended pattern)
   if (selectedProxy && selectedProxy.id !== syncedProxyId) {
@@ -58,18 +55,18 @@ export function ProxyEditor({ isOpen, onClose }: ProxyEditorProps) {
     setTestResult(null);
   }
 
-  const setSelectedProxy = useCallback((proxy: Proxy | null) => {
+  const setSelectedProxy = (proxy: Proxy | null) => {
     setSelectedProxyId(proxy?.id || null);
-  }, []);
+  };
 
-  const closeModal = useCallback(() => {
+  const closeModal = () => {
     onClose();
     setSelectedProxyId(null);
     setSyncedProxyId(null);
     setShowNewProxyInput(false);
     setNewProxyName('');
     setTestResult(null);
-  }, [onClose]);
+  };
 
   const handleCreateProxy = () => {
     if (newProxyName.trim()) {

@@ -78,6 +78,12 @@ func main() {
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(middleware.CORS)
 
+	// Health check (outside /api to avoid workspace middleware)
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
 	// API routes
 	r.Route("/api", func(r chi.Router) {
 		r.Use(middleware.WorkspaceID)
@@ -141,6 +147,7 @@ func main() {
 		r.Post("/flows/{id}/duplicate", flowHandler.Duplicate)
 		r.Get("/flows/{id}/steps", flowHandler.ListSteps)
 		r.Post("/flows/{id}/steps", flowHandler.CreateStep)
+		r.Post("/flows/{id}/import-collection", flowHandler.ImportCollection)
 		r.Put("/flows/{id}/steps/{stepId}", flowHandler.UpdateStep)
 		r.Delete("/flows/{id}/steps/{stepId}", flowHandler.DeleteStep)
 

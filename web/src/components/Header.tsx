@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useEnvironments, useActivateEnvironment } from '../api/environments';
 import { useProxies, useActivateProxy, useDeactivateProxy } from '../api/proxies';
 import { useWorkspaces } from '../api/workspaces';
@@ -33,9 +33,9 @@ export function Header() {
   const [showDSLGuide, setShowDSLGuide] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
-  const closeWsDropdown = useCallback(() => setShowWsDropdown(false), []);
-  const closeEnvDropdown = useCallback(() => setShowEnvDropdown(false), []);
-  const closeProxyDropdown = useCallback(() => setShowProxyDropdown(false), []);
+  const closeWsDropdown = () => setShowWsDropdown(false);
+  const closeEnvDropdown = () => setShowEnvDropdown(false);
+  const closeProxyDropdown = () => setShowProxyDropdown(false);
 
   const wsDropdownRef = useClickOutside<HTMLDivElement>(closeWsDropdown, showWsDropdown);
   const envDropdownRef = useClickOutside<HTMLDivElement>(closeEnvDropdown, showEnvDropdown);
