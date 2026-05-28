@@ -47,9 +47,11 @@ type ErdPreviewResponse struct {
 	Diagnostics []service.ErdDiagnostic `json:"diagnostics"`
 }
 
-type ErdKotlinResponse struct {
+type ErdGeneratedCodeResponse struct {
 	Files []service.GeneratedFile `json:"files"`
 }
+
+type ErdKotlinResponse = ErdGeneratedCodeResponse
 
 func (h *ErdHandler) List(w http.ResponseWriter, r *http.Request) {
 	wsID := middleware.GetWorkspaceID(r.Context())
@@ -247,7 +249,21 @@ func (h *ErdHandler) GenerateKotlin(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusBadRequest, ErdPreviewResponse{Diagnostics: diagnostics})
 		return
 	}
-	respondJSON(w, http.StatusOK, ErdKotlinResponse{Files: service.GenerateKotlinEntities(spec)})
+	respondJSON(w, http.StatusOK, ErdGeneratedCodeResponse{Files: service.GenerateKotlinEntities(spec)})
+}
+
+func (h *ErdHandler) GenerateJava(w http.ResponseWriter, r *http.Request) {
+	var req ErdPreviewRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	spec, diagnostics := service.ParseErdDSL(req.DSL)
+	if len(diagnostics) > 0 {
+		respondJSON(w, http.StatusBadRequest, ErdPreviewResponse{Diagnostics: diagnostics})
+		return
+	}
+	respondJSON(w, http.StatusOK, ErdGeneratedCodeResponse{Files: service.GenerateJavaEntities(spec)})
 }
 
 func mapErdResponse(erd repository.ErdDocument) ErdResponse {

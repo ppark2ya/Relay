@@ -157,6 +157,7 @@ func main() {
 		r.Put("/erds/reorder", erdHandler.Reorder)
 		r.Post("/erds/preview", erdHandler.Preview)
 		r.Post("/erds/generate/kotlin", erdHandler.GenerateKotlin)
+		r.Post("/erds/generate/java", erdHandler.GenerateJava)
 		r.Get("/erds/{id}", erdHandler.Get)
 		r.Put("/erds/{id}", erdHandler.Update)
 		r.Delete("/erds/{id}", erdHandler.Delete)

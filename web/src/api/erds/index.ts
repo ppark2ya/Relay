@@ -8,5 +8,14 @@ export {
   useReorderErds,
   usePreviewErd,
   useGenerateKotlin,
+  useGenerateJava,
 } from './hooks';
-export type { ErdDocument, ErdDiagnostic, ErdPreviewResult, ErdGeneratedFile, ErdKotlinResult } from './types';
+export type {
+  ErdDocument,
+  ErdDiagnostic,
+  ErdPreviewResult,
+  ErdGeneratedFile,
+  ErdGeneratedCodeResult,
+  ErdKotlinResult,
+  ErdJavaResult,
+} from './types';
