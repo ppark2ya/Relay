@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
-import { useErds, useUpdateErd } from '../api/erds';
-import * as erdApi from '../api/erds/client';
-import type { ErdDocument, ErdGeneratedFile } from '../api/erds';
-import { CodeEditor, EmptyState, TabNav, type ScriptDiagnostic } from './ui';
+import { useErds, useUpdateErd } from '../../api/erds';
+import * as erdApi from '../../api/erds/client';
+import type { ErdDocument, ErdGeneratedFile, ErdPreviewDiagram } from '../../api/erds';
+import { CodeEditor, EmptyState, TabNav, type ScriptDiagnostic } from '../ui';
 import { ErdDiagram } from './ErdDiagram';
 import { normalizeErdDiagnostics } from './ErdDiagnostics';
 
@@ -81,11 +81,9 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
   const [draft, setDraft] = useState(() => ({ erdId: erdDraftId, dsl: erd?.dsl || DEFAULT_DSL }));
   const dsl = draft.erdId === erdDraftId ? draft.dsl : erd?.dsl || DEFAULT_DSL;
   const [activeTab, setActiveTab] = useState<ErdEditorTab>('preview');
-  const [mermaid, setMermaid] = useState('');
+  const [diagram, setDiagram] = useState<ErdPreviewDiagram>({ entities: [], relations: [] });
   const [diagnostics, setDiagnostics] = useState<ScriptDiagnostic[]>([]);
   const [generatedCode, setGeneratedCode] = useState(initialGeneratedCodeState);
-  const [zoom, setZoom] = useState(1);
-  const [diagramSize, setDiagramSize] = useState({ width: 1, height: 1 });
   const [editorWidth, setEditorWidth] = useState(() => {
     const saved = localStorage.getItem('erdEditorWidth');
     if (saved) {
@@ -95,7 +93,6 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
     return 46;
   });
   const isResizing = useRef(false);
-  const previewRef = useRef<HTMLDivElement>(null);
   const requestSeq = useRef(0);
 
   useEffect(() => {
@@ -116,7 +113,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
           const result = await erdApi.previewErd(dsl);
           if (cancelled || seq !== requestSeq.current) return;
           const previewDiagnostics = normalizeErdDiagnostics(result.diagnostics);
-          setMermaid(result.mermaid);
+          setDiagram(result.diagram ?? { entities: [], relations: [] });
           setDiagnostics(previewDiagnostics.map(d => ({
             line: d.line || 1,
             message: d.message,
@@ -138,7 +135,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
           }
         } catch (error) {
           if (cancelled || seq !== requestSeq.current) return;
-          setMermaid('');
+          setDiagram({ entities: [], relations: [] });
           setDiagnostics([{ line: 1, message: `Preview failed: ${formatMutationError(error)}`, severity: 'error' }]);
           setGeneratedCode({
             kotlin: makeGeneratedCodeState('error', 'Preview failed, so Kotlin files could not be generated.'),
@@ -163,18 +160,6 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
     updateErd.mutate({ id: erd.id, data: { name: latestName, dsl } }, {
       onSuccess: (updated) => onUpdate(updated),
     });
-  };
-
-  const handleFit = () => {
-    const container = previewRef.current;
-    if (!container) {
-      setZoom(1);
-      return;
-    }
-    const availableWidth = Math.max(1, container.clientWidth - 64);
-    const availableHeight = Math.max(1, container.clientHeight - 64);
-    const nextZoom = Math.min(1, availableWidth / diagramSize.width, availableHeight / diagramSize.height);
-    setZoom(Math.max(0.4, Math.min(2, nextZoom)));
   };
 
   const handleResizeStart = useCallback((e: ReactMouseEvent) => {
@@ -278,18 +263,10 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
               onTabChange={key => setActiveTab(key as ErdEditorTab)}
               className="flex-1 border-b-0"
             />
-            {activeTab === 'preview' && (
-              <div className="px-2 flex items-center gap-1">
-                <button onClick={() => setZoom(z => Math.max(0.4, z - 0.1))} className="px-2 py-1 text-xs rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200">-</button>
-                <button onClick={() => setZoom(1)} className="px-2 py-1 text-xs rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200">{Math.round(zoom * 100)}%</button>
-                <button onClick={() => setZoom(z => Math.min(2, z + 0.1))} className="px-2 py-1 text-xs rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200">+</button>
-                <button onClick={handleFit} className="px-2 py-1 text-xs rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-200">Fit</button>
-              </div>
-            )}
           </div>
 
           {activeTab === 'preview' && (
-            <div ref={previewRef} className="flex-1 min-h-0 overflow-auto bg-gray-50 dark:bg-gray-900">
+            <div className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900">
               {diagnostics.length > 0 ? (
                 <div className="p-4 space-y-2">
                   {diagnostics.map((diag, index) => (
@@ -299,7 +276,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
                   ))}
                 </div>
               ) : (
-                <ErdDiagram mermaid={mermaid} zoom={zoom} onSizeChange={setDiagramSize} />
+                <ErdDiagram diagram={diagram} />
               )}
             </div>
           )}

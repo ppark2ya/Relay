@@ -44,6 +44,7 @@ type ErdResponse struct {
 
 type ErdPreviewResponse struct {
 	Mermaid     string                  `json:"mermaid"`
+	Diagram     *service.ErdDiagram     `json:"diagram,omitempty"`
 	Diagnostics []service.ErdDiagnostic `json:"diagnostics"`
 }
 
@@ -234,6 +235,8 @@ func (h *ErdHandler) Preview(w http.ResponseWriter, r *http.Request) {
 	resp := ErdPreviewResponse{Diagnostics: diagnostics}
 	if len(diagnostics) == 0 {
 		resp.Mermaid = service.GenerateMermaidERD(spec)
+		diagram := service.GenerateErdDiagram(spec)
+		resp.Diagram = &diagram
 	}
 	respondJSON(w, http.StatusOK, resp)
 }

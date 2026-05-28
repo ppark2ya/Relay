@@ -1,3 +1,6 @@
+import { Position, type Edge, type Node } from '@xyflow/react';
+import type { ErdPreviewColumn, ErdPreviewDiagram } from '../../api/erds';
+
 interface ConnectorBox {
   x: number;
   y: number;
@@ -6,8 +9,10 @@ interface ConnectorBox {
 
 export interface DiagramLayoutEntity {
   name: string;
-  fields: string[];
+  columns: DiagramLayoutColumn[];
 }
+
+export type DiagramLayoutColumn = ErdPreviewColumn;
 
 export interface DiagramLayoutRelation {
   from: string;
@@ -40,6 +45,27 @@ interface EntityLayout {
   height: number;
   entityWidth: number;
 }
+
+export interface ErdEntityNodeData extends Record<string, unknown> {
+  name: string;
+  columns: DiagramLayoutColumn[];
+}
+
+export interface ErdRelationEdgeData extends Record<string, unknown> {
+  fromCardinality: string;
+  toCardinality: string;
+  label: string;
+}
+
+export type ErdEntityNode = Node<ErdEntityNodeData, 'erdEntity'>;
+export type ErdRelationEdge = Edge<ErdRelationEdgeData, 'erdRelation'>;
+
+export interface ErdFlowElements {
+  nodes: ErdEntityNode[];
+  edges: ErdRelationEdge[];
+}
+
+type EntitySide = 'left' | 'right';
 
 interface RelationConnectorInput {
   from: ConnectorBox;
@@ -78,7 +104,7 @@ interface RelationConnector {
   };
 }
 
-const DEFAULT_ENTITY_WIDTH = 220;
+const DEFAULT_ENTITY_WIDTH = 340;
 const DEFAULT_HEADER_HEIGHT = 34;
 const DEFAULT_FIELD_HEIGHT = 22;
 const DEFAULT_ENTITY_GAP = 120;
@@ -164,6 +190,72 @@ export function buildEntityLayout({
   };
 }
 
+export function buildErdFlowElements(diagram: ErdPreviewDiagram): ErdFlowElements {
+  const layout = buildEntityLayout({
+    entities: diagram.entities,
+    relations: diagram.relations,
+    entityWidth: DEFAULT_ENTITY_WIDTH,
+    headerHeight: DEFAULT_HEADER_HEIGHT,
+    fieldHeight: DEFAULT_FIELD_HEIGHT,
+    entityGap: DEFAULT_ENTITY_GAP,
+    rowGap: DEFAULT_ROW_GAP,
+    top: DEFAULT_TOP,
+    left: DEFAULT_LEFT,
+  });
+
+  return {
+    nodes: layout.boxes.map(({ entity, x, y }) => ({
+      id: entity.name,
+      type: 'erdEntity',
+      position: { x, y },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+      data: {
+        name: entity.name,
+        columns: entity.columns,
+      },
+      draggable: false,
+      selectable: false,
+    })),
+    edges: diagram.relations.map((relation, index) => {
+      const sourceBox = layout.boxByName.get(relation.from);
+      const targetBox = layout.boxByName.get(relation.to);
+      const { sourceSide, targetSide } = relationEndpointSides(sourceBox, targetBox, layout.entityWidth);
+
+      return {
+        id: `${relation.from}-${relation.label}-${relation.to}-${index}`,
+        source: relation.from,
+        target: relation.to,
+        sourceHandle: edgeHandleID('source', sourceSide),
+        targetHandle: edgeHandleID('target', targetSide),
+        type: 'erdRelation',
+        selectable: false,
+        data: {
+          fromCardinality: relation.fromCardinality,
+          toCardinality: relation.toCardinality,
+          label: relation.label,
+        },
+      };
+    }),
+  };
+}
+
+function relationEndpointSides(sourceBox: DiagramBox | undefined, targetBox: DiagramBox | undefined, entityWidth: number) {
+  if (!sourceBox || !targetBox) {
+    return { sourceSide: 'right' as EntitySide, targetSide: 'left' as EntitySide };
+  }
+  const sourceCenterX = sourceBox.x + entityWidth / 2;
+  const targetCenterX = targetBox.x + entityWidth / 2;
+  if (sourceCenterX <= targetCenterX) {
+    return { sourceSide: 'right' as EntitySide, targetSide: 'left' as EntitySide };
+  }
+  return { sourceSide: 'left' as EntitySide, targetSide: 'right' as EntitySide };
+}
+
+function edgeHandleID(type: 'source' | 'target', side: EntitySide) {
+  return `${type}-${side}`;
+}
+
 export function buildRelationConnector({
   from,
   to,
@@ -232,11 +324,11 @@ function relationColumnConstraint(relation: DiagramLayoutRelation): { left: stri
 }
 
 function isManyCardinality(cardinality: string) {
-  return cardinality.includes('{') || cardinality.includes('}');
+  return cardinality.includes('{') || cardinality.includes('}') || cardinality.includes('<');
 }
 
 function entityHeight(entity: DiagramLayoutEntity, headerHeight: number, fieldHeight: number) {
-  return headerHeight + Math.max(1, entity.fields.length) * fieldHeight + 16;
+  return headerHeight + Math.max(1, entity.columns.length) * fieldHeight + 16;
 }
 
 function endpointY(box: ConnectorBox, slot?: RelationEndpointSlot) {
@@ -246,4 +338,130 @@ function endpointY(box: ConnectorBox, slot?: RelationEndpointSlot) {
     return box.y + box.height / 2;
   }
   return box.y + (box.height * (index + 1)) / (count + 1);
+}
+
+export type EndpointSymbolPrimitive =
+  | {
+    type: 'line';
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  }
+  | {
+    type: 'circle';
+    cx: number;
+    cy: number;
+    r: number;
+  };
+
+interface EndpointSymbolGeometryInput {
+  x: number;
+  y: number;
+  towardX: number;
+  towardY: number;
+  symbol: string;
+}
+
+export function buildEndpointSymbolGeometry({
+  x,
+  y,
+  towardX,
+  towardY,
+  symbol,
+}: EndpointSymbolGeometryInput): EndpointSymbolPrimitive[] {
+  const dx = towardX - x;
+  const dy = towardY - y;
+  const length = Math.hypot(dx, dy) || 1;
+  const ux = dx / length;
+  const uy = dy / length;
+  const nx = -uy;
+  const ny = ux;
+  const primitives: EndpointSymbolPrimitive[] = [];
+  let offset = 8;
+
+  for (const marker of parseEndpointSymbol(symbol)) {
+    if (marker === 'O') {
+      primitives.push({
+        type: 'circle',
+        cx: roundCoord(x + ux * offset),
+        cy: roundCoord(y + uy * offset),
+        r: 4,
+      });
+      offset += 10;
+      continue;
+    }
+
+    if (marker === '|') {
+      primitives.push(endpointBar(x, y, ux, uy, nx, ny, offset));
+      offset += 7;
+      continue;
+    }
+
+    primitives.push(...endpointMany(x, y, ux, uy, nx, ny, offset));
+    offset += 12;
+  }
+
+  return primitives;
+}
+
+function parseEndpointSymbol(symbol: string) {
+  return [...symbol].filter(marker => marker === 'O' || marker === '|' || marker === '<');
+}
+
+function endpointBar(
+  x: number,
+  y: number,
+  ux: number,
+  uy: number,
+  nx: number,
+  ny: number,
+  offset: number,
+): EndpointSymbolPrimitive {
+  const cx = x + ux * offset;
+  const cy = y + uy * offset;
+  const half = 6;
+  return {
+    type: 'line',
+    x1: roundCoord(cx - nx * half),
+    y1: roundCoord(cy - ny * half),
+    x2: roundCoord(cx + nx * half),
+    y2: roundCoord(cy + ny * half),
+  };
+}
+
+function endpointMany(
+  x: number,
+  y: number,
+  ux: number,
+  uy: number,
+  nx: number,
+  ny: number,
+  offset: number,
+): EndpointSymbolPrimitive[] {
+  const tipX = x + ux * (offset + 8);
+  const tipY = y + uy * (offset + 8);
+  const baseX = x + ux * offset;
+  const baseY = y + uy * offset;
+  const half = 7;
+  return [
+    {
+      type: 'line',
+      x1: roundCoord(tipX),
+      y1: roundCoord(tipY),
+      x2: roundCoord(baseX + nx * half),
+      y2: roundCoord(baseY + ny * half),
+    },
+    {
+      type: 'line',
+      x1: roundCoord(tipX),
+      y1: roundCoord(tipY),
+      x2: roundCoord(baseX - nx * half),
+      y2: roundCoord(baseY - ny * half),
+    },
+  ];
+}
+
+function roundCoord(value: number) {
+  return Math.round(value * 100) / 100;
 }

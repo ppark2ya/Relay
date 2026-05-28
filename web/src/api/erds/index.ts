@@ -13,9 +13,14 @@ export {
 export type {
   ErdDocument,
   ErdDiagnostic,
+  ErdPreviewColumn,
+  ErdPreviewColumnKey,
+  ErdPreviewEntity,
+  ErdPreviewRelation,
+  ErdPreviewDiagram,
   ErdPreviewResult,
   ErdGeneratedFile,
-  ErdGeneratedCodeResult,
   ErdKotlinResult,
+  ErdGeneratedCodeResult,
   ErdJavaResult,
 } from './types';

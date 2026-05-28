@@ -1,0 +1,1 @@
+export { ErdEditor } from './ErdEditor';

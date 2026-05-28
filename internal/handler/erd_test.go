@@ -186,6 +186,26 @@ func TestErd_PreviewAndGenerateKotlin(t *testing.T) {
 	if preview.Mermaid == "" {
 		t.Fatal("expected Mermaid output")
 	}
+	if preview.Diagram == nil {
+		t.Fatal("expected diagram output")
+	}
+	if len(preview.Diagram.Entities) != 2 {
+		t.Fatalf("expected 2 diagram entities, got %d", len(preview.Diagram.Entities))
+	}
+	if len(preview.Diagram.Relations) != 1 {
+		t.Fatalf("expected 1 diagram relation, got %d", len(preview.Diagram.Relations))
+	}
+	if len(preview.Diagram.Entities[1].Columns) != 2 {
+		t.Fatalf("expected Order diagram entity to include id and FK columns, got %#v", preview.Diagram.Entities[1].Columns)
+	}
+	fk := preview.Diagram.Entities[1].Columns[1]
+	if strings.Join(fk.Keys, ",") != "FK" || fk.Name != "user_id" || fk.Type != "BIGINT" || fk.Nullable {
+		t.Fatalf("unexpected FK diagram column: %#v", fk)
+	}
+	relation := preview.Diagram.Relations[0]
+	if relation.From != "Order" || relation.FromCardinality != "O<" || relation.To != "User" || relation.ToCardinality != "||" || relation.Label != "user" {
+		t.Fatalf("unexpected diagram relation: %#v", relation)
+	}
 
 	resp, err = postJSON(ts.URL+"/api/erds/generate/kotlin", fmt.Sprintf(`{"dsl":%q}`, dsl))
 	if err != nil {

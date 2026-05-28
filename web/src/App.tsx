@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Sidebar } from './components/sidebar';
 import { RequestEditor } from './components/request';
 import { ResponseViewer } from './components/ResponseViewer';
-import { ErdEditor } from './components/ErdEditor';
+import { ErdEditor } from './components/erd';
 import { FlowEditor } from './components/flow';
 import { WebSocketPanel } from './components/WebSocketPanel';
 import { Header } from './components/Header';
