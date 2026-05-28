@@ -13,7 +13,7 @@ export interface ErdDiagnostic {
   severity: 'error' | 'warning';
 }
 
-export type ErdPreviewColumnKey = 'PK' | 'UK' | 'FK';
+export type ErdPreviewColumnKey = 'PK' | 'UK' | 'FK' | 'IX';
 
 export interface ErdPreviewColumn {
   keys: ErdPreviewColumnKey[];
@@ -57,3 +57,4 @@ export interface ErdGeneratedCodeResult {
 
 export type ErdKotlinResult = ErdGeneratedCodeResult;
 export type ErdJavaResult = ErdGeneratedCodeResult;
+export type ErdMySQLDDLResult = ErdGeneratedCodeResult;

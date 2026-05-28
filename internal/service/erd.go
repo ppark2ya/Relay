@@ -27,12 +27,16 @@ type ErdEntity struct {
 }
 
 type ErdField struct {
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Column   string `json:"column"`
-	ID       bool   `json:"id"`
-	Nullable *bool  `json:"nullable"`
-	Unique   bool   `json:"unique"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Column    string `json:"column"`
+	ID        bool   `json:"id"`
+	Nullable  *bool  `json:"nullable"`
+	Unique    bool   `json:"unique"`
+	Index     bool   `json:"index"`
+	Length    *int   `json:"length"`
+	Precision *int   `json:"precision"`
+	Scale     *int   `json:"scale"`
 }
 
 type ErdRelation struct {
@@ -112,6 +116,18 @@ func ParseErdDSL(input string) (ErdSpec, []ErdDiagnostic) {
 			if strings.TrimSpace(field.Type) == "" {
 				diagnostics = append(diagnostics, erdError(fmt.Sprintf("Field %q in entity %q must declare a type", field.Name, entity.Name)))
 			}
+			if field.Length != nil && *field.Length <= 0 {
+				diagnostics = append(diagnostics, erdError(fmt.Sprintf("Field %q in entity %q must declare a positive length", field.Name, entity.Name)))
+			}
+			if field.Precision != nil && *field.Precision <= 0 {
+				diagnostics = append(diagnostics, erdError(fmt.Sprintf("Field %q in entity %q must declare a positive precision", field.Name, entity.Name)))
+			}
+			if field.Scale != nil && *field.Scale < 0 {
+				diagnostics = append(diagnostics, erdError(fmt.Sprintf("Field %q in entity %q must declare a non-negative scale", field.Name, entity.Name)))
+			}
+			if field.Scale != nil && *field.Scale > decimalPrecision(field) {
+				diagnostics = append(diagnostics, erdError(fmt.Sprintf("Field %q in entity %q has scale greater than precision", field.Name, entity.Name)))
+			}
 		}
 		if len(entity.Fields) > 0 && !hasID {
 			diagnostics = append(diagnostics, erdError(fmt.Sprintf("Entity %q must have an id field", entity.Name)))
@@ -157,6 +173,9 @@ func GenerateMermaidERD(spec ErdSpec) string {
 			}
 			if field.Unique {
 				markers = append(markers, "UK")
+			}
+			if fieldIndexed(field) {
+				markers = append(markers, "IX")
 			}
 			if len(markers) > 0 {
 				b.WriteString(" ")
@@ -241,6 +260,22 @@ func GenerateJavaEntities(spec ErdSpec) []GeneratedFile {
 	return files
 }
 
+func GenerateMySQLDDL(spec ErdSpec) []GeneratedFile {
+	if len(spec.Entities) == 0 {
+		return []GeneratedFile{}
+	}
+
+	statements := make([]string, 0, len(spec.Entities))
+	for _, entity := range spec.Entities {
+		statements = append(statements, generateMySQLTableDDL(spec, entity, entityRelations(spec.Relations, entity.Name)))
+	}
+
+	return []GeneratedFile{{
+		Path:    "schema.mysql.sql",
+		Content: strings.Join(statements, "\n\n") + "\n",
+	}}
+}
+
 func erdError(message string) ErdDiagnostic {
 	return ErdDiagnostic{Message: message, Severity: "error"}
 }
@@ -276,17 +311,20 @@ func previewCardinality(relation ErdRelation) (string, string) {
 }
 
 func erdDiagramColumn(field ErdField) ErdDiagramColumn {
-	keys := make([]string, 0, 2)
+	keys := make([]string, 0, 3)
 	if field.ID {
 		keys = append(keys, "PK")
 	}
 	if field.Unique {
 		keys = append(keys, "UK")
 	}
+	if fieldIndexed(field) {
+		keys = append(keys, "IX")
+	}
 	return ErdDiagramColumn{
 		Keys:     keys,
 		Name:     columnName(field),
-		Type:     mysqlType(field.Type),
+		Type:     fieldMySQLType(field),
 		Nullable: fieldNullableForDiagram(field),
 	}
 }
@@ -295,7 +333,7 @@ func erdRelationColumn(spec ErdSpec, relation ErdRelation) ErdDiagramColumn {
 	return ErdDiagramColumn{
 		Keys:     []string{"FK"},
 		Name:     relationForeignKeyName(relation),
-		Type:     mysqlType(relationTargetIDType(spec, relation.To)),
+		Type:     relationTargetIDMySQLType(spec, relation.To),
 		Nullable: relationNullable(relation),
 	}
 }
@@ -354,11 +392,61 @@ func relationTargetIDType(spec ErdSpec, targetName string) string {
 	return "Long"
 }
 
+func relationTargetIDMySQLType(spec ErdSpec, targetName string) string {
+	for _, entity := range spec.Entities {
+		if entity.Name != targetName {
+			continue
+		}
+		for _, field := range entity.Fields {
+			if field.ID {
+				return fieldMySQLType(field)
+			}
+		}
+	}
+	return mysqlType("Long")
+}
+
 func fieldNullableForDiagram(field ErdField) bool {
 	if field.ID {
 		return false
 	}
 	return fieldNullable(field)
+}
+
+func fieldIndexed(field ErdField) bool {
+	return field.Index && !field.ID && !field.Unique
+}
+
+func fieldMySQLType(field ErdField) string {
+	switch strings.TrimSpace(field.Type) {
+	case "String":
+		return fmt.Sprintf("VARCHAR(%d)", stringLength(field))
+	case "BigDecimal":
+		return fmt.Sprintf("DECIMAL(%d,%d)", decimalPrecision(field), decimalScale(field))
+	default:
+		return mysqlType(field.Type)
+	}
+}
+
+func stringLength(field ErdField) int {
+	if field.Length != nil {
+		return *field.Length
+	}
+	return 255
+}
+
+func decimalPrecision(field ErdField) int {
+	if field.Precision != nil {
+		return *field.Precision
+	}
+	return 19
+}
+
+func decimalScale(field ErdField) int {
+	if field.Scale != nil {
+		return *field.Scale
+	}
+	return 2
 }
 
 func mysqlType(typeName string) string {
@@ -413,9 +501,8 @@ func generateKotlinEntity(spec ErdSpec, entity ErdEntity, relations []ErdRelatio
 	}
 	b.WriteString("\n")
 	b.WriteString("@Entity\n")
-	b.WriteString("@Table(name = \"")
-	b.WriteString(tableName(entity))
-	b.WriteString("\")\n")
+	b.WriteString(kotlinTableAnnotation(entity))
+	b.WriteString("\n")
 	b.WriteString("open class ")
 	b.WriteString(entity.Name)
 	b.WriteString("(\n")
@@ -435,22 +522,28 @@ func generateKotlinEntity(spec ErdSpec, entity ErdEntity, relations []ErdRelatio
 	return b.String()
 }
 
+func kotlinTableAnnotation(entity ErdEntity) string {
+	indexes := entityScalarIndexes(entity)
+	if len(indexes) == 0 {
+		return fmt.Sprintf("@Table(name = \"%s\")", tableName(entity))
+	}
+
+	parts := make([]string, 0, len(indexes))
+	for _, index := range indexes {
+		parts = append(parts, fmt.Sprintf("Index(name = \"%s\", columnList = \"%s\")", index.Name, index.Column))
+	}
+	return fmt.Sprintf("@Table(name = \"%s\", indexes = [%s])", tableName(entity), strings.Join(parts, ", "))
+}
+
 func kotlinFieldProperty(field ErdField) string {
 	var b strings.Builder
 	if field.ID {
 		b.WriteString("    @Id\n")
 		b.WriteString("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n")
 	}
-	b.WriteString("    @Column(name = \"")
-	b.WriteString(columnName(field))
-	b.WriteString("\"")
-	if !fieldNullable(field) {
-		b.WriteString(", nullable = false")
-	}
-	if field.Unique {
-		b.WriteString(", unique = true")
-	}
-	b.WriteString(")\n")
+	b.WriteString("    ")
+	b.WriteString(jpaColumnAnnotation(field))
+	b.WriteString("\n")
 	b.WriteString("    open var ")
 	b.WriteString(field.Name)
 	b.WriteString(": ")
@@ -458,6 +551,24 @@ func kotlinFieldProperty(field ErdField) string {
 	b.WriteString(" = ")
 	b.WriteString(kotlinDefault(field.Type, fieldNullable(field) || field.ID))
 	return b.String()
+}
+
+func jpaColumnAnnotation(field ErdField) string {
+	options := []string{fmt.Sprintf("name = \"%s\"", columnName(field))}
+	if !fieldNullable(field) {
+		options = append(options, "nullable = false")
+	}
+	if field.Unique {
+		options = append(options, "unique = true")
+	}
+	if strings.TrimSpace(field.Type) == "String" && field.Length != nil {
+		options = append(options, fmt.Sprintf("length = %d", stringLength(field)))
+	}
+	if strings.TrimSpace(field.Type) == "BigDecimal" && (field.Precision != nil || field.Scale != nil) {
+		options = append(options, fmt.Sprintf("precision = %d", decimalPrecision(field)))
+		options = append(options, fmt.Sprintf("scale = %d", decimalScale(field)))
+	}
+	return "@Column(" + strings.Join(options, ", ") + ")"
 }
 
 func kotlinRelationProperty(relation ErdRelation) string {
@@ -547,9 +658,8 @@ func generateJavaEntity(spec ErdSpec, entity ErdEntity, relations []ErdRelation)
 	b.WriteString("@NoArgsConstructor(access = AccessLevel.PROTECTED)\n")
 	b.WriteString("@AllArgsConstructor\n")
 	b.WriteString("@Entity\n")
-	b.WriteString("@Table(name = \"")
-	b.WriteString(tableName(entity))
-	b.WriteString("\")\n")
+	b.WriteString(javaTableAnnotation(entity))
+	b.WriteString("\n")
 	b.WriteString("public class ")
 	b.WriteString(entity.Name)
 	b.WriteString(" {\n\n")
@@ -567,6 +677,19 @@ func generateJavaEntity(spec ErdSpec, entity ErdEntity, relations []ErdRelation)
 	}
 	b.WriteString("}\n")
 	return b.String()
+}
+
+func javaTableAnnotation(entity ErdEntity) string {
+	indexes := entityScalarIndexes(entity)
+	if len(indexes) == 0 {
+		return fmt.Sprintf("@Table(name = \"%s\")", tableName(entity))
+	}
+
+	parts := make([]string, 0, len(indexes))
+	for _, index := range indexes {
+		parts = append(parts, fmt.Sprintf("@Index(name = \"%s\", columnList = \"%s\")", index.Name, index.Column))
+	}
+	return fmt.Sprintf("@Table(name = \"%s\", indexes = { %s })", tableName(entity), strings.Join(parts, ", "))
 }
 
 func javaImports(entity ErdEntity, relations []ErdRelation) []string {
@@ -617,16 +740,9 @@ func javaFieldProperty(field ErdField) string {
 		b.WriteString("    @Id\n")
 		b.WriteString("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n")
 	}
-	b.WriteString("    @Column(name = \"")
-	b.WriteString(columnName(field))
-	b.WriteString("\"")
-	if !fieldNullable(field) {
-		b.WriteString(", nullable = false")
-	}
-	if field.Unique {
-		b.WriteString(", unique = true")
-	}
-	b.WriteString(")\n")
+	b.WriteString("    ")
+	b.WriteString(jpaColumnAnnotation(field))
+	b.WriteString("\n")
 	b.WriteString("    private ")
 	b.WriteString(javaType(field.Type))
 	b.WriteString(" ")
@@ -750,6 +866,216 @@ func javaType(typeName string) string {
 	default:
 		return typeName
 	}
+}
+
+type mysqlDDLColumn struct {
+	Name          string
+	Type          string
+	NotNull       bool
+	AutoIncrement bool
+}
+
+type mysqlDDLIndex struct {
+	Name   string
+	Column string
+}
+
+type mysqlDDLForeignKey struct {
+	Name            string
+	Column          string
+	ReferenceTable  string
+	ReferenceColumn string
+}
+
+func generateMySQLTableDDL(spec ErdSpec, entity ErdEntity, relations []ErdRelation) string {
+	table := tableName(entity)
+	primaryKeys := mysqlPrimaryKeyColumns(entity)
+	singleAutoIncrementPK := len(primaryKeys) == 1
+
+	columns := make([]mysqlDDLColumn, 0, len(entity.Fields)+len(relations))
+	uniqueKeys := make([]mysqlDDLIndex, 0)
+	indexes := entityScalarIndexes(entity)
+	for _, field := range entity.Fields {
+		name := columnName(field)
+		columns = append(columns, mysqlDDLColumn{
+			Name:          name,
+			Type:          fieldMySQLType(field),
+			NotNull:       field.ID || !fieldNullable(field),
+			AutoIncrement: field.ID && singleAutoIncrementPK && mysqlAutoIncrementType(field.Type),
+		})
+		if field.Unique {
+			uniqueKeys = append(uniqueKeys, mysqlDDLIndex{
+				Name:   "uk_" + table + "_" + name,
+				Column: name,
+			})
+		}
+	}
+
+	foreignKeys := make([]mysqlDDLForeignKey, 0)
+	for _, relation := range relations {
+		if !relationOwnsForeignKey(relation) {
+			continue
+		}
+
+		column := relationForeignKeyName(relation)
+		columns = appendOrMergeMySQLColumn(columns, mysqlDDLColumn{
+			Name:    column,
+			Type:    relationTargetIDMySQLType(spec, relation.To),
+			NotNull: !relationNullable(relation),
+		})
+		indexes = append(indexes, mysqlDDLIndex{
+			Name:   "idx_" + table + "_" + column,
+			Column: column,
+		})
+		foreignKeys = append(foreignKeys, mysqlDDLForeignKey{
+			Name:            "fk_" + table + "_" + column + "_" + tableNameByEntityName(spec, relation.To),
+			Column:          column,
+			ReferenceTable:  tableNameByEntityName(spec, relation.To),
+			ReferenceColumn: relationTargetIDColumnName(spec, relation.To),
+		})
+	}
+
+	lines := make([]string, 0, len(columns)+len(primaryKeys)+len(uniqueKeys)+len(indexes)+len(foreignKeys))
+	for _, column := range columns {
+		lines = append(lines, mysqlColumnDDL(column))
+	}
+	if len(primaryKeys) > 0 {
+		lines = append(lines, "PRIMARY KEY ("+mysqlQuotedIdentList(primaryKeys)+")")
+	}
+	for _, uniqueKey := range uniqueKeys {
+		lines = append(lines, mysqlIndexDDL("UNIQUE KEY", uniqueKey))
+	}
+	for _, index := range indexes {
+		lines = append(lines, mysqlIndexDDL("KEY", index))
+	}
+	for _, foreignKey := range foreignKeys {
+		lines = append(lines, mysqlForeignKeyDDL(foreignKey))
+	}
+
+	var b strings.Builder
+	b.WriteString("CREATE TABLE ")
+	b.WriteString(mysqlQuoteIdent(table))
+	b.WriteString(" (\n")
+	for i, line := range lines {
+		b.WriteString("  ")
+		b.WriteString(line)
+		if i < len(lines)-1 {
+			b.WriteString(",")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;")
+	return b.String()
+}
+
+func entityScalarIndexes(entity ErdEntity) []mysqlDDLIndex {
+	table := tableName(entity)
+	indexes := make([]mysqlDDLIndex, 0)
+	for _, field := range entity.Fields {
+		if !fieldIndexed(field) {
+			continue
+		}
+		column := columnName(field)
+		indexes = append(indexes, mysqlDDLIndex{
+			Name:   "idx_" + table + "_" + column,
+			Column: column,
+		})
+	}
+	return indexes
+}
+
+func appendOrMergeMySQLColumn(columns []mysqlDDLColumn, next mysqlDDLColumn) []mysqlDDLColumn {
+	for i, column := range columns {
+		if column.Name != next.Name {
+			continue
+		}
+		if column.Type == "" {
+			columns[i].Type = next.Type
+		}
+		columns[i].NotNull = column.NotNull || next.NotNull
+		columns[i].AutoIncrement = column.AutoIncrement || next.AutoIncrement
+		return columns
+	}
+	return append(columns, next)
+}
+
+func mysqlPrimaryKeyColumns(entity ErdEntity) []string {
+	columns := make([]string, 0)
+	for _, field := range entity.Fields {
+		if field.ID {
+			columns = append(columns, columnName(field))
+		}
+	}
+	return columns
+}
+
+func mysqlColumnDDL(column mysqlDDLColumn) string {
+	var b strings.Builder
+	b.WriteString(mysqlQuoteIdent(column.Name))
+	b.WriteString(" ")
+	b.WriteString(column.Type)
+	if column.NotNull {
+		b.WriteString(" NOT NULL")
+	}
+	if column.AutoIncrement {
+		b.WriteString(" AUTO_INCREMENT")
+	}
+	return b.String()
+}
+
+func mysqlIndexDDL(kind string, index mysqlDDLIndex) string {
+	return kind + " " + mysqlQuoteIdent(index.Name) + " (" + mysqlQuoteIdent(index.Column) + ")"
+}
+
+func mysqlForeignKeyDDL(foreignKey mysqlDDLForeignKey) string {
+	return "CONSTRAINT " + mysqlQuoteIdent(foreignKey.Name) +
+		" FOREIGN KEY (" + mysqlQuoteIdent(foreignKey.Column) + ")" +
+		" REFERENCES " + mysqlQuoteIdent(foreignKey.ReferenceTable) +
+		" (" + mysqlQuoteIdent(foreignKey.ReferenceColumn) + ")"
+}
+
+func mysqlQuotedIdentList(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, mysqlQuoteIdent(value))
+	}
+	return strings.Join(quoted, ", ")
+}
+
+func mysqlQuoteIdent(value string) string {
+	return "`" + strings.ReplaceAll(value, "`", "``") + "`"
+}
+
+func mysqlAutoIncrementType(typeName string) bool {
+	switch strings.TrimSpace(typeName) {
+	case "Long", "Int", "Integer", "Short", "Byte":
+		return true
+	default:
+		return false
+	}
+}
+
+func tableNameByEntityName(spec ErdSpec, entityName string) string {
+	for _, entity := range spec.Entities {
+		if entity.Name == entityName {
+			return tableName(entity)
+		}
+	}
+	return toSnakeCase(entityName) + "s"
+}
+
+func relationTargetIDColumnName(spec ErdSpec, targetName string) string {
+	for _, entity := range spec.Entities {
+		if entity.Name != targetName {
+			continue
+		}
+		for _, field := range entity.Fields {
+			if field.ID {
+				return columnName(field)
+			}
+		}
+	}
+	return "id"
 }
 
 func entityUsesType(entity ErdEntity, typeName string) bool {

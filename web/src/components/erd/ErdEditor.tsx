@@ -11,8 +11,8 @@ interface ErdEditorProps {
   onUpdate: (erd: ErdDocument | null) => void;
 }
 
-type ErdEditorTab = 'preview' | 'kotlin' | 'java' | 'guide';
-type GeneratedCodeLanguage = 'kotlin' | 'java';
+type ErdEditorTab = 'preview' | 'kotlin' | 'java' | 'mysql' | 'guide';
+type GeneratedCodeLanguage = 'kotlin' | 'java' | 'mysql';
 type GeneratedCodeStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'error';
 
 interface GeneratedCodeState {
@@ -25,6 +25,7 @@ interface GeneratedCodeState {
 const CODEGEN_LABELS: Record<GeneratedCodeLanguage, string> = {
   kotlin: 'Kotlin',
   java: 'Java',
+  mysql: 'MySQL DDL',
 };
 
 const initialGeneratedCodeState: Record<GeneratedCodeLanguage, GeneratedCodeState> = {
@@ -40,6 +41,12 @@ const initialGeneratedCodeState: Record<GeneratedCodeLanguage, GeneratedCodeStat
     status: 'idle',
     message: 'Java files will appear after the ERD DSL is valid.',
   },
+  mysql: {
+    files: [],
+    selectedFile: '',
+    status: 'idle',
+    message: 'MySQL DDL will appear after the ERD DSL is valid.',
+  },
 };
 
 const DEFAULT_DSL = `{
@@ -50,7 +57,7 @@ const DEFAULT_DSL = `{
       "table": "users",
       "fields": [
         { "name": "id", "type": "Long", "id": true },
-        { "name": "email", "type": "String", "nullable": false, "unique": true }
+        { "name": "email", "type": "String", "length": 320, "nullable": false, "unique": true }
       ]
     },
     {
@@ -58,7 +65,8 @@ const DEFAULT_DSL = `{
       "table": "orders",
       "fields": [
         { "name": "id", "type": "Long", "id": true },
-        { "name": "amount", "type": "BigDecimal", "nullable": false }
+        { "name": "amount", "type": "BigDecimal", "precision": 12, "scale": 4, "nullable": false },
+        { "name": "status", "type": "String", "length": 32, "nullable": false, "index": true }
       ]
     }
   ],
@@ -107,6 +115,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
       setGeneratedCode({
         kotlin: makeGeneratedCodeState('loading', 'Generating Kotlin files...'),
         java: makeGeneratedCodeState('loading', 'Generating Java files...'),
+        mysql: makeGeneratedCodeState('loading', 'Generating MySQL DDL...'),
       });
       void (async () => {
         try {
@@ -121,16 +130,18 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
           })));
 
           if (previewDiagnostics.length === 0) {
-            const [kotlin, java] = await Promise.all([
+            const [kotlin, java, mysql] = await Promise.all([
               loadGeneratedCode('kotlin', erdApi.generateKotlin(dsl)),
               loadGeneratedCode('java', erdApi.generateJava(dsl)),
+              loadGeneratedCode('mysql', erdApi.generateMySQLDDL(dsl)),
             ]);
             if (cancelled || seq !== requestSeq.current) return;
-            setGeneratedCode({ kotlin, java });
+            setGeneratedCode({ kotlin, java, mysql });
           } else {
             setGeneratedCode({
               kotlin: makeGeneratedCodeState('error', 'Fix the ERD DSL diagnostics before generating Kotlin files.'),
               java: makeGeneratedCodeState('error', 'Fix the ERD DSL diagnostics before generating Java files.'),
+              mysql: makeGeneratedCodeState('error', 'Fix the ERD DSL diagnostics before generating MySQL DDL.'),
             });
           }
         } catch (error) {
@@ -140,6 +151,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
           setGeneratedCode({
             kotlin: makeGeneratedCodeState('error', 'Preview failed, so Kotlin files could not be generated.'),
             java: makeGeneratedCodeState('error', 'Preview failed, so Java files could not be generated.'),
+            mysql: makeGeneratedCodeState('error', 'Preview failed, so MySQL DDL could not be generated.'),
           });
         }
       })();
@@ -217,7 +229,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
       <div className="h-12 px-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{erd.name}</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">ERD DSL to JPA Entities</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">ERD DSL to entities and MySQL DDL</p>
         </div>
         <div className="flex-1" />
         <button
@@ -257,6 +269,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
                 { key: 'preview', label: 'Preview' },
                 { key: 'kotlin', label: 'Kotlin' },
                 { key: 'java', label: 'Java' },
+                { key: 'mysql', label: 'MySQL DDL' },
                 { key: 'guide', label: 'Guide' },
               ]}
               activeTab={activeTab}
@@ -297,6 +310,14 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
             />
           )}
 
+          {activeTab === 'mysql' && (
+            <GeneratedCodePanel
+              language="mysql"
+              state={generatedCode.mysql}
+              onSelectFile={handleSelectGeneratedFile}
+            />
+          )}
+
           {activeTab === 'guide' && (
             <ErdDslGuide />
           )}
@@ -319,6 +340,7 @@ function GeneratedCodePanel({
     () => state.files.find(file => file.path === state.selectedFile)?.content || state.files[0]?.content || '',
     [state.files, state.selectedFile],
   );
+  const editorLanguage = language === 'mysql' ? 'sql' : 'javascript';
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -341,7 +363,7 @@ function GeneratedCodePanel({
       )}
       <div className="flex-1 min-h-0 p-3">
         {state.status === 'ready' ? (
-          <CodeEditor value={selectedContent} language="javascript" height="100%" readOnly />
+          <CodeEditor value={selectedContent} language={editorLanguage} height="100%" readOnly />
         ) : (
           <GeneratedCodeStateMessage status={state.status} message={state.message} />
         )}
@@ -432,7 +454,7 @@ function ErdDslGuide() {
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">ERD JSON DSL</h3>
           <p>
             The ERD DSL is a JSON document with optional package metadata, a list of entities, and a list of relationships.
-            It is separate from Relay Flow Script DSL and is used only for ERD preview and JPA entity generation.
+            It is separate from Relay Flow Script DSL and is used only for ERD preview, JPA entity generation, and MySQL DDL generation.
           </p>
           <pre className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 text-[11px] leading-5 text-gray-800 dark:text-gray-200">
 {`{
@@ -447,14 +469,14 @@ function ErdDslGuide() {
           <GuideTable
             rows={[
               ['packageName', 'string', 'Package name. Also controls generated Kotlin and Java file paths.'],
-              ['entities', 'array', 'Entity definitions rendered as ERD boxes and generated as JPA classes.'],
-              ['relations', 'array', 'Relationship definitions rendered as lines and generated as JPA associations.'],
+              ['entities', 'array', 'Entity definitions rendered as ERD boxes and generated as JPA classes and CREATE TABLE statements.'],
+              ['relations', 'array', 'Relationship definitions rendered as lines and generated as JPA associations and owning-side MySQL FKs.'],
             ]}
           />
         </GuideSection>
 
         <GuideSection title="entities">
-          <p>Each entity becomes one ERD node, one Kotlin file, and one Java file.</p>
+          <p>Each entity becomes one ERD node, one Kotlin file, one Java file, and one MySQL table in the schema file.</p>
           <GuideTable
             rows={[
               ['name', 'string', 'Required. Generated class name and ERD entity label.'],
@@ -478,6 +500,10 @@ function ErdDslGuide() {
               ['id', 'boolean', 'Marks the primary key and emits @Id plus @GeneratedValue.'],
               ['nullable', 'boolean', 'Defaults to true. false emits a non-null Kotlin type and nullable = false.'],
               ['unique', 'boolean', 'Emits unique = true in @Column and UK in the preview field label.'],
+              ['index', 'boolean', 'Adds an IX preview label, JPA @Table index metadata, and a MySQL KEY. Ignored for id or unique fields because those are already indexed.'],
+              ['length', 'number', 'Optional String length. Defaults to 255 when omitted.'],
+              ['precision', 'number', 'Optional BigDecimal precision. Defaults to 19 when omitted.'],
+              ['scale', 'number', 'Optional BigDecimal scale. Defaults to 2 when omitted.'],
             ]}
           />
         </GuideSection>
@@ -517,8 +543,10 @@ function ErdDslGuide() {
             <li>Uses Spring Boot 3 style <code className="font-mono">jakarta.persistence.*</code> imports.</li>
             <li>Generates <code className="font-mono">open class</code> entities for JPA proxy compatibility.</li>
             <li>Generates <code className="font-mono">@Entity</code>, <code className="font-mono">@Table</code>, <code className="font-mono">@Id</code>, <code className="font-mono">@GeneratedValue</code>, and <code className="font-mono">@Column</code>.</li>
+            <li><code className="font-mono">index: true</code> scalar fields are emitted as <code className="font-mono">@Table(indexes = ...)</code>.</li>
             <li>Relation annotations are generated from <code className="font-mono">relations</code>: <code className="font-mono">@ManyToOne</code>, <code className="font-mono">@OneToMany</code>, <code className="font-mono">@OneToOne</code>, or <code className="font-mono">@ManyToMany</code>.</li>
             <li>Explicit scalar fields are always generated as Kotlin properties, so a field named <code className="font-mono">user_id</code> is separate from a relation field named <code className="font-mono">user</code>.</li>
+            <li><code className="font-mono">String.length</code> and <code className="font-mono">BigDecimal.precision/scale</code> are emitted as <code className="font-mono">@Column</code> options when provided.</li>
             <li><code className="font-mono">BigDecimal</code> fields add <code className="font-mono">java.math.BigDecimal</code> imports.</li>
           </ul>
         </GuideSection>
@@ -527,8 +555,22 @@ function ErdDslGuide() {
           <ul className="list-disc pl-5 space-y-1">
             <li>Uses Spring Boot 3 style <code className="font-mono">jakarta.persistence.*</code> imports.</li>
             <li>Generates Lombok <code className="font-mono">@Getter</code>, <code className="font-mono">@Setter</code>, <code className="font-mono">@Builder</code>, <code className="font-mono">@NoArgsConstructor(access = AccessLevel.PROTECTED)</code>, and <code className="font-mono">@AllArgsConstructor</code>.</li>
+            <li><code className="font-mono">index: true</code> scalar fields are emitted as <code className="font-mono">@Table(indexes = ...)</code>.</li>
             <li>Collection relations are generated as <code className="font-mono">List&lt;T&gt;</code> with <code className="font-mono">@Builder.Default</code> and <code className="font-mono">new ArrayList&lt;&gt;()</code>.</li>
+            <li><code className="font-mono">String.length</code> and <code className="font-mono">BigDecimal.precision/scale</code> are emitted as <code className="font-mono">@Column</code> options when provided.</li>
             <li><code className="font-mono">BigDecimal</code>, <code className="font-mono">LocalDate</code>, <code className="font-mono">LocalDateTime</code>, and <code className="font-mono">Instant</code> fields add matching Java imports.</li>
+          </ul>
+        </GuideSection>
+
+        <GuideSection title="MySQL DDL generation">
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Generates one <code className="font-mono">schema.mysql.sql</code> file with MySQL 8 / InnoDB <code className="font-mono">CREATE TABLE</code> statements.</li>
+            <li>Uses backticks for table, column, index, and constraint names.</li>
+            <li>Generates primary keys, <code className="font-mono">AUTO_INCREMENT</code> for single integer primary keys, <code className="font-mono">NOT NULL</code>, and <code className="font-mono">UNIQUE KEY</code> constraints.</li>
+            <li><code className="font-mono">String.length</code> changes <code className="font-mono">VARCHAR(255)</code>; <code className="font-mono">BigDecimal.precision/scale</code> changes <code className="font-mono">DECIMAL(19,2)</code>.</li>
+            <li><code className="font-mono">index: true</code> scalar fields generate MySQL <code className="font-mono">KEY</code> entries.</li>
+            <li><code className="font-mono">many-to-one</code> and <code className="font-mono">one-to-one</code> relations generate owning-side FK columns, indexes, and foreign key constraints.</li>
+            <li><code className="font-mono">one-to-many</code> and <code className="font-mono">many-to-many</code> relations do not generate target FK columns or join tables in v1.</li>
           </ul>
         </GuideSection>
 

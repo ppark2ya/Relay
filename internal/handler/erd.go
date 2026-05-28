@@ -269,6 +269,20 @@ func (h *ErdHandler) GenerateJava(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, ErdGeneratedCodeResponse{Files: service.GenerateJavaEntities(spec)})
 }
 
+func (h *ErdHandler) GenerateMySQLDDL(w http.ResponseWriter, r *http.Request) {
+	var req ErdPreviewRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	spec, diagnostics := service.ParseErdDSL(req.DSL)
+	if len(diagnostics) > 0 {
+		respondJSON(w, http.StatusBadRequest, ErdPreviewResponse{Diagnostics: diagnostics})
+		return
+	}
+	respondJSON(w, http.StatusOK, ErdGeneratedCodeResponse{Files: service.GenerateMySQLDDL(spec)})
+}
+
 func mapErdResponse(erd repository.ErdDocument) ErdResponse {
 	return ErdResponse{
 		ID:        erd.ID,

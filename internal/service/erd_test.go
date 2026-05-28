@@ -295,3 +295,164 @@ func TestGenerateJavaEntities_UsesLombokBuilderAndRelations(t *testing.T) {
 		}
 	}
 }
+
+func TestErdFieldOptions_CustomizePreviewJpaAndMySQLDDL(t *testing.T) {
+	doc, diagnostics := ParseErdDSL(`{
+	  "packageName": "com.example.domain",
+	  "entities": [
+	    {
+	      "name": "Product",
+	      "table": "products",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true },
+	        { "name": "sku", "type": "String", "length": 64, "nullable": false, "index": true },
+	        { "name": "price", "type": "BigDecimal", "precision": 12, "scale": 4, "nullable": false }
+	      ]
+	    }
+	  ]
+	}`)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+	}
+
+	diagram := GenerateErdDiagram(doc)
+	if len(diagram.Entities) != 1 {
+		t.Fatalf("expected 1 diagram entity, got %d", len(diagram.Entities))
+	}
+	assertDiagramColumn(t, diagram.Entities[0], 1, ErdDiagramColumn{
+		Keys:     []string{"IX"},
+		Name:     "sku",
+		Type:     "VARCHAR(64)",
+		Nullable: false,
+	})
+	assertDiagramColumn(t, diagram.Entities[0], 2, ErdDiagramColumn{
+		Keys:     []string{},
+		Name:     "price",
+		Type:     "DECIMAL(12,4)",
+		Nullable: false,
+	})
+
+	kotlin := GenerateKotlinEntities(doc)[0].Content
+	for _, want := range []string{
+		"@Table(name = \"products\", indexes = [Index(name = \"idx_products_sku\", columnList = \"sku\")])",
+		"@Column(name = \"sku\", nullable = false, length = 64)",
+		"@Column(name = \"price\", nullable = false, precision = 12, scale = 4)",
+	} {
+		if !strings.Contains(kotlin, want) {
+			t.Fatalf("expected Kotlin output to contain %q:\n%s", want, kotlin)
+		}
+	}
+
+	java := GenerateJavaEntities(doc)[0].Content
+	for _, want := range []string{
+		"@Table(name = \"products\", indexes = { @Index(name = \"idx_products_sku\", columnList = \"sku\") })",
+		"@Column(name = \"sku\", nullable = false, length = 64)",
+		"@Column(name = \"price\", nullable = false, precision = 12, scale = 4)",
+	} {
+		if !strings.Contains(java, want) {
+			t.Fatalf("expected Java output to contain %q:\n%s", want, java)
+		}
+	}
+
+	ddl := GenerateMySQLDDL(doc)[0].Content
+	for _, want := range []string{
+		"`sku` VARCHAR(64) NOT NULL",
+		"`price` DECIMAL(12,4) NOT NULL",
+		"KEY `idx_products_sku` (`sku`)",
+	} {
+		if !strings.Contains(ddl, want) {
+			t.Fatalf("expected MySQL DDL to contain %q:\n%s", want, ddl)
+		}
+	}
+}
+
+func TestGenerateMySQLDDL_CreatesTablesKeysAndOwningForeignKeys(t *testing.T) {
+	doc, diagnostics := ParseErdDSL(`{
+	  "entities": [
+	    {
+	      "name": "User",
+	      "table": "users",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true },
+	        { "name": "email", "type": "String", "column": "email_address", "nullable": false, "unique": true }
+	      ]
+	    },
+	    {
+	      "name": "Order",
+	      "table": "orders",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true },
+	        { "name": "amount", "type": "BigDecimal", "nullable": false }
+	      ]
+	    }
+	  ],
+	  "relations": [
+	    { "from": "Order", "to": "User", "type": "many-to-one", "field": "user", "joinColumn": "user_id", "nullable": false }
+	  ]
+	}`)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+	}
+
+	files := GenerateMySQLDDL(doc)
+	if len(files) != 1 {
+		t.Fatalf("expected 1 generated file, got %d", len(files))
+	}
+	if files[0].Path != "schema.mysql.sql" {
+		t.Fatalf("expected schema.mysql.sql, got %q", files[0].Path)
+	}
+
+	content := files[0].Content
+	for _, want := range []string{
+		"CREATE TABLE `users` (",
+		"`id` BIGINT NOT NULL AUTO_INCREMENT",
+		"`email_address` VARCHAR(255) NOT NULL",
+		"PRIMARY KEY (`id`)",
+		"UNIQUE KEY `uk_users_email_address` (`email_address`)",
+		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+		"CREATE TABLE `orders` (",
+		"`amount` DECIMAL(19,2) NOT NULL",
+		"`user_id` BIGINT NOT NULL",
+		"KEY `idx_orders_user_id` (`user_id`)",
+		"CONSTRAINT `fk_orders_user_id_users` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("expected MySQL DDL to contain %q:\n%s", want, content)
+		}
+	}
+}
+
+func TestGenerateMySQLDDL_DoesNotCreateTablesForCollectionRelations(t *testing.T) {
+	doc, diagnostics := ParseErdDSL(`{
+	  "entities": [
+	    { "name": "User", "fields": [{ "name": "id", "type": "Long", "id": true }] },
+	    { "name": "Order", "fields": [{ "name": "id", "type": "Long", "id": true }] },
+	    { "name": "Role", "fields": [{ "name": "id", "type": "Long", "id": true }] }
+	  ],
+	  "relations": [
+	    { "from": "User", "to": "Order", "type": "one-to-many", "field": "orders" },
+	    { "from": "User", "to": "Role", "type": "many-to-many", "field": "roles" }
+	  ]
+	}`)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+	}
+
+	files := GenerateMySQLDDL(doc)
+	if len(files) != 1 {
+		t.Fatalf("expected 1 generated file, got %d", len(files))
+	}
+
+	content := files[0].Content
+	for _, notWant := range []string{
+		"`orders_id`",
+		"`roles_id`",
+		"CREATE TABLE `user_roles`",
+		"CREATE TABLE `users_roles`",
+		"FOREIGN KEY",
+	} {
+		if strings.Contains(content, notWant) {
+			t.Fatalf("expected MySQL DDL not to contain %q:\n%s", notWant, content)
+		}
+	}
+}

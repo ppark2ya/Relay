@@ -5,7 +5,7 @@ import { xml } from '@codemirror/lang-xml';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { javascript } from '@codemirror/lang-javascript';
-import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { StreamLanguage, HighlightStyle, syntaxHighlighting, type StreamParser, type StringStream } from '@codemirror/language';
 import { graphql as graphqlParser } from 'codemirror-graphql/cm6-legacy/mode';
 import { EditorView } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
@@ -80,10 +80,94 @@ const lightLintTheme = EditorView.theme({
   '.cm-lintRange-error': { backgroundImage: 'none', textDecoration: 'wavy underline #dc2626', textUnderlineOffset: '3px' },
 });
 
+interface SqlParserState {
+  inBlockComment: boolean;
+}
+
+const SQL_KEYWORDS = new Set([
+  'ADD', 'ALTER', 'AND', 'AS', 'ASC', 'BETWEEN', 'BY', 'CASCADE', 'CASE', 'CHECK', 'COLLATE',
+  'CONSTRAINT', 'CREATE', 'CURRENT_TIMESTAMP', 'DATABASE', 'DEFAULT', 'DELETE', 'DESC',
+  'DISTINCT', 'DROP', 'ENGINE', 'EXISTS', 'FOREIGN', 'FROM', 'GROUP', 'HAVING', 'IF', 'IN',
+  'INDEX', 'INNER', 'INSERT', 'INTO', 'IS', 'JOIN', 'KEY', 'LEFT', 'LIKE', 'LIMIT', 'NOT',
+  'NULL', 'ON', 'OR', 'ORDER', 'OUTER', 'PRIMARY', 'REFERENCES', 'RIGHT', 'SELECT', 'SET',
+  'TABLE', 'THEN', 'TO', 'UNIQUE', 'UPDATE', 'VALUES', 'WHEN', 'WHERE',
+]);
+
+const SQL_TYPES = new Set([
+  'BIGINT', 'BINARY', 'BIT', 'BLOB', 'BOOLEAN', 'CHAR', 'DATE', 'DATETIME', 'DECIMAL',
+  'DOUBLE', 'ENUM', 'FLOAT', 'INT', 'INTEGER', 'JSON', 'LONGTEXT', 'MEDIUMINT', 'TEXT',
+  'TIME', 'TIMESTAMP', 'TINYINT', 'VARBINARY', 'VARCHAR', 'YEAR',
+]);
+
+const SQL_ATOMS = new Set(['FALSE', 'TRUE', 'UNKNOWN']);
+
+const sqlParser: StreamParser<SqlParserState> = {
+  name: 'sql',
+  startState: () => ({ inBlockComment: false }),
+  token(stream, state) {
+    if (state.inBlockComment) {
+      if (stream.skipTo('*/')) {
+        stream.pos += 2;
+        state.inBlockComment = false;
+      } else {
+        stream.skipToEnd();
+      }
+      return 'comment';
+    }
+
+    if (stream.eatSpace()) return null;
+    if (stream.match('--') || stream.match('#')) {
+      stream.skipToEnd();
+      return 'comment';
+    }
+    if (stream.match('/*')) {
+      if (stream.skipTo('*/')) {
+        stream.pos += 2;
+      } else {
+        state.inBlockComment = true;
+        stream.skipToEnd();
+      }
+      return 'comment';
+    }
+
+    const next = stream.peek();
+    if (next === '`') return readSqlQuoted(stream, '`', 'variableName');
+    if (next === "'" || next === '"') return readSqlQuoted(stream, next, 'string');
+    if (stream.match(/^[0-9]+(?:\.[0-9]+)?/)) return 'number';
+    if (stream.match(/^[(),.;]/)) return 'punctuation';
+    if (stream.match(/^[+\-*/%=<>!]+/)) return 'operator';
+    if (stream.match(/^[A-Za-z_][A-Za-z0-9_$]*/)) {
+      const word = stream.current().toUpperCase();
+      if (SQL_KEYWORDS.has(word)) return 'keyword';
+      if (SQL_TYPES.has(word)) return 'typeName';
+      if (SQL_ATOMS.has(word)) return 'atom';
+      return 'variableName';
+    }
+
+    stream.next();
+    return null;
+  },
+  languageData: {
+    commentTokens: { line: '--', block: { open: '/*', close: '*/' } },
+  },
+};
+
+function readSqlQuoted(stream: StringStream, quote: string, style: string) {
+  stream.next();
+  let escaped = false;
+  while (!stream.eol()) {
+    const ch = stream.next();
+    if (ch === quote && !escaped) break;
+    escaped = ch === '\\' && !escaped;
+    if (ch !== '\\') escaped = false;
+  }
+  return style;
+}
+
 interface CodeEditorProps {
   value: string;
   onChange?: (value: string) => void;
-  language?: 'json' | 'graphql' | 'xml' | 'html' | 'css' | 'javascript';
+  language?: 'json' | 'graphql' | 'xml' | 'html' | 'css' | 'javascript' | 'sql';
   placeholder?: string;
   height?: string;
   readOnly?: boolean;
@@ -154,6 +238,7 @@ export function CodeEditor({
     if (language === 'html') exts.push(html());
     if (language === 'css') exts.push(css());
     if (language === 'javascript') exts.push(javascript());
+    if (language === 'sql') exts.push(StreamLanguage.define(sqlParser));
     return exts;
   })();
 

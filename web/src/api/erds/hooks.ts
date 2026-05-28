@@ -60,3 +60,6 @@ export const useGenerateKotlin = () =>
 
 export const useGenerateJava = () =>
   useMutation({ mutationFn: api.generateJava });
+
+export const useGenerateMySQLDDL = () =>
+  useMutation({ mutationFn: api.generateMySQLDDL });

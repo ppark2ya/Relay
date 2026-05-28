@@ -9,6 +9,7 @@ export {
   usePreviewErd,
   useGenerateKotlin,
   useGenerateJava,
+  useGenerateMySQLDDL,
 } from './hooks';
 export type {
   ErdDocument,
@@ -23,4 +24,5 @@ export type {
   ErdKotlinResult,
   ErdGeneratedCodeResult,
   ErdJavaResult,
+  ErdMySQLDDLResult,
 } from './types';

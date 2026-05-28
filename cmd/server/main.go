@@ -158,6 +158,7 @@ func main() {
 		r.Post("/erds/preview", erdHandler.Preview)
 		r.Post("/erds/generate/kotlin", erdHandler.GenerateKotlin)
 		r.Post("/erds/generate/java", erdHandler.GenerateJava)
+		r.Post("/erds/generate/mysql-ddl", erdHandler.GenerateMySQLDDL)
 		r.Get("/erds/{id}", erdHandler.Get)
 		r.Put("/erds/{id}", erdHandler.Update)
 		r.Delete("/erds/{id}", erdHandler.Delete)

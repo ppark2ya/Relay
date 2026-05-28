@@ -18,6 +18,7 @@ export type {
   ErdGeneratedCodeResult,
   ErdKotlinResult,
   ErdJavaResult,
+  ErdMySQLDDLResult,
 } from '../api/erds';
 export type { ExecuteResult, ScriptResult, RequestExecuteResult } from '../api/shared/types';
 export type { History } from '../api/history';

@@ -27,3 +27,6 @@ export const generateKotlin = (dsl: string) =>
 
 export const generateJava = (dsl: string) =>
   api.post('erds/generate/java', { json: { dsl } }).json<ErdGeneratedCodeResult>();
+
+export const generateMySQLDDL = (dsl: string) =>
+  api.post('erds/generate/mysql-ddl', { json: { dsl } }).json<ErdGeneratedCodeResult>();

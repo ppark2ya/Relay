@@ -34,6 +34,7 @@ func setupErdTestServer(t *testing.T) *httptest.Server {
 	r.Post("/api/erds/preview", erdH.Preview)
 	r.Post("/api/erds/generate/kotlin", erdH.GenerateKotlin)
 	r.Post("/api/erds/generate/java", erdH.GenerateJava)
+	r.Post("/api/erds/generate/mysql-ddl", erdH.GenerateMySQLDDL)
 
 	ts := httptest.NewServer(r)
 	t.Cleanup(ts.Close)
@@ -246,6 +247,70 @@ func TestErd_GenerateJavaReturnsDiagnosticsForInvalidDSL(t *testing.T) {
 	resp, err := postJSON(ts.URL+"/api/erds/generate/java", fmt.Sprintf(`{"dsl":%q}`, dsl))
 	if err != nil {
 		t.Fatalf("generate Java: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+
+	var preview handler.ErdPreviewResponse
+	readJSON(t, resp, &preview)
+	if len(preview.Diagnostics) == 0 {
+		t.Fatal("expected diagnostics for invalid DSL")
+	}
+}
+
+func TestErd_GenerateMySQLDDL(t *testing.T) {
+	ts := setupErdTestServer(t)
+
+	dsl := `{
+	  "entities": [
+	    { "name": "User", "table": "users", "fields": [{ "name": "id", "type": "Long", "id": true }] },
+	    { "name": "Order", "table": "orders", "fields": [{ "name": "id", "type": "Long", "id": true }] }
+	  ],
+	  "relations": [
+	    { "from": "Order", "to": "User", "type": "many-to-one", "field": "user", "joinColumn": "user_id", "nullable": false }
+	  ]
+	}`
+
+	resp, err := postJSON(ts.URL+"/api/erds/generate/mysql-ddl", fmt.Sprintf(`{"dsl":%q}`, dsl))
+	if err != nil {
+		t.Fatalf("generate MySQL DDL: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var generated handler.ErdGeneratedCodeResponse
+	readJSON(t, resp, &generated)
+	if len(generated.Files) != 1 {
+		t.Fatalf("expected 1 generated MySQL DDL file, got %d", len(generated.Files))
+	}
+	if generated.Files[0].Path != "schema.mysql.sql" {
+		t.Fatalf("expected schema.mysql.sql, got %q", generated.Files[0].Path)
+	}
+	if !strings.Contains(generated.Files[0].Content, "CREATE TABLE `orders`") ||
+		!strings.Contains(generated.Files[0].Content, "CONSTRAINT `fk_orders_user_id_users`") {
+		t.Fatalf("unexpected MySQL DDL content:\n%s", generated.Files[0].Content)
+	}
+}
+
+func TestErd_GenerateMySQLDDLReturnsDiagnosticsForInvalidDSL(t *testing.T) {
+	ts := setupErdTestServer(t)
+
+	dsl := `{
+	  "entities": [
+	    { "name": "Order", "fields": [{ "name": "id", "type": "Long", "id": true }] }
+	  ],
+	  "relations": [
+	    { "from": "Order", "to": "Missing", "type": "many-to-one", "field": "missing" }
+	  ]
+	}`
+
+	resp, err := postJSON(ts.URL+"/api/erds/generate/mysql-ddl", fmt.Sprintf(`{"dsl":%q}`, dsl))
+	if err != nil {
+		t.Fatalf("generate MySQL DDL: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
