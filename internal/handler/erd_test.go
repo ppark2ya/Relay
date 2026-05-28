@@ -33,6 +33,7 @@ func setupErdTestServer(t *testing.T) *httptest.Server {
 	r.Put("/api/erds/reorder", erdH.Reorder)
 	r.Post("/api/erds/preview", erdH.Preview)
 	r.Post("/api/erds/generate/kotlin", erdH.GenerateKotlin)
+	r.Post("/api/erds/generate/java", erdH.GenerateJava)
 
 	ts := httptest.NewServer(r)
 	t.Cleanup(ts.Close)
@@ -194,6 +195,47 @@ func TestErd_PreviewAndGenerateKotlin(t *testing.T) {
 	readJSON(t, resp, &generated)
 	if len(generated.Files) != 2 {
 		t.Fatalf("expected 2 generated files, got %d", len(generated.Files))
+	}
+
+	resp, err = postJSON(ts.URL+"/api/erds/generate/java", fmt.Sprintf(`{"dsl":%q}`, dsl))
+	if err != nil {
+		t.Fatalf("generate Java: %v", err)
+	}
+	var generatedJava handler.ErdGeneratedCodeResponse
+	readJSON(t, resp, &generatedJava)
+	if len(generatedJava.Files) != 2 {
+		t.Fatalf("expected 2 generated Java files, got %d", len(generatedJava.Files))
+	}
+	if !strings.HasSuffix(generatedJava.Files[0].Path, ".java") {
+		t.Fatalf("expected Java file path, got %q", generatedJava.Files[0].Path)
+	}
+}
+
+func TestErd_GenerateJavaReturnsDiagnosticsForInvalidDSL(t *testing.T) {
+	ts := setupErdTestServer(t)
+
+	dsl := `{
+	  "entities": [
+	    { "name": "Order", "fields": [{ "name": "id", "type": "Long", "id": true }] }
+	  ],
+	  "relations": [
+	    { "from": "Order", "to": "Missing", "type": "many-to-one", "field": "missing" }
+	  ]
+	}`
+
+	resp, err := postJSON(ts.URL+"/api/erds/generate/java", fmt.Sprintf(`{"dsl":%q}`, dsl))
+	if err != nil {
+		t.Fatalf("generate Java: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", resp.StatusCode)
+	}
+
+	var preview handler.ErdPreviewResponse
+	readJSON(t, resp, &preview)
+	if len(preview.Diagnostics) == 0 {
+		t.Fatal("expected diagnostics for invalid DSL")
 	}
 }
 

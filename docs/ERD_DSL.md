@@ -1,6 +1,6 @@
 # ERD JSON DSL
 
-Relay ERD documents use a JSON DSL as the source of truth. The DSL generates ERD previews with relationship lines and Kotlin JPA entity files for Spring Boot 3 / `jakarta.persistence`.
+Relay ERD documents use a JSON DSL as the source of truth. The DSL generates ERD previews with relationship lines, Kotlin JPA entity files, and Java JPA entity files with Lombok for Spring Boot 3 / `jakarta.persistence`.
 
 ## Example
 
@@ -47,3 +47,7 @@ Relations use `from`, `to`, `type`, `field`, optional `joinColumn`, and optional
 ## Kotlin Generation
 
 The generator emits `open class` entities with `jakarta.persistence.*`, `@Entity`, `@Table`, `@Id`, `@GeneratedValue`, `@Column`, and relation annotations such as `@ManyToOne` and `@JoinColumn`.
+
+## Java Generation
+
+The generator emits Java entities with `jakarta.persistence.*` and Lombok annotations: `@Getter`, `@Setter`, `@Builder`, `@NoArgsConstructor(access = AccessLevel.PROTECTED)`, and `@AllArgsConstructor`. Collection relations are generated as `List<T>` fields with `@Builder.Default` and `new ArrayList<>()`.

@@ -1,5 +1,5 @@
 import api from '../client';
-import type { ErdDocument, ErdKotlinResult, ErdPreviewResult } from './types';
+import type { ErdDocument, ErdGeneratedCodeResult, ErdPreviewResult } from './types';
 
 export const getErds = () => api.get('erds').json<ErdDocument[]>();
 
@@ -23,4 +23,7 @@ export const previewErd = (dsl: string) =>
   api.post('erds/preview', { json: { dsl } }).json<ErdPreviewResult>();
 
 export const generateKotlin = (dsl: string) =>
-  api.post('erds/generate/kotlin', { json: { dsl } }).json<ErdKotlinResult>();
+  api.post('erds/generate/kotlin', { json: { dsl } }).json<ErdGeneratedCodeResult>();
+
+export const generateJava = (dsl: string) =>
+  api.post('erds/generate/java', { json: { dsl } }).json<ErdGeneratedCodeResult>();
