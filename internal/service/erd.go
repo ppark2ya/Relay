@@ -50,8 +50,15 @@ type ErdDiagram struct {
 }
 
 type ErdDiagramEntity struct {
-	Name   string   `json:"name"`
-	Fields []string `json:"fields"`
+	Name    string             `json:"name"`
+	Columns []ErdDiagramColumn `json:"columns"`
+}
+
+type ErdDiagramColumn struct {
+	Keys     []string `json:"keys"`
+	Name     string   `json:"name"`
+	Type     string   `json:"type"`
+	Nullable bool     `json:"nullable"`
 }
 
 type ErdDiagramRelation struct {
@@ -182,17 +189,23 @@ func GenerateErdDiagram(spec ErdSpec) ErdDiagram {
 		Relations: make([]ErdDiagramRelation, 0, len(spec.Relations)),
 	}
 	for _, entity := range spec.Entities {
-		fields := make([]string, 0, len(entity.Fields))
+		columns := make([]ErdDiagramColumn, 0, len(entity.Fields)+len(spec.Relations))
 		for _, field := range entity.Fields {
-			fields = append(fields, erdFieldDisplay(field))
+			columns = append(columns, erdDiagramColumn(field))
+		}
+		for _, relation := range spec.Relations {
+			if relation.From != entity.Name || !relationOwnsForeignKey(relation) {
+				continue
+			}
+			columns = appendOrMergeDiagramColumn(columns, erdRelationColumn(spec, relation))
 		}
 		diagram.Entities = append(diagram.Entities, ErdDiagramEntity{
-			Name:   entity.Name,
-			Fields: fields,
+			Name:    entity.Name,
+			Columns: columns,
 		})
 	}
 	for _, relation := range spec.Relations {
-		left, right := mermaidCardinality(relation)
+		left, right := previewCardinality(relation)
 		diagram.Relations = append(diagram.Relations, ErdDiagramRelation{
 			From:            relation.From,
 			FromCardinality: left,
@@ -247,23 +260,134 @@ func mermaidCardinality(relation ErdRelation) (string, string) {
 	}
 }
 
-func erdFieldDisplay(field ErdField) string {
-	var b strings.Builder
-	b.WriteString(field.Type)
-	b.WriteString(" ")
-	b.WriteString(field.Name)
-	var markers []string
+func previewCardinality(relation ErdRelation) (string, string) {
+	switch relation.Type {
+	case "one-to-one":
+		return "||", "||"
+	case "one-to-many":
+		return "||", "O<"
+	case "many-to-one":
+		return "O<", "||"
+	case "many-to-many":
+		return "O<", "O<"
+	default:
+		return "||", "||"
+	}
+}
+
+func erdDiagramColumn(field ErdField) ErdDiagramColumn {
+	keys := make([]string, 0, 2)
 	if field.ID {
-		markers = append(markers, "PK")
+		keys = append(keys, "PK")
 	}
 	if field.Unique {
-		markers = append(markers, "UK")
+		keys = append(keys, "UK")
 	}
-	if len(markers) > 0 {
-		b.WriteString(" ")
-		b.WriteString(strings.Join(markers, ","))
+	return ErdDiagramColumn{
+		Keys:     keys,
+		Name:     columnName(field),
+		Type:     mysqlType(field.Type),
+		Nullable: fieldNullableForDiagram(field),
 	}
-	return b.String()
+}
+
+func erdRelationColumn(spec ErdSpec, relation ErdRelation) ErdDiagramColumn {
+	return ErdDiagramColumn{
+		Keys:     []string{"FK"},
+		Name:     relationForeignKeyName(relation),
+		Type:     mysqlType(relationTargetIDType(spec, relation.To)),
+		Nullable: relationNullable(relation),
+	}
+}
+
+func appendOrMergeDiagramColumn(columns []ErdDiagramColumn, next ErdDiagramColumn) []ErdDiagramColumn {
+	for i, column := range columns {
+		if column.Name != next.Name {
+			continue
+		}
+		for _, key := range next.Keys {
+			columns[i].Keys = appendUniqueKey(columns[i].Keys, key)
+		}
+		if columns[i].Type == "" {
+			columns[i].Type = next.Type
+		}
+		columns[i].Nullable = columns[i].Nullable && next.Nullable
+		return columns
+	}
+	return append(columns, next)
+}
+
+func appendUniqueKey(keys []string, key string) []string {
+	for _, existing := range keys {
+		if existing == key {
+			return keys
+		}
+	}
+	return append(keys, key)
+}
+
+func relationOwnsForeignKey(relation ErdRelation) bool {
+	return relation.Type == "many-to-one" || relation.Type == "one-to-one"
+}
+
+func relationForeignKeyName(relation ErdRelation) string {
+	if strings.TrimSpace(relation.JoinColumn) != "" {
+		return relation.JoinColumn
+	}
+	if strings.TrimSpace(relation.Field) != "" {
+		return toSnakeCase(relation.Field) + "_id"
+	}
+	return toSnakeCase(relation.To) + "_id"
+}
+
+func relationTargetIDType(spec ErdSpec, targetName string) string {
+	for _, entity := range spec.Entities {
+		if entity.Name != targetName {
+			continue
+		}
+		for _, field := range entity.Fields {
+			if field.ID {
+				return field.Type
+			}
+		}
+	}
+	return "Long"
+}
+
+func fieldNullableForDiagram(field ErdField) bool {
+	if field.ID {
+		return false
+	}
+	return fieldNullable(field)
+}
+
+func mysqlType(typeName string) string {
+	switch strings.TrimSpace(typeName) {
+	case "Long":
+		return "BIGINT"
+	case "Int", "Integer":
+		return "INT"
+	case "Short":
+		return "SMALLINT"
+	case "Byte":
+		return "TINYINT"
+	case "Double":
+		return "DOUBLE"
+	case "Float":
+		return "FLOAT"
+	case "Boolean":
+		return "TINYINT(1)"
+	case "BigDecimal":
+		return "DECIMAL(19,2)"
+	case "String":
+		return "VARCHAR(255)"
+	case "LocalDate":
+		return "DATE"
+	case "LocalDateTime", "Instant":
+		return "DATETIME"
+	default:
+		return typeName
+	}
 }
 
 func entityRelations(relations []ErdRelation, entityName string) []ErdRelation {

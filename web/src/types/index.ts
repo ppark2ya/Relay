@@ -8,6 +8,8 @@ export type { Flow, FlowStep, FlowResult, StepResult } from '../api/flows';
 export type {
   ErdDocument,
   ErdDiagnostic,
+  ErdPreviewColumn,
+  ErdPreviewColumnKey,
   ErdPreviewEntity,
   ErdPreviewRelation,
   ErdPreviewDiagram,

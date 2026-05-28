@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { normalizeErdDiagnostics } from '../src/components/ErdDiagnostics';
+import { normalizeErdDiagnostics } from '../src/components/erd/ErdDiagnostics';
 
 describe('normalizeErdDiagnostics', () => {
   test('returns an empty array for null diagnostics', () => {

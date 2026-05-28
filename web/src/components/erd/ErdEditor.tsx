@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
-import { useErds, useUpdateErd } from '../api/erds';
-import * as erdApi from '../api/erds/client';
-import type { ErdDocument, ErdGeneratedFile, ErdPreviewDiagram } from '../api/erds';
-import { CodeEditor, EmptyState, TabNav, type ScriptDiagnostic } from './ui';
+import { useErds, useUpdateErd } from '../../api/erds';
+import * as erdApi from '../../api/erds/client';
+import type { ErdDocument, ErdGeneratedFile, ErdPreviewDiagram } from '../../api/erds';
+import { CodeEditor, EmptyState, TabNav, type ScriptDiagnostic } from '../ui';
 import { ErdDiagram } from './ErdDiagram';
 import { normalizeErdDiagnostics } from './ErdDiagnostics';
 

@@ -13,6 +13,8 @@ export {
 export type {
   ErdDocument,
   ErdDiagnostic,
+  ErdPreviewColumn,
+  ErdPreviewColumnKey,
   ErdPreviewEntity,
   ErdPreviewRelation,
   ErdPreviewDiagram,

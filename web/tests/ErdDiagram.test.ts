@@ -1,11 +1,26 @@
 import { describe, expect, test } from 'bun:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ErdDiagram } from '../src/components/ErdDiagram';
-import { buildEntityLayout, buildErdFlowElements, buildRelationConnector } from '../src/components/ErdDiagramGeometry';
+import { ErdDiagram, ErdEntityColumnRows } from '../src/components/erd/ErdDiagram';
+import {
+  buildEndpointSymbolGeometry,
+  buildEntityLayout,
+  buildErdFlowElements,
+  buildRelationConnector,
+  type DiagramLayoutColumn,
+} from '../src/components/erd/ErdDiagramGeometry';
 
 const userBox = { x: 48, y: 64, height: 94 };
 const orderBox = { x: 388, y: 64, height: 94 };
+const userColumns: DiagramLayoutColumn[] = [
+  { keys: ['PK'], name: 'id', type: 'BIGINT', nullable: false },
+  { keys: ['UK'], name: 'email', type: 'VARCHAR(255)', nullable: false },
+];
+const orderColumns: DiagramLayoutColumn[] = [
+  { keys: ['PK'], name: 'id', type: 'BIGINT', nullable: false },
+  { keys: [], name: 'amount', type: 'DECIMAL(19,2)', nullable: false },
+  { keys: ['FK'], name: 'user_id', type: 'BIGINT', nullable: false },
+];
 
 describe('buildRelationConnector', () => {
   test('connects from the left side when the source is to the right of the target', () => {
@@ -66,13 +81,13 @@ describe('buildEntityLayout', () => {
   test('stacks multiple child entities beside their referenced parent', () => {
     const layout = buildEntityLayout({
       entities: [
-        { name: 'User', fields: ['Long id PK', 'String email UK'] },
-        { name: 'Order', fields: ['Long id PK', 'BigDecimal amount', 'Long user_id'] },
-        { name: 'Trans', fields: ['Long tid PK', 'String customer', 'Long user_id'] },
+        { name: 'User', columns: userColumns },
+        { name: 'Order', columns: orderColumns },
+        { name: 'Trans', columns: orderColumns },
       ],
       relations: [
-        { from: 'Order', fromCardinality: '}o', to: 'User', toCardinality: '||', label: 'user' },
-        { from: 'Trans', fromCardinality: '}o', to: 'User', toCardinality: '||', label: 'user' },
+        { from: 'Order', fromCardinality: 'O<', to: 'User', toCardinality: '||', label: 'user' },
+        { from: 'Trans', fromCardinality: 'O<', to: 'User', toCardinality: '||', label: 'user' },
       ],
     });
 
@@ -105,16 +120,26 @@ describe('ErdDiagram', () => {
     const markup = renderToStaticMarkup(createElement(ErdDiagram, {
       diagram: {
         entities: [
-          { name: 'User', fields: ['Long id PK'] },
-          { name: 'Order', fields: ['Long id PK'] },
+          { name: 'User', columns: userColumns },
+          { name: 'Order', columns: orderColumns },
         ],
         relations: [
-          { from: 'Order', fromCardinality: '}o', to: 'User', toCardinality: '||', label: 'user' },
+          { from: 'Order', fromCardinality: 'O<', to: 'User', toCardinality: '||', label: 'user' },
         ],
       },
     }));
 
     expect(markup).toContain('react-flow');
+  });
+
+  test('renders structured column rows with keys, MySQL types, and nullability', () => {
+    const markup = renderToStaticMarkup(createElement(ErdEntityColumnRows, {
+      columns: userColumns,
+    }));
+
+    expect(markup).toContain('PK');
+    expect(markup).toContain('VARCHAR(255)');
+    expect(markup).toContain('NOT NULL');
   });
 
   test('renders an empty state when no entities are present', () => {
@@ -130,11 +155,11 @@ describe('buildErdFlowElements', () => {
   test('converts ERD preview data into read-only React Flow nodes and edges', () => {
     const elements = buildErdFlowElements({
       entities: [
-        { name: 'User', fields: ['Long id PK', 'String email UK'] },
-        { name: 'Order', fields: ['Long id PK', 'BigDecimal amount'] },
+        { name: 'User', columns: userColumns },
+        { name: 'Order', columns: orderColumns },
       ],
       relations: [
-        { from: 'Order', fromCardinality: '}o', to: 'User', toCardinality: '||', label: 'user' },
+        { from: 'Order', fromCardinality: 'O<', to: 'User', toCardinality: '||', label: 'user' },
       ],
     });
 
@@ -147,19 +172,70 @@ describe('buildErdFlowElements', () => {
       targetPosition: 'left',
       draggable: false,
       selectable: false,
-      data: { name: 'User', fields: ['Long id PK', 'String email UK'] },
+      data: { name: 'User', columns: userColumns },
     });
     expect(elements.edges[0]).toMatchObject({
       id: 'Order-user-User-0',
       source: 'Order',
       target: 'User',
+      sourceHandle: 'source-left',
+      targetHandle: 'target-right',
       type: 'erdRelation',
       selectable: false,
       data: {
-        fromCardinality: '}o',
+        fromCardinality: 'O<',
         toCardinality: '||',
         label: 'user',
       },
     });
+    expect('curveOffset' in elements.edges[0].data!).toBe(false);
+  });
+
+  test('connects relation endpoints on the inner sides of visually separated tables', () => {
+    const elements = buildErdFlowElements({
+      entities: [
+        { name: 'Parent', columns: userColumns },
+        { name: 'Child', columns: orderColumns },
+      ],
+      relations: [
+        { from: 'Parent', fromCardinality: '||', to: 'Child', toCardinality: 'O<', label: 'children' },
+      ],
+    });
+
+    expect(elements.edges[0]).toMatchObject({
+      source: 'Parent',
+      target: 'Child',
+      sourceHandle: 'source-right',
+      targetHandle: 'target-left',
+    });
+  });
+});
+
+describe('buildEndpointSymbolGeometry', () => {
+  test('builds SVG primitives for zero-or-many endpoint symbols', () => {
+    const geometry = buildEndpointSymbolGeometry({
+      x: 100,
+      y: 40,
+      towardX: 160,
+      towardY: 40,
+      symbol: 'O<',
+    });
+
+    expect(geometry.map(item => item.type)).toEqual(['circle', 'line', 'line']);
+    expect(geometry[0]).toMatchObject({ type: 'circle', cy: 40 });
+    expect(geometry[0].type === 'circle' && geometry[0].cx).toBeGreaterThan(100);
+  });
+
+  test('builds two bars for exactly-one endpoint symbols', () => {
+    const geometry = buildEndpointSymbolGeometry({
+      x: 100,
+      y: 40,
+      towardX: 160,
+      towardY: 40,
+      symbol: '||',
+    });
+
+    expect(geometry).toHaveLength(2);
+    expect(geometry.every(item => item.type === 'line')).toBe(true);
   });
 });

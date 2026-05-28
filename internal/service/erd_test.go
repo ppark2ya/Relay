@@ -102,17 +102,52 @@ func TestGenerateErdDiagram_IncludesEntitiesAndRelations(t *testing.T) {
 	if diagram.Entities[0].Name != "User" {
 		t.Fatalf("expected first entity User, got %q", diagram.Entities[0].Name)
 	}
-	wantFields := []string{"Long id PK", "String email UK"}
-	if strings.Join(diagram.Entities[0].Fields, "\n") != strings.Join(wantFields, "\n") {
-		t.Fatalf("unexpected User fields: %#v", diagram.Entities[0].Fields)
-	}
+	assertDiagramColumn(t, diagram.Entities[0], 0, ErdDiagramColumn{
+		Keys:     []string{"PK"},
+		Name:     "id",
+		Type:     "BIGINT",
+		Nullable: false,
+	})
+	assertDiagramColumn(t, diagram.Entities[0], 1, ErdDiagramColumn{
+		Keys:     []string{"UK"},
+		Name:     "email",
+		Type:     "VARCHAR(255)",
+		Nullable: false,
+	})
+	assertDiagramColumn(t, diagram.Entities[1], 1, ErdDiagramColumn{
+		Keys:     []string{},
+		Name:     "amount",
+		Type:     "DECIMAL(19,2)",
+		Nullable: false,
+	})
+	assertDiagramColumn(t, diagram.Entities[1], 2, ErdDiagramColumn{
+		Keys:     []string{"FK"},
+		Name:     "user_id",
+		Type:     "BIGINT",
+		Nullable: false,
+	})
 
 	if len(diagram.Relations) != 1 {
 		t.Fatalf("expected 1 diagram relation, got %d", len(diagram.Relations))
 	}
 	relation := diagram.Relations[0]
-	if relation.From != "Order" || relation.FromCardinality != "}o" || relation.To != "User" || relation.ToCardinality != "||" || relation.Label != "user" {
+	if relation.From != "Order" || relation.FromCardinality != "O<" || relation.To != "User" || relation.ToCardinality != "||" || relation.Label != "user" {
 		t.Fatalf("unexpected relation: %#v", relation)
+	}
+}
+
+func assertDiagramColumn(t *testing.T, entity ErdDiagramEntity, index int, want ErdDiagramColumn) {
+	t.Helper()
+	if len(entity.Columns) <= index {
+		t.Fatalf("expected entity %s to have column index %d, got %#v", entity.Name, index, entity.Columns)
+	}
+	got := entity.Columns[index]
+	if (got.Keys == nil) != (want.Keys == nil) ||
+		strings.Join(got.Keys, ",") != strings.Join(want.Keys, ",") ||
+		got.Name != want.Name ||
+		got.Type != want.Type ||
+		got.Nullable != want.Nullable {
+		t.Fatalf("unexpected column at %s[%d]: got %#v want %#v", entity.Name, index, got, want)
 	}
 }
 

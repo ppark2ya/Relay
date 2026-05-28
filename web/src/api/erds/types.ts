@@ -13,9 +13,18 @@ export interface ErdDiagnostic {
   severity: 'error' | 'warning';
 }
 
+export type ErdPreviewColumnKey = 'PK' | 'UK' | 'FK';
+
+export interface ErdPreviewColumn {
+  keys: ErdPreviewColumnKey[];
+  name: string;
+  type: string;
+  nullable: boolean;
+}
+
 export interface ErdPreviewEntity {
   name: string;
-  fields: string[];
+  columns: ErdPreviewColumn[];
 }
 
 export interface ErdPreviewRelation {
