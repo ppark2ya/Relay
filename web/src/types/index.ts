@@ -13,7 +13,9 @@ export type {
   ErdPreviewDiagram,
   ErdPreviewResult,
   ErdGeneratedFile,
+  ErdGeneratedCodeResult,
   ErdKotlinResult,
+  ErdJavaResult,
 } from '../api/erds';
 export type { ExecuteResult, ScriptResult, RequestExecuteResult } from '../api/shared/types';
 export type { History } from '../api/history';

@@ -42,6 +42,9 @@ export interface ErdGeneratedFile {
   content: string;
 }
 
-export interface ErdKotlinResult {
+export interface ErdGeneratedCodeResult {
   files: ErdGeneratedFile[];
 }
+
+export type ErdKotlinResult = ErdGeneratedCodeResult;
+export type ErdJavaResult = ErdGeneratedCodeResult;

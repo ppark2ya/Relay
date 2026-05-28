@@ -216,6 +216,18 @@ func GenerateKotlinEntities(spec ErdSpec) []GeneratedFile {
 	return files
 }
 
+func GenerateJavaEntities(spec ErdSpec) []GeneratedFile {
+	files := make([]GeneratedFile, 0, len(spec.Entities))
+	for _, entity := range spec.Entities {
+		files = append(files, GeneratedFile{
+			Path:    javaFilePath(spec.PackageName, entity.Name),
+			Content: generateJavaEntity(spec, entity, entityRelations(spec.Relations, entity.Name)),
+		})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	return files
+}
+
 func erdError(message string) ErdDiagnostic {
 	return ErdDiagnostic{Message: message, Severity: "error"}
 }
@@ -384,6 +396,174 @@ func kotlinFilePath(packageName, entityName string) string {
 	return strings.ReplaceAll(packageName, ".", "/") + "/" + entityName + ".kt"
 }
 
+func javaFilePath(packageName, entityName string) string {
+	if packageName == "" {
+		return entityName + ".java"
+	}
+	return strings.ReplaceAll(packageName, ".", "/") + "/" + entityName + ".java"
+}
+
+func generateJavaEntity(spec ErdSpec, entity ErdEntity, relations []ErdRelation) string {
+	var b strings.Builder
+	if spec.PackageName != "" {
+		b.WriteString("package ")
+		b.WriteString(spec.PackageName)
+		b.WriteString(";\n\n")
+	}
+
+	for _, importName := range javaImports(entity, relations) {
+		b.WriteString("import ")
+		b.WriteString(importName)
+		b.WriteString(";\n")
+	}
+	b.WriteString("\n")
+	b.WriteString("@Getter\n")
+	b.WriteString("@Setter\n")
+	b.WriteString("@Builder\n")
+	b.WriteString("@NoArgsConstructor(access = AccessLevel.PROTECTED)\n")
+	b.WriteString("@AllArgsConstructor\n")
+	b.WriteString("@Entity\n")
+	b.WriteString("@Table(name = \"")
+	b.WriteString(tableName(entity))
+	b.WriteString("\")\n")
+	b.WriteString("public class ")
+	b.WriteString(entity.Name)
+	b.WriteString(" {\n\n")
+
+	var props []string
+	for _, field := range entity.Fields {
+		props = append(props, javaFieldProperty(field))
+	}
+	for _, relation := range relations {
+		props = append(props, javaRelationProperty(relation))
+	}
+	b.WriteString(strings.Join(props, "\n\n"))
+	if len(props) > 0 {
+		b.WriteString("\n")
+	}
+	b.WriteString("}\n")
+	return b.String()
+}
+
+func javaImports(entity ErdEntity, relations []ErdRelation) []string {
+	imports := []string{
+		"jakarta.persistence.*",
+		"lombok.AccessLevel",
+		"lombok.AllArgsConstructor",
+		"lombok.Builder",
+		"lombok.Getter",
+		"lombok.NoArgsConstructor",
+		"lombok.Setter",
+	}
+	importSet := map[string]bool{}
+	for _, field := range entity.Fields {
+		switch field.Type {
+		case "BigDecimal":
+			importSet["java.math.BigDecimal"] = true
+		case "LocalDate":
+			importSet["java.time.LocalDate"] = true
+		case "LocalDateTime":
+			importSet["java.time.LocalDateTime"] = true
+		case "Instant":
+			importSet["java.time.Instant"] = true
+		}
+	}
+	for _, relation := range relations {
+		if relation.Type == "one-to-many" || relation.Type == "many-to-many" {
+			importSet["java.util.ArrayList"] = true
+			importSet["java.util.List"] = true
+		}
+	}
+
+	var extraImports []string
+	for importName := range importSet {
+		extraImports = append(extraImports, importName)
+	}
+	sort.Strings(extraImports)
+
+	result := []string{imports[0]}
+	result = append(result, extraImports...)
+	result = append(result, imports[1:]...)
+	return result
+}
+
+func javaFieldProperty(field ErdField) string {
+	var b strings.Builder
+	if field.ID {
+		b.WriteString("    @Id\n")
+		b.WriteString("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n")
+	}
+	b.WriteString("    @Column(name = \"")
+	b.WriteString(columnName(field))
+	b.WriteString("\"")
+	if !fieldNullable(field) {
+		b.WriteString(", nullable = false")
+	}
+	if field.Unique {
+		b.WriteString(", unique = true")
+	}
+	b.WriteString(")\n")
+	b.WriteString("    private ")
+	b.WriteString(javaType(field.Type))
+	b.WriteString(" ")
+	b.WriteString(field.Name)
+	b.WriteString(";")
+	return b.String()
+}
+
+func javaRelationProperty(relation ErdRelation) string {
+	nullable := relationNullable(relation)
+	optional := "true"
+	if !nullable {
+		optional = "false"
+	}
+
+	var b strings.Builder
+	switch relation.Type {
+	case "one-to-one":
+		b.WriteString("    @OneToOne(fetch = FetchType.LAZY, optional = ")
+	case "many-to-one":
+		b.WriteString("    @ManyToOne(fetch = FetchType.LAZY, optional = ")
+	case "one-to-many":
+		b.WriteString("    @OneToMany\n")
+		b.WriteString("    @Builder.Default\n")
+		b.WriteString("    private List<")
+		b.WriteString(relation.To)
+		b.WriteString("> ")
+		b.WriteString(relation.Field)
+		b.WriteString(" = new ArrayList<>();")
+		return b.String()
+	case "many-to-many":
+		b.WriteString("    @ManyToMany\n")
+		b.WriteString("    @Builder.Default\n")
+		b.WriteString("    private List<")
+		b.WriteString(relation.To)
+		b.WriteString("> ")
+		b.WriteString(relation.Field)
+		b.WriteString(" = new ArrayList<>();")
+		return b.String()
+	default:
+		b.WriteString("    @ManyToOne(fetch = FetchType.LAZY, optional = ")
+	}
+	b.WriteString(optional)
+	b.WriteString(")\n")
+	if relation.JoinColumn != "" {
+		b.WriteString("    @JoinColumn(name = \"")
+		b.WriteString(relation.JoinColumn)
+		b.WriteString("\"")
+		if !nullable {
+			b.WriteString(", nullable = false")
+		}
+		b.WriteString(")\n")
+	}
+	b.WriteString("    private ")
+	b.WriteString(relation.To)
+	b.WriteString(" ")
+	b.WriteString(relation.Field)
+	b.WriteString(";")
+	return b.String()
+}
+
 func tableName(entity ErdEntity) string {
 	if entity.Table != "" {
 		return entity.Table
@@ -436,6 +616,15 @@ func kotlinDefault(typeName string, nullable bool) string {
 		return "BigDecimal.ZERO"
 	default:
 		return typeName + "()"
+	}
+}
+
+func javaType(typeName string) string {
+	switch typeName {
+	case "Int":
+		return "Integer"
+	default:
+		return typeName
 	}
 }
 

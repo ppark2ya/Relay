@@ -57,3 +57,6 @@ export const usePreviewErd = () =>
 
 export const useGenerateKotlin = () =>
   useMutation({ mutationFn: api.generateKotlin });
+
+export const useGenerateJava = () =>
+  useMutation({ mutationFn: api.generateJava });

@@ -11,6 +11,37 @@ interface ErdEditorProps {
   onUpdate: (erd: ErdDocument | null) => void;
 }
 
+type ErdEditorTab = 'preview' | 'kotlin' | 'java' | 'guide';
+type GeneratedCodeLanguage = 'kotlin' | 'java';
+type GeneratedCodeStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'error';
+
+interface GeneratedCodeState {
+  files: ErdGeneratedFile[];
+  selectedFile: string;
+  status: GeneratedCodeStatus;
+  message: string;
+}
+
+const CODEGEN_LABELS: Record<GeneratedCodeLanguage, string> = {
+  kotlin: 'Kotlin',
+  java: 'Java',
+};
+
+const initialGeneratedCodeState: Record<GeneratedCodeLanguage, GeneratedCodeState> = {
+  kotlin: {
+    files: [],
+    selectedFile: '',
+    status: 'idle',
+    message: 'Kotlin files will appear after the ERD DSL is valid.',
+  },
+  java: {
+    files: [],
+    selectedFile: '',
+    status: 'idle',
+    message: 'Java files will appear after the ERD DSL is valid.',
+  },
+};
+
 const DEFAULT_DSL = `{
   "packageName": "com.example.domain",
   "entities": [
@@ -49,13 +80,10 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
   const erdDraftId = erd?.id ?? 0;
   const [draft, setDraft] = useState(() => ({ erdId: erdDraftId, dsl: erd?.dsl || DEFAULT_DSL }));
   const dsl = draft.erdId === erdDraftId ? draft.dsl : erd?.dsl || DEFAULT_DSL;
-  const [activeTab, setActiveTab] = useState<'preview' | 'kotlin' | 'guide'>('preview');
+  const [activeTab, setActiveTab] = useState<ErdEditorTab>('preview');
   const [diagram, setDiagram] = useState<ErdPreviewDiagram>({ entities: [], relations: [] });
   const [diagnostics, setDiagnostics] = useState<ScriptDiagnostic[]>([]);
-  const [generatedFiles, setGeneratedFiles] = useState<ErdGeneratedFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState('');
-  const [kotlinStatus, setKotlinStatus] = useState<'idle' | 'loading' | 'ready' | 'empty' | 'error'>('idle');
-  const [kotlinMessage, setKotlinMessage] = useState('Kotlin files will appear after the ERD DSL is valid.');
+  const [generatedCode, setGeneratedCode] = useState(initialGeneratedCodeState);
   const [editorWidth, setEditorWidth] = useState(() => {
     const saved = localStorage.getItem('erdEditorWidth');
     if (saved) {
@@ -76,10 +104,10 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
     const seq = ++requestSeq.current;
     let cancelled = false;
     const handle = window.setTimeout(() => {
-      setGeneratedFiles([]);
-      setSelectedFile('');
-      setKotlinStatus('loading');
-      setKotlinMessage('Generating Kotlin files...');
+      setGeneratedCode({
+        kotlin: makeGeneratedCodeState('loading', 'Generating Kotlin files...'),
+        java: makeGeneratedCodeState('loading', 'Generating Java files...'),
+      });
       void (async () => {
         try {
           const result = await erdApi.previewErd(dsl);
@@ -93,43 +121,26 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
           })));
 
           if (previewDiagnostics.length === 0) {
-            try {
-              const generated = await withRequestTimeout(
-                erdApi.generateKotlin(dsl),
-                10000,
-                'Kotlin generation timed out.',
-              );
-              if (cancelled || seq !== requestSeq.current) return;
-              setGeneratedFiles(generated.files);
-              setSelectedFile(generated.files[0]?.path || '');
-              if (generated.files.length > 0) {
-                setKotlinStatus('ready');
-                setKotlinMessage('');
-              } else {
-                setKotlinStatus('empty');
-                setKotlinMessage('No Kotlin files were generated because the DSL has no entities.');
-              }
-            } catch (error) {
-              if (cancelled || seq !== requestSeq.current) return;
-              setGeneratedFiles([]);
-              setSelectedFile('');
-              setKotlinStatus('error');
-              setKotlinMessage(`Kotlin generation failed: ${formatMutationError(error)}`);
-            }
+            const [kotlin, java] = await Promise.all([
+              loadGeneratedCode('kotlin', erdApi.generateKotlin(dsl)),
+              loadGeneratedCode('java', erdApi.generateJava(dsl)),
+            ]);
+            if (cancelled || seq !== requestSeq.current) return;
+            setGeneratedCode({ kotlin, java });
           } else {
-            setGeneratedFiles([]);
-            setSelectedFile('');
-            setKotlinStatus('error');
-            setKotlinMessage('Fix the ERD DSL diagnostics before generating Kotlin files.');
+            setGeneratedCode({
+              kotlin: makeGeneratedCodeState('error', 'Fix the ERD DSL diagnostics before generating Kotlin files.'),
+              java: makeGeneratedCodeState('error', 'Fix the ERD DSL diagnostics before generating Java files.'),
+            });
           }
         } catch (error) {
           if (cancelled || seq !== requestSeq.current) return;
           setDiagram({ entities: [], relations: [] });
           setDiagnostics([{ line: 1, message: `Preview failed: ${formatMutationError(error)}`, severity: 'error' }]);
-          setGeneratedFiles([]);
-          setSelectedFile('');
-          setKotlinStatus('error');
-          setKotlinMessage('Preview failed, so Kotlin files could not be generated.');
+          setGeneratedCode({
+            kotlin: makeGeneratedCodeState('error', 'Preview failed, so Kotlin files could not be generated.'),
+            java: makeGeneratedCodeState('error', 'Preview failed, so Java files could not be generated.'),
+          });
         }
       })();
     }, 350);
@@ -142,11 +153,6 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
   const handleDslChange = useCallback((value: string) => {
     setDraft({ erdId: erdDraftId, dsl: value });
   }, [erdDraftId]);
-
-  const selectedContent = useMemo(
-    () => generatedFiles.find(file => file.path === selectedFile)?.content || generatedFiles[0]?.content || '',
-    [generatedFiles, selectedFile],
-  );
 
   const handleSave = () => {
     if (!erd) return;
@@ -182,6 +188,16 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
     document.body.style.userSelect = 'none';
   }, []);
 
+  const handleSelectGeneratedFile = useCallback((language: GeneratedCodeLanguage, path: string) => {
+    setGeneratedCode(prev => ({
+      ...prev,
+      [language]: {
+        ...prev[language],
+        selectedFile: path,
+      },
+    }));
+  }, []);
+
   if (!erd) {
     return (
       <EmptyState
@@ -201,7 +217,7 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
       <div className="h-12 px-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{erd.name}</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">ERD DSL to Kotlin JPA</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">ERD DSL to JPA Entities</p>
         </div>
         <div className="flex-1" />
         <button
@@ -240,10 +256,11 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
               tabs={[
                 { key: 'preview', label: 'Preview' },
                 { key: 'kotlin', label: 'Kotlin' },
+                { key: 'java', label: 'Java' },
                 { key: 'guide', label: 'Guide' },
               ]}
               activeTab={activeTab}
-              onTabChange={key => setActiveTab(key as 'preview' | 'kotlin' | 'guide')}
+              onTabChange={key => setActiveTab(key as ErdEditorTab)}
               className="flex-1 border-b-0"
             />
           </div>
@@ -265,32 +282,19 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
           )}
 
           {activeTab === 'kotlin' && (
-            <div className="flex-1 min-h-0 flex flex-col">
-              {generatedFiles.length > 0 && (
-                <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
-                  {generatedFiles.map(file => (
-                    <button
-                      key={file.path}
-                      onClick={() => setSelectedFile(file.path)}
-                      className={`px-2 py-1 text-xs rounded border ${
-                        (selectedFile || generatedFiles[0]?.path) === file.path
-                          ? 'border-blue-500 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                      }`}
-                    >
-                      {file.path.split('/').pop()}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="flex-1 min-h-0 p-3">
-                {kotlinStatus === 'ready' ? (
-                  <CodeEditor value={selectedContent} language="javascript" height="100%" readOnly />
-                ) : (
-                  <KotlinStateMessage status={kotlinStatus} message={kotlinMessage} />
-                )}
-              </div>
-            </div>
+            <GeneratedCodePanel
+              language="kotlin"
+              state={generatedCode.kotlin}
+              onSelectFile={handleSelectGeneratedFile}
+            />
+          )}
+
+          {activeTab === 'java' && (
+            <GeneratedCodePanel
+              language="java"
+              state={generatedCode.java}
+              onSelectFile={handleSelectGeneratedFile}
+            />
           )}
 
           {activeTab === 'guide' && (
@@ -300,6 +304,89 @@ export function ErdEditor({ erd, onUpdate }: ErdEditorProps) {
       </div>
     </div>
   );
+}
+
+function GeneratedCodePanel({
+  language,
+  state,
+  onSelectFile,
+}: {
+  language: GeneratedCodeLanguage;
+  state: GeneratedCodeState;
+  onSelectFile: (language: GeneratedCodeLanguage, path: string) => void;
+}) {
+  const selectedContent = useMemo(
+    () => state.files.find(file => file.path === state.selectedFile)?.content || state.files[0]?.content || '',
+    [state.files, state.selectedFile],
+  );
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col">
+      {state.files.length > 0 && (
+        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
+          {state.files.map(file => (
+            <button
+              key={file.path}
+              onClick={() => onSelectFile(language, file.path)}
+              className={`px-2 py-1 text-xs rounded border ${
+                (state.selectedFile || state.files[0]?.path) === file.path
+                  ? 'border-blue-500 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              {file.path.split('/').pop()}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex-1 min-h-0 p-3">
+        {state.status === 'ready' ? (
+          <CodeEditor value={selectedContent} language="javascript" height="100%" readOnly />
+        ) : (
+          <GeneratedCodeStateMessage status={state.status} message={state.message} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function makeGeneratedCodeState(
+  status: GeneratedCodeStatus,
+  message: string,
+  files: ErdGeneratedFile[] = [],
+): GeneratedCodeState {
+  return {
+    files,
+    selectedFile: files[0]?.path || '',
+    status,
+    message,
+  };
+}
+
+async function loadGeneratedCode(
+  language: GeneratedCodeLanguage,
+  promise: Promise<{ files: ErdGeneratedFile[] }>,
+): Promise<GeneratedCodeState> {
+  const label = CODEGEN_LABELS[language];
+  try {
+    const generated = await withRequestTimeout(
+      promise,
+      10000,
+      `${label} generation timed out.`,
+    );
+    if (generated.files.length > 0) {
+      return makeGeneratedCodeState('ready', '', generated.files);
+    }
+    return makeGeneratedCodeState(
+      'empty',
+      `No ${label} files were generated because the DSL has no entities.`,
+    );
+  } catch (error) {
+    return makeGeneratedCodeState(
+      'error',
+      `${label} generation failed: ${formatMutationError(error)}`,
+    );
+  }
 }
 
 function formatMutationError(error: unknown) {
@@ -325,7 +412,7 @@ function withRequestTimeout<T>(promise: Promise<T>, ms: number, message: string)
   });
 }
 
-function KotlinStateMessage({ status, message }: { status: 'idle' | 'loading' | 'empty' | 'error'; message: string }) {
+function GeneratedCodeStateMessage({ status, message }: { status: Exclude<GeneratedCodeStatus, 'ready'>; message: string }) {
   const tone = status === 'error'
     ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'
     : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300';
@@ -345,7 +432,7 @@ function ErdDslGuide() {
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">ERD JSON DSL</h3>
           <p>
             The ERD DSL is a JSON document with optional package metadata, a list of entities, and a list of relationships.
-            It is separate from Relay Flow Script DSL and is used only for ERD preview and Kotlin JPA generation.
+            It is separate from Relay Flow Script DSL and is used only for ERD preview and JPA entity generation.
           </p>
           <pre className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 text-[11px] leading-5 text-gray-800 dark:text-gray-200">
 {`{
@@ -359,18 +446,18 @@ function ErdDslGuide() {
         <GuideSection title="Top-level properties">
           <GuideTable
             rows={[
-              ['packageName', 'string', 'Kotlin package name. Also controls generated file paths.'],
-              ['entities', 'array', 'Entity definitions rendered as ERD boxes and generated as Kotlin classes.'],
+              ['packageName', 'string', 'Package name. Also controls generated Kotlin and Java file paths.'],
+              ['entities', 'array', 'Entity definitions rendered as ERD boxes and generated as JPA classes.'],
               ['relations', 'array', 'Relationship definitions rendered as lines and generated as JPA associations.'],
             ]}
           />
         </GuideSection>
 
         <GuideSection title="entities">
-          <p>Each entity becomes one ERD node and one Kotlin file.</p>
+          <p>Each entity becomes one ERD node, one Kotlin file, and one Java file.</p>
           <GuideTable
             rows={[
-              ['name', 'string', 'Required. Kotlin class name and ERD entity label.'],
+              ['name', 'string', 'Required. Generated class name and ERD entity label.'],
               ['table', 'string', 'Optional. Database table name. If omitted, the generator derives a snake-case plural table name.'],
               ['fields', 'array', 'Required. Scalar fields for columns and primary keys.'],
             ]}
@@ -381,12 +468,12 @@ function ErdDslGuide() {
           <p>
             Fields describe scalar columns. At least one field should use <code className="font-mono">"id": true</code>.
             Foreign key columns for JPA relationships are usually declared with <code className="font-mono">relations[].joinColumn</code>,
-            not duplicated here, unless you want a separate scalar Kotlin property too.
+            not duplicated here, unless you want a separate scalar property too.
           </p>
           <GuideTable
             rows={[
-              ['name', 'string', 'Required. Kotlin property name.'],
-              ['type', 'string', 'Required. Kotlin type such as Long, String, BigDecimal, Boolean, or LocalDateTime.'],
+              ['name', 'string', 'Required. Generated property or field name.'],
+              ['type', 'string', 'Required. Type such as Long, String, BigDecimal, Boolean, or LocalDateTime. Java generation maps Int to Integer.'],
               ['column', 'string', 'Optional. Database column name. If omitted, the generator derives snake-case from name.'],
               ['id', 'boolean', 'Marks the primary key and emits @Id plus @GeneratedValue.'],
               ['nullable', 'boolean', 'Defaults to true. false emits a non-null Kotlin type and nullable = false.'],
@@ -404,10 +491,10 @@ function ErdDslGuide() {
           </p>
           <GuideTable
             rows={[
-              ['from', 'string', 'Required. Source/owning entity. The generated Kotlin property is added here.'],
+              ['from', 'string', 'Required. Source/owning entity. The generated association is added here.'],
               ['to', 'string', 'Required. Target entity. Must match an entity name.'],
               ['type', 'string', 'Required. one-to-one, one-to-many, many-to-one, or many-to-many.'],
-              ['field', 'string', 'Required. Kotlin relationship property name and ERD line label. This is not the FK column name.'],
+              ['field', 'string', 'Required. Relationship property or field name and ERD line label. This is not the FK column name.'],
               ['joinColumn', 'string', 'FK column used for owning single-side associations such as many-to-one and one-to-one.'],
               ['nullable', 'boolean', 'Defaults to true. false emits optional = false and nullable = false where applicable.'],
             ]}
@@ -433,6 +520,15 @@ function ErdDslGuide() {
             <li>Relation annotations are generated from <code className="font-mono">relations</code>: <code className="font-mono">@ManyToOne</code>, <code className="font-mono">@OneToMany</code>, <code className="font-mono">@OneToOne</code>, or <code className="font-mono">@ManyToMany</code>.</li>
             <li>Explicit scalar fields are always generated as Kotlin properties, so a field named <code className="font-mono">user_id</code> is separate from a relation field named <code className="font-mono">user</code>.</li>
             <li><code className="font-mono">BigDecimal</code> fields add <code className="font-mono">java.math.BigDecimal</code> imports.</li>
+          </ul>
+        </GuideSection>
+
+        <GuideSection title="Java JPA generation">
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Uses Spring Boot 3 style <code className="font-mono">jakarta.persistence.*</code> imports.</li>
+            <li>Generates Lombok <code className="font-mono">@Getter</code>, <code className="font-mono">@Setter</code>, <code className="font-mono">@Builder</code>, <code className="font-mono">@NoArgsConstructor(access = AccessLevel.PROTECTED)</code>, and <code className="font-mono">@AllArgsConstructor</code>.</li>
+            <li>Collection relations are generated as <code className="font-mono">List&lt;T&gt;</code> with <code className="font-mono">@Builder.Default</code> and <code className="font-mono">new ArrayList&lt;&gt;()</code>.</li>
+            <li><code className="font-mono">BigDecimal</code>, <code className="font-mono">LocalDate</code>, <code className="font-mono">LocalDateTime</code>, and <code className="font-mono">Instant</code> fields add matching Java imports.</li>
           </ul>
         </GuideSection>
 
