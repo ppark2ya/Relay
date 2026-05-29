@@ -34,6 +34,7 @@ func setupIsolationTestServer(t *testing.T, mockTarget *httptest.Server) *httpte
 	flowH := handler.NewFlowHandler(q, fr, db)
 	histH := handler.NewHistoryHandler(q)
 	erdH := handler.NewErdHandler(q)
+	erdCollectionH := handler.NewErdCollectionHandler(q, db)
 
 	r := chi.NewRouter()
 	r.Use(middleware.WorkspaceID)
@@ -63,6 +64,8 @@ func setupIsolationTestServer(t *testing.T, mockTarget *httptest.Server) *httpte
 	r.Get("/api/history", histH.List)
 
 	// ERDs
+	r.Get("/api/erd-collections", erdCollectionH.List)
+	r.Post("/api/erd-collections", erdCollectionH.Create)
 	r.Get("/api/erds", erdH.List)
 	r.Post("/api/erds", erdH.Create)
 	r.Get("/api/erds/{id}", erdH.Get)
@@ -288,6 +291,31 @@ func TestIsolation_Erds(t *testing.T) {
 	readJSON(t, resp, &erds2)
 	if len(erds2) != 1 {
 		t.Fatalf("workspace 2: expected 1 ERD, got %d", len(erds2))
+	}
+}
+
+func TestIsolation_ErdCollections(t *testing.T) {
+	ts := setupIsolationTestServer(t, nil)
+
+	resp, _ := postJSON(ts.URL+"/api/workspaces", `{"name":"Team B"}`)
+	var ws2 handler.WorkspaceResponse
+	readJSON(t, resp, &ws2)
+
+	postJSONWithWorkspace(ts.URL+"/api/erd-collections", `{"name":"WS1 ERD Folder"}`, 1)
+	postJSONWithWorkspace(ts.URL+"/api/erd-collections", `{"name":"WS2 ERD Folder"}`, ws2.ID)
+
+	resp, _ = getWithWorkspace(ts.URL+"/api/erd-collections", 1)
+	var ws1Collections []json.RawMessage
+	readJSON(t, resp, &ws1Collections)
+	if len(ws1Collections) != 1 {
+		t.Fatalf("workspace 1: expected 1 ERD collection, got %d", len(ws1Collections))
+	}
+
+	resp, _ = getWithWorkspace(ts.URL+"/api/erd-collections", ws2.ID)
+	var ws2Collections []json.RawMessage
+	readJSON(t, resp, &ws2Collections)
+	if len(ws2Collections) != 1 {
+		t.Fatalf("workspace 2: expected 1 ERD collection, got %d", len(ws2Collections))
 	}
 }
 

@@ -5,7 +5,7 @@ export const getErds = () => api.get('erds').json<ErdDocument[]>();
 
 export const getErd = (id: number) => api.get(`erds/${id}`).json<ErdDocument>();
 
-export const createErd = (data: { name: string; dsl?: string }) =>
+export const createErd = (data: { name: string; dsl?: string; collectionId?: number | null }) =>
   api.post('erds', { json: data }).json<ErdDocument>();
 
 export const updateErd = (id: number, data: { name: string; dsl: string }) =>
@@ -16,7 +16,7 @@ export const deleteErd = (id: number) => api.delete(`erds/${id}`);
 export const duplicateErd = (id: number) =>
   api.post(`erds/${id}/duplicate`).json<ErdDocument>();
 
-export const reorderErds = (orders: { id: number; sortOrder: number }[]) =>
+export const reorderErds = (orders: { id: number; sortOrder: number; collectionId?: number | null }[]) =>
   api.put('erds/reorder', { json: { orders } });
 
 export const previewErd = (dsl: string) =>

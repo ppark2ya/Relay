@@ -20,6 +20,9 @@ export type {
   ErdJavaResult,
   ErdMySQLDDLResult,
 } from '../api/erds';
+export type {
+  ErdCollection,
+} from '../api/erdCollections';
 export type { ExecuteResult, ScriptResult, RequestExecuteResult } from '../api/shared/types';
 export type { History } from '../api/history';
 

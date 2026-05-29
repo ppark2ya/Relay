@@ -10,5 +10,7 @@ export const queryKeys = {
   flowSteps: (flowId: number) => ['flows', flowId, 'steps'] as const,
   erds: ['erds'] as const,
   erd: (id: number) => ['erds', id] as const,
+  erdCollections: ['erdCollections'] as const,
+  erdCollection: (id: number) => ['erdCollections', id] as const,
   history: ['history'] as const,
 };

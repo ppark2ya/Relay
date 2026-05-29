@@ -137,6 +137,128 @@ func TestGenerateErdDiagram_IncludesEntitiesAndRelations(t *testing.T) {
 	}
 }
 
+func TestGenerateErdDiagram_MarksModifiedFieldAndRelationColumns(t *testing.T) {
+	doc, diagnostics := ParseErdDSL(`{
+	  "entities": [
+	    {
+	      "name": "User",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true },
+	        { "name": "email", "type": "String", "nullable": false, "modify": true }
+	      ]
+	    },
+	    {
+	      "name": "Order",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true }
+	      ]
+	    }
+	  ],
+	  "relations": [
+	    { "from": "Order", "to": "User", "type": "many-to-one", "field": "user", "joinColumn": "user_id", "modify": true }
+	  ]
+	}`)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+	}
+
+	diagram := GenerateErdDiagram(doc)
+
+	assertDiagramColumn(t, diagram.Entities[0], 1, ErdDiagramColumn{
+		Keys:     []string{},
+		Name:     "email",
+		Type:     "VARCHAR(255)",
+		Nullable: false,
+		Modified: true,
+	})
+	assertDiagramColumn(t, diagram.Entities[1], 1, ErdDiagramColumn{
+		Keys:     []string{"FK"},
+		Name:     "user_id",
+		Type:     "BIGINT",
+		Nullable: true,
+		Modified: true,
+	})
+}
+
+func TestGenerateErdDiagram_MergesModifiedForeignKeyWithScalarColumn(t *testing.T) {
+	doc, diagnostics := ParseErdDSL(`{
+	  "entities": [
+	    {
+	      "name": "User",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true }
+	      ]
+	    },
+	    {
+	      "name": "Order",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true },
+	        { "name": "userId", "column": "user_id", "type": "Long", "nullable": false }
+	      ]
+	    }
+	  ],
+	  "relations": [
+	    { "from": "Order", "to": "User", "type": "many-to-one", "field": "user", "joinColumn": "user_id", "nullable": false, "modify": true }
+	  ]
+	}`)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+	}
+
+	diagram := GenerateErdDiagram(doc)
+
+	assertDiagramColumn(t, diagram.Entities[1], 1, ErdDiagramColumn{
+		Keys:     []string{"FK"},
+		Name:     "user_id",
+		Type:     "BIGINT",
+		Nullable: false,
+		Modified: true,
+	})
+}
+
+func TestGenerateCode_IgnoresModifyFlag(t *testing.T) {
+	doc, diagnostics := ParseErdDSL(`{
+	  "packageName": "com.example.domain",
+	  "entities": [
+	    {
+	      "name": "User",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true },
+	        { "name": "email", "type": "String", "modify": true }
+	      ]
+	    },
+	    {
+	      "name": "Order",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true }
+	      ]
+	    }
+	  ],
+	  "relations": [
+	    { "from": "Order", "to": "User", "type": "many-to-one", "field": "user", "joinColumn": "user_id", "modify": true }
+	  ]
+	}`)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+	}
+
+	var generated strings.Builder
+	for _, file := range GenerateKotlinEntities(doc) {
+		generated.WriteString(file.Content)
+	}
+	for _, file := range GenerateJavaEntities(doc) {
+		generated.WriteString(file.Content)
+	}
+	for _, file := range GenerateMySQLDDL(doc) {
+		generated.WriteString(file.Content)
+	}
+
+	output := strings.ToLower(generated.String())
+	if strings.Contains(output, "modify") || strings.Contains(output, "modified") {
+		t.Fatalf("expected generated code to ignore modify metadata:\n%s", generated.String())
+	}
+}
+
 func assertDiagramColumn(t *testing.T, entity ErdDiagramEntity, index int, want ErdDiagramColumn) {
 	t.Helper()
 	if len(entity.Columns) <= index {
@@ -147,7 +269,8 @@ func assertDiagramColumn(t *testing.T, entity ErdDiagramEntity, index int, want 
 		strings.Join(got.Keys, ",") != strings.Join(want.Keys, ",") ||
 		got.Name != want.Name ||
 		got.Type != want.Type ||
-		got.Nullable != want.Nullable {
+		got.Nullable != want.Nullable ||
+		got.Modified != want.Modified {
 		t.Fatalf("unexpected column at %s[%d]: got %#v want %#v", entity.Name, index, got, want)
 	}
 }

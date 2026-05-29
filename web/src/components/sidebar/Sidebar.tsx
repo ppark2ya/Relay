@@ -5,11 +5,12 @@ import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateC
 import { useCreateRequest, useDeleteRequest, useDuplicateRequest, useReorderRequests } from '../../api/requests';
 import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useReorderFlows } from '../../api/flows';
 import { useErds, useCreateErd, useDeleteErd, useDuplicateErd, useReorderErds } from '../../api/erds';
+import { useErdCollections, useCreateErdCollection, useDeleteErdCollection, useDuplicateErdCollection, useReorderErdCollections } from '../../api/erdCollections';
 import { useHistory, useDeleteHistory } from '../../api/history';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import type { Request, Flow, History, ErdDocument } from '../../types';
+import type { Request, Flow, History, ErdDocument, ErdCollection } from '../../types';
 import { TabNav, InlineCreateForm } from '../ui';
-import { filterCollectionTree, filterFlows, filterErds, filterHistory } from '../../utils/searchUtils';
+import { filterCollectionTree, filterFlows, filterErds, filterErdCollectionTree, filterHistory } from '../../utils/searchUtils';
 import { groupHistoryByDate, findCollectionById, findCollectionSiblings, findRequestSiblings } from './sidebar-utils';
 import { CollectionTree } from './CollectionTree';
 import { FlowList } from './FlowList';
@@ -32,6 +33,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const { data: collections = [] } = useCollections();
   const { data: flows = [] } = useFlows();
   const { data: erds = [] } = useErds();
+  const { data: erdCollections = [] } = useErdCollections();
   const { data: history = [] } = useHistory();
   const createCollection = useCreateCollection();
   const deleteCollection = useDeleteCollection();
@@ -40,16 +42,20 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const createFlow = useCreateFlow();
   const deleteFlow = useDeleteFlow();
   const createErd = useCreateErd();
+  const createErdCollection = useCreateErdCollection();
   const deleteErd = useDeleteErd();
+  const deleteErdCollection = useDeleteErdCollection();
   const duplicateCollection = useDuplicateCollection();
   const duplicateRequest = useDuplicateRequest();
   const duplicateFlow = useDuplicateFlow();
   const duplicateErd = useDuplicateErd();
+  const duplicateErdCollection = useDuplicateErdCollection();
   const deleteHistory = useDeleteHistory();
   const reorderCollections = useReorderCollections();
   const reorderRequests = useReorderRequests();
   const reorderFlows = useReorderFlows();
   const reorderErds = useReorderErds();
+  const reorderErdCollections = useReorderErdCollections();
 
   const [newCollectionName, setNewCollectionName] = useState('');
   const [showNewCollection, setShowNewCollection] = useState(false);
@@ -57,6 +63,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const [showNewFlow, setShowNewFlow] = useState(false);
   const [newErdName, setNewErdName] = useState('');
   const [showNewErd, setShowNewErd] = useState(false);
+  const [newErdCollectionName, setNewErdCollectionName] = useState('');
+  const [showNewErdCollection, setShowNewErdCollection] = useState(false);
   const [expandedDateGroups, setExpandedDateGroups] = useState<Set<string>>(new Set(['Today', 'Yesterday']));
   const [filterQuery, setFilterQuery] = useState('');
 
@@ -116,7 +124,11 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
 
   const filteredFlows = !filterQuery.trim() ? flows : filterFlows(flows, filterQuery);
 
-  const filteredErds = !filterQuery.trim() ? erds : filterErds(erds, filterQuery);
+  const rootErds = erds.filter(erd => !erd.collectionId);
+  const filteredRootErds = !filterQuery.trim() ? rootErds : filterErds(rootErds, filterQuery);
+  const filteredErdCollections = !filterQuery.trim()
+    ? { collections: erdCollections, expandedIds: null as Set<number> | null }
+    : filterErdCollectionTree(erdCollections, filterQuery);
 
   const filteredHistory = !filterQuery.trim() ? history : filterHistory(history, filterQuery);
 
@@ -147,6 +159,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const newFlowRef = useClickOutside<HTMLDivElement>(closeNewFlow, showNewFlow);
   const closeNewErd = () => setShowNewErd(false);
   const newErdRef = useClickOutside<HTMLDivElement>(closeNewErd, showNewErd);
+  const closeNewErdCollection = () => setShowNewErdCollection(false);
+  const newErdCollectionRef = useClickOutside<HTMLDivElement>(closeNewErdCollection, showNewErdCollection);
 
   const handleCreateCollection = () => {
     if (newCollectionName.trim()) {
@@ -181,7 +195,15 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     }
   };
 
-  const handleCreateErd = () => {
+  const handleCreateErd = (collectionId?: number) => {
+    if (collectionId) {
+      createErd.mutate({ name: 'New ERD', collectionId }, {
+        onSuccess: (erd) => {
+          onSelectErd(erd);
+        },
+      });
+      return;
+    }
     if (newErdName.trim()) {
       createErd.mutate({ name: newErdName.trim() }, {
         onSuccess: (erd) => {
@@ -191,6 +213,18 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
       setNewErdName('');
       setShowNewErd(false);
     }
+  };
+
+  const handleCreateErdCollection = () => {
+    if (newErdCollectionName.trim()) {
+      createErdCollection.mutate({ name: newErdCollectionName.trim() });
+      setNewErdCollectionName('');
+      setShowNewErdCollection(false);
+    }
+  };
+
+  const handleCreateErdSubfolder = (parentId: number) => {
+    createErdCollection.mutate({ name: 'New Folder', parentId });
   };
 
   const handleDeleteFlow = (id: number, e: React.MouseEvent) => {
@@ -205,6 +239,14 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     e.stopPropagation();
     deleteErd.mutate(id);
     if (selectedErdId === id) {
+      onSelectErd(null);
+    }
+  };
+
+  const handleDeleteErdCollection = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteErdCollection.mutate(id);
+    if (selectedErdId && erds.some(erd => erd.id === selectedErdId && erd.collectionId === id)) {
       onSelectErd(null);
     }
   };
@@ -325,19 +367,64 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const activeId = String(active.id).replace('erd-', '');
-    const overId = String(over.id).replace('erd-', '');
+    const activeId = String(active.id);
+    const overId = String(over.id);
 
-    const oldIndex = filteredErds.findIndex(erd => erd.id === parseInt(activeId, 10));
-    const newIndex = filteredErds.findIndex(erd => erd.id === parseInt(overId, 10));
-    if (oldIndex === -1 || newIndex === -1) return;
+    if (activeId.startsWith('erd-col-') && overId.startsWith('erd-col-')) {
+      const activeCollectionId = parseInt(activeId.replace('erd-col-', ''), 10);
+      const overCollectionId = parseInt(overId.replace('erd-col-', ''), 10);
+      const activeSiblings = findErdCollectionSiblings(filteredErdCollections.collections, activeCollectionId);
+      const overSiblings = findErdCollectionSiblings(filteredErdCollections.collections, overCollectionId);
+      if (!activeSiblings || !overSiblings || activeSiblings.parentId !== overSiblings.parentId) return;
 
-    const reordered = arrayMove(filteredErds, oldIndex, newIndex);
-    const orders = reordered.map((erd, idx) => ({
-      id: erd.id,
-      sortOrder: idx + 1,
-    }));
-    reorderErds.mutate(orders);
+      const reordered = arrayMove(activeSiblings.siblings, activeSiblings.index, overSiblings.index);
+      reorderErdCollections.mutate(reordered.map((collection, idx) => ({
+        id: collection.id,
+        sortOrder: idx + 1,
+        parentId: activeSiblings.parentId,
+      })));
+    }
+
+    if (activeId.startsWith('erd-') && overId.startsWith('erd-') && !activeId.startsWith('erd-col-') && !overId.startsWith('erd-col-')) {
+      const activeErdId = parseInt(activeId.replace('erd-', ''), 10);
+      const overErdId = parseInt(overId.replace('erd-', ''), 10);
+      const activeSiblings = findErdSiblings(filteredErdCollections.collections, filteredRootErds, activeErdId);
+      const overSiblings = findErdSiblings(filteredErdCollections.collections, filteredRootErds, overErdId);
+      if (!activeSiblings || !overSiblings) return;
+
+      if (activeSiblings.collectionId === overSiblings.collectionId) {
+        const reordered = arrayMove(activeSiblings.siblings, activeSiblings.index, overSiblings.index);
+        reorderErds.mutate(reordered.map((erd, idx) => ({
+          id: erd.id,
+          sortOrder: idx + 1,
+          collectionId: activeSiblings.collectionId,
+        })));
+      } else {
+        const movedErd = activeSiblings.siblings[activeSiblings.index];
+        const newSiblings = [...overSiblings.siblings];
+        newSiblings.splice(overSiblings.index + 1, 0, movedErd);
+        reorderErds.mutate(newSiblings.map((erd, idx) => ({
+          id: erd.id,
+          sortOrder: idx + 1,
+          collectionId: overSiblings.collectionId,
+        })));
+      }
+    }
+
+    if (activeId.startsWith('erd-') && !activeId.startsWith('erd-col-') && overId.startsWith('erd-col-')) {
+      const activeErdId = parseInt(activeId.replace('erd-', ''), 10);
+      const overCollectionId = parseInt(overId.replace('erd-col-', ''), 10);
+      const activeSiblings = findErdSiblings(filteredErdCollections.collections, filteredRootErds, activeErdId);
+      if (!activeSiblings || activeSiblings.collectionId === overCollectionId) return;
+
+      const targetCollection = findErdCollectionById(filteredErdCollections.collections, overCollectionId);
+      const existingErds = targetCollection?.erds ?? [];
+      reorderErds.mutate([{
+        id: activeErdId,
+        sortOrder: existingErds.length + 1,
+        collectionId: overCollectionId,
+      }]);
+    }
   };
 
   if (isCollapsed) {
@@ -477,7 +564,19 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
 
         {view === 'erds' && (
           <>
-            <div className="mb-2" ref={newErdRef}>
+            <div className="mb-2 space-y-2">
+              <div ref={newErdCollectionRef}>
+                <InlineCreateForm
+                  isOpen={showNewErdCollection}
+                  onOpenChange={setShowNewErdCollection}
+                  value={newErdCollectionName}
+                  onValueChange={setNewErdCollectionName}
+                  onSubmit={handleCreateErdCollection}
+                  placeholder="Collection name"
+                  buttonLabel="New Collection"
+                />
+              </div>
+              <div ref={newErdRef}>
               <InlineCreateForm
                 isOpen={showNewErd}
                 onOpenChange={setShowNewErd}
@@ -487,13 +586,20 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
                 placeholder="ERD name"
                 buttonLabel="New ERD"
               />
+              </div>
             </div>
             <ErdList
-              erds={filteredErds}
+              collections={filteredErdCollections.collections}
+              erds={filteredRootErds}
               selectedErdId={selectedErdId}
               onSelectErd={onSelectErd}
+              onCreateErd={handleCreateErd}
+              onCreateSubfolder={handleCreateErdSubfolder}
+              onDuplicateCollection={id => duplicateErdCollection.mutate(id)}
+              onDeleteCollection={handleDeleteErdCollection}
               onDuplicateErd={id => duplicateErd.mutate(id)}
               onDeleteErd={handleDeleteErd}
+              forceExpandedIds={filteredErdCollections.expandedIds}
               isDndDisabled={isDndDisabled}
               onDragEnd={handleErdDragEnd}
               emptyMessage={filterQuery.trim() ? 'No matching items' : 'No ERDs created yet'}
@@ -514,4 +620,61 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
       </div>
     </aside>
   );
+}
+
+function findErdCollectionById(collections: ErdCollection[], id: number): ErdCollection | null {
+  for (const collection of collections) {
+    if (collection.id === id) return collection;
+    const found = findErdCollectionById(collection.children ?? [], id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findErdCollectionSiblings(
+  collections: ErdCollection[],
+  id: number,
+  parentId: number | null = null,
+): { siblings: ErdCollection[]; index: number; parentId: number | null } | null {
+  const index = collections.findIndex(collection => collection.id === id);
+  if (index !== -1) {
+    return { siblings: collections, index, parentId };
+  }
+  for (const collection of collections) {
+    const found = findErdCollectionSiblings(collection.children ?? [], id, collection.id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findErdSiblings(
+  collections: ErdCollection[],
+  rootErds: ErdDocument[],
+  id: number,
+): { siblings: ErdDocument[]; index: number; collectionId: number | null } | null {
+  const rootIndex = rootErds.findIndex(erd => erd.id === id);
+  if (rootIndex !== -1) {
+    return { siblings: rootErds, index: rootIndex, collectionId: null };
+  }
+  for (const collection of collections) {
+    const found = findErdSiblingsInCollection(collection, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findErdSiblingsInCollection(
+  collection: ErdCollection,
+  id: number,
+): { siblings: ErdDocument[]; index: number; collectionId: number } | null {
+  const erds = collection.erds ?? [];
+  const index = erds.findIndex(erd => erd.id === id);
+  if (index !== -1) {
+    return { siblings: erds, index, collectionId: collection.id };
+  }
+  for (const child of collection.children ?? []) {
+    const found = findErdSiblingsInCollection(child, id);
+    if (found) return found;
+  }
+  return null;
 }

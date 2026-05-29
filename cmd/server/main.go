@@ -71,6 +71,7 @@ func main() {
 	fileHandler := handler.NewFileHandler(db, queries, fileStorage)
 	wsHandler := handler.NewWebSocketHandler(wsRelay)
 	erdHandler := handler.NewErdHandler(queries)
+	erdCollectionHandler := handler.NewErdCollectionHandler(queries, db)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -152,6 +153,13 @@ func main() {
 		r.Delete("/flows/{id}/steps/{stepId}", flowHandler.DeleteStep)
 
 		// ERDs
+		r.Get("/erd-collections", erdCollectionHandler.List)
+		r.Post("/erd-collections", erdCollectionHandler.Create)
+		r.Put("/erd-collections/reorder", erdCollectionHandler.Reorder)
+		r.Get("/erd-collections/{id}", erdCollectionHandler.Get)
+		r.Put("/erd-collections/{id}", erdCollectionHandler.Update)
+		r.Delete("/erd-collections/{id}", erdCollectionHandler.Delete)
+		r.Post("/erd-collections/{id}/duplicate", erdCollectionHandler.Duplicate)
 		r.Get("/erds", erdHandler.List)
 		r.Post("/erds", erdHandler.Create)
 		r.Put("/erds/reorder", erdHandler.Reorder)

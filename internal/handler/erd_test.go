@@ -18,11 +18,20 @@ import (
 func setupErdTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
-	_, q := testutil.SetupTestDBWithConn(t)
+	db, q := testutil.SetupTestDBWithConn(t)
 	erdH := handler.NewErdHandler(q)
+	erdCollectionH := handler.NewErdCollectionHandler(q, db)
 
 	r := chi.NewRouter()
 	r.Use(middleware.WorkspaceID)
+
+	r.Get("/api/erd-collections", erdCollectionH.List)
+	r.Post("/api/erd-collections", erdCollectionH.Create)
+	r.Put("/api/erd-collections/reorder", erdCollectionH.Reorder)
+	r.Get("/api/erd-collections/{id}", erdCollectionH.Get)
+	r.Put("/api/erd-collections/{id}", erdCollectionH.Update)
+	r.Delete("/api/erd-collections/{id}", erdCollectionH.Delete)
+	r.Post("/api/erd-collections/{id}/duplicate", erdCollectionH.Duplicate)
 
 	r.Get("/api/erds", erdH.List)
 	r.Post("/api/erds", erdH.Create)
@@ -39,6 +48,15 @@ func setupErdTestServer(t *testing.T) *httptest.Server {
 	ts := httptest.NewServer(r)
 	t.Cleanup(ts.Close)
 	return ts
+}
+
+type erdCollectionTestResponse struct {
+	ID        int64                       `json:"id"`
+	Name      string                      `json:"name"`
+	ParentID  *int64                      `json:"parentId"`
+	SortOrder int64                       `json:"sortOrder"`
+	Children  []erdCollectionTestResponse `json:"children"`
+	Erds      []handler.ErdResponse       `json:"erds"`
 }
 
 func TestErd_CRUD(t *testing.T) {
@@ -111,6 +129,126 @@ func TestErd_CRUD(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404 after delete, got %d", resp.StatusCode)
+	}
+}
+
+func TestErd_CollectionsCreateTreeAndDeleteCascade(t *testing.T) {
+	ts := setupErdTestServer(t)
+
+	resp, err := postJSON(ts.URL+"/api/erd-collections", `{"name":"v1"}`)
+	if err != nil {
+		t.Fatalf("create root ERD collection: %v", err)
+	}
+	var root erdCollectionTestResponse
+	readJSON(t, resp, &root)
+
+	resp, err = postJSON(ts.URL+"/api/erd-collections", fmt.Sprintf(`{"name":"release-candidates","parentId":%d}`, root.ID))
+	if err != nil {
+		t.Fatalf("create child ERD collection: %v", err)
+	}
+	var child erdCollectionTestResponse
+	readJSON(t, resp, &child)
+
+	resp, err = postJSON(ts.URL+"/api/erds", fmt.Sprintf(`{"name":"Commerce v1.1","collectionId":%d,"dsl":"{\"entities\":[]}"}`, child.ID))
+	if err != nil {
+		t.Fatalf("create ERD in collection: %v", err)
+	}
+	var erd handler.ErdResponse
+	readJSON(t, resp, &erd)
+	if erd.CollectionID == nil || *erd.CollectionID != child.ID {
+		t.Fatalf("expected ERD collectionId %d, got %#v", child.ID, erd.CollectionID)
+	}
+
+	resp, err = http.Get(ts.URL + "/api/erd-collections")
+	if err != nil {
+		t.Fatalf("list ERD collections: %v", err)
+	}
+	var roots []erdCollectionTestResponse
+	readJSON(t, resp, &roots)
+	if len(roots) != 1 || roots[0].Name != "v1" {
+		t.Fatalf("unexpected root collections: %#v", roots)
+	}
+	if len(roots[0].Children) != 1 || roots[0].Children[0].Name != "release-candidates" {
+		t.Fatalf("unexpected child collections: %#v", roots[0].Children)
+	}
+	if len(roots[0].Children[0].Erds) != 1 || roots[0].Children[0].Erds[0].ID != erd.ID {
+		t.Fatalf("expected child collection to include ERD %#v, got %#v", erd, roots[0].Children[0].Erds)
+	}
+
+	req, _ := http.NewRequest("DELETE", ts.URL+fmt.Sprintf("/api/erd-collections/%d", root.ID), nil)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("delete ERD collection: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d", resp.StatusCode)
+	}
+
+	resp, err = http.Get(ts.URL + fmt.Sprintf("/api/erds/%d", erd.ID))
+	if err != nil {
+		t.Fatalf("get ERD after collection delete: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected ERD to be deleted with collection, got status %d", resp.StatusCode)
+	}
+}
+
+func TestErd_CollectionsDuplicateAndReorder(t *testing.T) {
+	ts := setupErdTestServer(t)
+
+	resp, _ := postJSON(ts.URL+"/api/erd-collections", `{"name":"v1"}`)
+	var first erdCollectionTestResponse
+	readJSON(t, resp, &first)
+
+	resp, _ = postJSON(ts.URL+"/api/erd-collections", `{"name":"v2"}`)
+	var second erdCollectionTestResponse
+	readJSON(t, resp, &second)
+
+	resp, _ = postJSON(ts.URL+"/api/erd-collections", fmt.Sprintf(`{"name":"patches","parentId":%d}`, first.ID))
+	var child erdCollectionTestResponse
+	readJSON(t, resp, &child)
+
+	resp, _ = postJSON(ts.URL+"/api/erds", fmt.Sprintf(`{"name":"Commerce Patch","collectionId":%d,"dsl":"{\"entities\":[]}"}`, child.ID))
+	resp.Body.Close()
+
+	resp, err := postJSON(ts.URL+fmt.Sprintf("/api/erd-collections/%d/duplicate", first.ID), `{}`)
+	if err != nil {
+		t.Fatalf("duplicate ERD collection: %v", err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", resp.StatusCode)
+	}
+	var duplicated erdCollectionTestResponse
+	readJSON(t, resp, &duplicated)
+	if duplicated.Name != "v1 Copy" {
+		t.Fatalf("expected duplicate name v1 Copy, got %q", duplicated.Name)
+	}
+
+	resp, err = putJSON(ts.URL+"/api/erd-collections/reorder", fmt.Sprintf(`{"orders":[{"id":%d,"sortOrder":1},{"id":%d,"sortOrder":2},{"id":%d,"sortOrder":3}]}`, second.ID, first.ID, duplicated.ID))
+	if err != nil {
+		t.Fatalf("reorder ERD collections: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d", resp.StatusCode)
+	}
+
+	resp, err = http.Get(ts.URL + "/api/erd-collections")
+	if err != nil {
+		t.Fatalf("list ERD collections: %v", err)
+	}
+	var roots []erdCollectionTestResponse
+	readJSON(t, resp, &roots)
+	if len(roots) != 3 {
+		t.Fatalf("expected 3 root collections, got %#v", roots)
+	}
+	if roots[0].ID != second.ID || roots[1].ID != first.ID || roots[2].ID != duplicated.ID {
+		t.Fatalf("unexpected collection order: %#v", roots)
+	}
+	if len(roots[2].Children) != 1 || len(roots[2].Children[0].Erds) != 1 {
+		t.Fatalf("expected duplicated collection subtree with ERD, got %#v", roots[2])
 	}
 }
 

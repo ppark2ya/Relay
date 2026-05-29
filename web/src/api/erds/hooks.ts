@@ -12,7 +12,10 @@ export const useCreateErd = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.createErd,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.erds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.erds });
+      queryClient.invalidateQueries({ queryKey: queryKeys.erdCollections });
+    },
   });
 };
 
@@ -24,6 +27,7 @@ export const useUpdateErd = () => {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.erds });
       queryClient.invalidateQueries({ queryKey: queryKeys.erd(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.erdCollections });
     },
   });
 };
@@ -32,7 +36,10 @@ export const useDeleteErd = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.deleteErd,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.erds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.erds });
+      queryClient.invalidateQueries({ queryKey: queryKeys.erdCollections });
+    },
   });
 };
 
@@ -40,7 +47,10 @@ export const useDuplicateErd = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.duplicateErd,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.erds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.erds });
+      queryClient.invalidateQueries({ queryKey: queryKeys.erdCollections });
+    },
   });
 };
 
@@ -48,7 +58,10 @@ export const useReorderErds = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.reorderErds,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.erds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.erds });
+      queryClient.invalidateQueries({ queryKey: queryKeys.erdCollections });
+    },
   });
 };
 

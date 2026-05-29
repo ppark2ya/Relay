@@ -32,6 +32,7 @@ type ErdField struct {
 	Type      string `json:"type"`
 	Column    string `json:"column"`
 	Comment   string `json:"comment"`
+	Modify    bool   `json:"modify"`
 	ID        bool   `json:"id"`
 	Nullable  *bool  `json:"nullable"`
 	Unique    bool   `json:"unique"`
@@ -48,6 +49,7 @@ type ErdRelation struct {
 	Field      string `json:"field"`
 	JoinColumn string `json:"joinColumn"`
 	Comment    string `json:"comment"`
+	Modify     bool   `json:"modify"`
 	Nullable   *bool  `json:"nullable"`
 }
 
@@ -66,6 +68,7 @@ type ErdDiagramColumn struct {
 	Name     string   `json:"name"`
 	Type     string   `json:"type"`
 	Nullable bool     `json:"nullable"`
+	Modified bool     `json:"modified,omitempty"`
 }
 
 type ErdDiagramRelation struct {
@@ -329,6 +332,7 @@ func erdDiagramColumn(field ErdField) ErdDiagramColumn {
 		Name:     columnName(field),
 		Type:     fieldMySQLType(field),
 		Nullable: fieldNullableForDiagram(field),
+		Modified: field.Modify,
 	}
 }
 
@@ -338,6 +342,7 @@ func erdRelationColumn(spec ErdSpec, relation ErdRelation) ErdDiagramColumn {
 		Name:     relationForeignKeyName(relation),
 		Type:     relationTargetIDMySQLType(spec, relation.To),
 		Nullable: relationNullable(relation),
+		Modified: relation.Modify,
 	}
 }
 
@@ -353,6 +358,7 @@ func appendOrMergeDiagramColumn(columns []ErdDiagramColumn, next ErdDiagramColum
 			columns[i].Type = next.Type
 		}
 		columns[i].Nullable = columns[i].Nullable && next.Nullable
+		columns[i].Modified = columns[i].Modified || next.Modified
 		return columns
 	}
 	return append(columns, next)

@@ -44,13 +44,15 @@ Relay ERD documents use a JSON DSL as the source of truth. The DSL generates ERD
 
 ## Shape
 
-Entities use `name`, optional `table`, optional `comment`, and `fields`. Fields use `name`, `type`, optional `column`, `comment`, `id`, `nullable`, `unique`, `index`, `length`, `precision`, and `scale`.
+Entities use `name`, optional `table`, optional `comment`, and `fields`. Fields use `name`, `type`, optional `column`, `comment`, `modify`, `id`, `nullable`, `unique`, `index`, `length`, `precision`, and `scale`.
 
 `length` applies to `String` fields and defaults to `255`. `precision` and `scale` apply to `BigDecimal` fields and default to `19` and `2`. `index: true` adds an `IX` preview label, JPA table index metadata, and a MySQL `KEY`; it is ignored for primary-key or unique fields because those are already indexed.
 
-Relations use `from`, `to`, `type`, `field`, optional `joinColumn`, optional `nullable`, and optional `comment`. Supported relation types are `one-to-one`, `one-to-many`, `many-to-one`, and `many-to-many`.
+Relations use `from`, `to`, `type`, `field`, optional `joinColumn`, optional `nullable`, optional `comment`, and optional `modify`. Supported relation types are `one-to-one`, `one-to-many`, `many-to-one`, and `many-to-many`.
 
 `comment` is optional on entities, fields, and relations. Comments are emitted into generated Kotlin KDoc, Java Javadoc, and MySQL DDL comments. ERD preview table boxes intentionally do not display comments to keep diagrams compact.
+
+`modify: true` is optional on fields and relations. It highlights the generated Preview column row with a rose background. For relations, the highlight applies to the owning-side generated FK column. This flag is Preview-only and is not emitted into Kotlin, Java, or MySQL DDL output.
 
 ## Kotlin Generation
 

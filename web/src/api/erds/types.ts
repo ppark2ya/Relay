@@ -1,5 +1,6 @@
 export interface ErdDocument {
   id: number;
+  collectionId?: number;
   name: string;
   dsl: string;
   sortOrder: number;
@@ -20,6 +21,7 @@ export interface ErdPreviewColumn {
   name: string;
   type: string;
   nullable: boolean;
+  modified?: boolean;
 }
 
 export interface ErdPreviewEntity {

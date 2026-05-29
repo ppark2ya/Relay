@@ -502,6 +502,7 @@ function ErdDslGuide() {
               ['type', 'string', 'Required. Type such as Long, String, BigDecimal, Boolean, or LocalDateTime. Java generation maps Int to Integer.'],
               ['column', 'string', 'Optional. Database column name. If omitted, the generator derives snake-case from name.'],
               ['comment', 'string', 'Optional. Emits KDoc/Javadoc and a MySQL column COMMENT. It is hidden from Preview table rows.'],
+              ['modify', 'boolean', 'Preview-only. true highlights this column row with a rose background.'],
               ['id', 'boolean', 'Marks the primary key and emits @Id plus @GeneratedValue.'],
               ['nullable', 'boolean', 'Defaults to true. false emits a non-null Kotlin type and nullable = false.'],
               ['unique', 'boolean', 'Emits unique = true in @Column and UK in the preview field label.'],
@@ -529,6 +530,7 @@ function ErdDslGuide() {
               ['joinColumn', 'string', 'FK column used for owning single-side associations such as many-to-one and one-to-one.'],
               ['nullable', 'boolean', 'Defaults to true. false emits optional = false and nullable = false where applicable.'],
               ['comment', 'string', 'Optional. Emits KDoc/Javadoc and a MySQL COMMENT on generated owning-side FK columns.'],
+              ['modify', 'boolean', 'Preview-only. true highlights the generated owning-side FK column row.'],
             ]}
           />
         </GuideSection>

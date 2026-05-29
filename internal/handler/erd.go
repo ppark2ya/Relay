@@ -18,8 +18,9 @@ func NewErdHandler(queries *repository.Queries) *ErdHandler {
 }
 
 type ErdRequest struct {
-	Name string `json:"name"`
-	DSL  string `json:"dsl"`
+	CollectionID *int64 `json:"collectionId"`
+	Name         string `json:"name"`
+	DSL          string `json:"dsl"`
 }
 
 type ErdPreviewRequest struct {
@@ -28,18 +29,20 @@ type ErdPreviewRequest struct {
 
 type ErdReorderRequest struct {
 	Orders []struct {
-		ID        int64 `json:"id"`
-		SortOrder int64 `json:"sortOrder"`
+		ID           int64  `json:"id"`
+		CollectionID *int64 `json:"collectionId"`
+		SortOrder    int64  `json:"sortOrder"`
 	} `json:"orders"`
 }
 
 type ErdResponse struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	DSL       string `json:"dsl"`
-	SortOrder int64  `json:"sortOrder"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	ID           int64  `json:"id"`
+	CollectionID *int64 `json:"collectionId,omitempty"`
+	Name         string `json:"name"`
+	DSL          string `json:"dsl"`
+	SortOrder    int64  `json:"sortOrder"`
+	CreatedAt    string `json:"createdAt"`
+	UpdatedAt    string `json:"updatedAt"`
 }
 
 type ErdPreviewResponse struct {
@@ -103,17 +106,28 @@ func (h *ErdHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	wsID := middleware.GetWorkspaceID(r.Context())
-	maxOrder, err := h.queries.GetMaxErdDocumentSortOrder(r.Context(), wsID)
+	collectionID := nullableInt64(req.CollectionID)
+	if collectionID.Valid {
+		if _, err := h.queries.GetErdCollection(r.Context(), repository.GetErdCollectionParams{ID: collectionID.Int64, WorkspaceID: wsID}); err != nil {
+			respondError(w, http.StatusNotFound, "ERD collection not found")
+			return
+		}
+	}
+	maxOrder, err := h.queries.GetMaxErdDocumentSortOrder(r.Context(), repository.GetMaxErdDocumentSortOrderParams{
+		WorkspaceID:  wsID,
+		CollectionID: collectionID,
+	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	erd, err := h.queries.CreateErdDocument(r.Context(), repository.CreateErdDocumentParams{
-		WorkspaceID: wsID,
-		Name:        req.Name,
-		Dsl:         sql.NullString{String: req.DSL, Valid: true},
-		SortOrder:   maxOrder + 1,
+		WorkspaceID:  wsID,
+		CollectionID: collectionID,
+		Name:         req.Name,
+		Dsl:          sql.NullString{String: req.DSL, Valid: true},
+		SortOrder:    maxOrder + 1,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -184,16 +198,20 @@ func (h *ErdHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "ERD not found")
 		return
 	}
-	maxOrder, err := h.queries.GetMaxErdDocumentSortOrder(r.Context(), wsID)
+	maxOrder, err := h.queries.GetMaxErdDocumentSortOrder(r.Context(), repository.GetMaxErdDocumentSortOrderParams{
+		WorkspaceID:  wsID,
+		CollectionID: source.CollectionID,
+	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	duplicated, err := h.queries.CreateErdDocument(r.Context(), repository.CreateErdDocumentParams{
-		WorkspaceID: wsID,
-		Name:        source.Name + " Copy",
-		Dsl:         source.Dsl,
-		SortOrder:   maxOrder + 1,
+		WorkspaceID:  wsID,
+		CollectionID: source.CollectionID,
+		Name:         source.Name + " Copy",
+		Dsl:          source.Dsl,
+		SortOrder:    maxOrder + 1,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -210,10 +228,18 @@ func (h *ErdHandler) Reorder(w http.ResponseWriter, r *http.Request) {
 	}
 	wsID := middleware.GetWorkspaceID(r.Context())
 	for _, order := range req.Orders {
+		collectionID := nullableInt64(order.CollectionID)
+		if collectionID.Valid {
+			if _, err := h.queries.GetErdCollection(r.Context(), repository.GetErdCollectionParams{ID: collectionID.Int64, WorkspaceID: wsID}); err != nil {
+				respondError(w, http.StatusNotFound, "ERD collection not found")
+				return
+			}
+		}
 		if err := h.queries.UpdateErdDocumentSortOrder(r.Context(), repository.UpdateErdDocumentSortOrderParams{
-			ID:          order.ID,
-			WorkspaceID: wsID,
-			SortOrder:   order.SortOrder,
+			ID:           order.ID,
+			WorkspaceID:  wsID,
+			CollectionID: collectionID,
+			SortOrder:    order.SortOrder,
 		}); err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -284,7 +310,7 @@ func (h *ErdHandler) GenerateMySQLDDL(w http.ResponseWriter, r *http.Request) {
 }
 
 func mapErdResponse(erd repository.ErdDocument) ErdResponse {
-	return ErdResponse{
+	resp := ErdResponse{
 		ID:        erd.ID,
 		Name:      erd.Name,
 		DSL:       erd.Dsl.String,
@@ -292,4 +318,16 @@ func mapErdResponse(erd repository.ErdDocument) ErdResponse {
 		CreatedAt: formatTime(erd.CreatedAt),
 		UpdatedAt: formatTime(erd.UpdatedAt),
 	}
+	if erd.CollectionID.Valid {
+		collectionID := erd.CollectionID.Int64
+		resp.CollectionID = &collectionID
+	}
+	return resp
+}
+
+func nullableInt64(value *int64) sql.NullInt64 {
+	if value == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *value, Valid: true}
 }

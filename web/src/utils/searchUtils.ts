@@ -2,6 +2,7 @@ import type { Collection } from '../api/collections';
 import type { Request } from '../api/requests';
 import type { Flow } from '../api/flows';
 import type { ErdDocument } from '../api/erds';
+import type { ErdCollection } from '../api/erdCollections';
 import type { History } from '../api/history';
 
 export function matchesQuery(text: string, query: string): boolean {
@@ -54,6 +55,41 @@ export function filterErds(erds: ErdDocument[], query: string): ErdDocument[] {
   return erds.filter(
     (erd) => matchesQuery(erd.name, query) || matchesQuery(erd.dsl, query),
   );
+}
+
+export function filterErdCollectionTree(
+  collections: ErdCollection[],
+  query: string,
+): { collections: ErdCollection[]; expandedIds: Set<number> } {
+  const expandedIds = new Set<number>();
+
+  function filterCollection(collection: ErdCollection): ErdCollection | null {
+    const filteredChildren = (collection.children ?? [])
+      .map(filterCollection)
+      .filter((item): item is ErdCollection => item !== null);
+    const filteredErds = (collection.erds ?? []).filter(
+      (erd) => matchesQuery(erd.name, query) || matchesQuery(erd.dsl, query),
+    );
+    const nameMatches = matchesQuery(collection.name, query);
+
+    if (nameMatches || filteredChildren.length > 0 || filteredErds.length > 0) {
+      expandedIds.add(collection.id);
+      return {
+        ...collection,
+        children: filteredChildren.length > 0 ? filteredChildren : nameMatches ? collection.children : [],
+        erds: filteredErds.length > 0 ? filteredErds : nameMatches ? collection.erds : [],
+      };
+    }
+
+    return null;
+  }
+
+  return {
+    collections: collections
+      .map(filterCollection)
+      .filter((item): item is ErdCollection => item !== null),
+    expandedIds,
+  };
 }
 
 export function filterHistory(history: History[], query: string): History[] {

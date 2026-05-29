@@ -84,25 +84,38 @@ function ErdEntityNodeView({ data }: NodeProps<ErdEntityNode>) {
 export function ErdEntityColumnRows({ columns }: { columns: DiagramLayoutColumn[] }) {
   return (
     <div className="py-2">
-      {columns.length > 0 ? columns.map((column, index) => (
-        <div
-          key={`${column.name}-${index}`}
-          className="grid grid-cols-[54px_minmax(0,1fr)_96px_62px] items-center px-3.5 py-0.5 text-xs leading-5"
-        >
-          <div className="min-w-0 truncate border-r border-slate-200 pr-2 font-semibold text-blue-700 dark:border-gray-600 dark:text-blue-300">
-            {(column.keys ?? []).join(',')}
+      {columns.length > 0 ? columns.map((column, index) => {
+        const modified = !!column.modified;
+        return (
+          <div
+            key={`${column.name}-${index}`}
+            className={`grid grid-cols-[54px_minmax(0,1fr)_96px_62px] items-center px-3.5 py-0.5 text-xs leading-5 ${
+              modified ? 'bg-rose-400 text-white' : ''
+            }`}
+          >
+            <div className={`min-w-0 truncate border-r pr-2 font-semibold ${
+              modified
+                ? 'border-rose-300 text-white dark:border-rose-300 dark:text-white'
+                : 'border-slate-200 text-blue-700 dark:border-gray-600 dark:text-blue-300'
+            }`}>
+              {(column.keys ?? []).join(',')}
+            </div>
+            <div className="min-w-0 truncate pl-2 font-medium" title={column.name}>
+              {column.name}
+            </div>
+            <div className={`min-w-0 truncate font-mono text-[11px] ${
+              modified ? 'text-white' : 'text-slate-600 dark:text-gray-300'
+            }`} title={column.type}>
+              {column.type}
+            </div>
+            <div className={`text-right font-mono text-[10px] font-semibold ${
+              modified ? 'text-white' : 'text-slate-500 dark:text-gray-400'
+            }`}>
+              {column.nullable ? 'NULL' : 'NOT NULL'}
+            </div>
           </div>
-          <div className="min-w-0 truncate pl-2 font-medium" title={column.name}>
-            {column.name}
-          </div>
-          <div className="min-w-0 truncate font-mono text-[11px] text-slate-600 dark:text-gray-300" title={column.type}>
-            {column.type}
-          </div>
-          <div className="text-right font-mono text-[10px] font-semibold text-slate-500 dark:text-gray-400">
-            {column.nullable ? 'NULL' : 'NOT NULL'}
-          </div>
-        </div>
-      )) : (
+        );
+      }) : (
         <div className="px-3.5 py-0.5 text-xs leading-5 text-gray-400 dark:text-gray-500">
           No columns
         </div>

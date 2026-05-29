@@ -142,6 +142,17 @@ describe('ErdDiagram', () => {
     expect(markup).toContain('NOT NULL');
   });
 
+  test('renders modified column rows with rose background highlighting', () => {
+    const markup = renderToStaticMarkup(createElement(ErdEntityColumnRows, {
+      columns: [
+        { keys: ['UK'], name: 'email', type: 'VARCHAR(320)', nullable: false, modified: true },
+      ],
+    }));
+
+    expect(markup).toContain('bg-rose-400');
+    expect(markup).toContain('email');
+  });
+
   test('renders an empty state when no entities are present', () => {
     const markup = renderToStaticMarkup(createElement(ErdDiagram, {
       diagram: { entities: [], relations: [] },
