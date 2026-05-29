@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -453,6 +454,173 @@ func TestGenerateMySQLDDL_DoesNotCreateTablesForCollectionRelations(t *testing.T
 	} {
 		if strings.Contains(content, notWant) {
 			t.Fatalf("expected MySQL DDL not to contain %q:\n%s", notWant, content)
+		}
+	}
+}
+
+func TestErdComments_ArePreservedGeneratedAndHiddenFromPreview(t *testing.T) {
+	doc, diagnostics := ParseErdDSL(`{
+	  "packageName": "com.example.domain",
+	  "entities": [
+	    {
+	      "name": "User",
+	      "table": "users",
+	      "comment": "Application user account",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true },
+	        { "name": "email", "type": "String", "nullable": false, "unique": true, "comment": "Login email address" }
+	      ]
+	    },
+	    {
+	      "name": "Order",
+	      "table": "orders",
+	      "comment": "Purchase order record",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true },
+	        { "name": "amount", "type": "BigDecimal", "nullable": false, "comment": "Amount charged to the customer" }
+	      ]
+	    }
+	  ],
+	  "relations": [
+	    {
+	      "from": "Order",
+	      "to": "User",
+	      "type": "many-to-one",
+	      "field": "user",
+	      "joinColumn": "user_id",
+	      "nullable": false,
+	      "comment": "Customer who placed the order"
+	    }
+	  ]
+	}`)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+	}
+
+	encoded, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatalf("marshal parsed DSL: %v", err)
+	}
+	for _, want := range []string{
+		"Application user account",
+		"Login email address",
+		"Customer who placed the order",
+	} {
+		if !strings.Contains(string(encoded), want) {
+			t.Fatalf("expected parsed DSL to preserve %q, got %s", want, string(encoded))
+		}
+	}
+
+	var kotlinOrder string
+	for _, file := range GenerateKotlinEntities(doc) {
+		if file.Path == "com/example/domain/Order.kt" {
+			kotlinOrder = file.Content
+			break
+		}
+	}
+	for _, want := range []string{
+		" * Purchase order record",
+		" * Amount charged to the customer",
+		" * Customer who placed the order",
+	} {
+		if !strings.Contains(kotlinOrder, want) {
+			t.Fatalf("expected Kotlin output to contain %q:\n%s", want, kotlinOrder)
+		}
+	}
+
+	var javaOrder string
+	for _, file := range GenerateJavaEntities(doc) {
+		if file.Path == "com/example/domain/Order.java" {
+			javaOrder = file.Content
+			break
+		}
+	}
+	for _, want := range []string{
+		" * Purchase order record",
+		" * Amount charged to the customer",
+		" * Customer who placed the order",
+	} {
+		if !strings.Contains(javaOrder, want) {
+			t.Fatalf("expected Java output to contain %q:\n%s", want, javaOrder)
+		}
+	}
+
+	ddl := GenerateMySQLDDL(doc)[0].Content
+	for _, want := range []string{
+		"`amount` DECIMAL(19,2) NOT NULL COMMENT 'Amount charged to the customer'",
+		"`user_id` BIGINT NOT NULL COMMENT 'Customer who placed the order'",
+		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Purchase order record';",
+	} {
+		if !strings.Contains(ddl, want) {
+			t.Fatalf("expected MySQL DDL to contain %q:\n%s", want, ddl)
+		}
+	}
+
+	mermaid := GenerateMermaidERD(doc)
+	diagram := GenerateErdDiagram(doc)
+	previewPayload, err := json.Marshal(diagram)
+	if err != nil {
+		t.Fatalf("marshal preview diagram: %v", err)
+	}
+	for _, notWant := range []string{
+		"Application user account",
+		"Login email address",
+		"Purchase order record",
+		"Amount charged to the customer",
+		"Customer who placed the order",
+	} {
+		if strings.Contains(mermaid, notWant) {
+			t.Fatalf("expected Mermaid output not to contain %q:\n%s", notWant, mermaid)
+		}
+		if strings.Contains(string(previewPayload), notWant) {
+			t.Fatalf("expected preview diagram not to contain %q:\n%s", notWant, string(previewPayload))
+		}
+	}
+}
+
+func TestGenerateMySQLDDL_EscapesCommentStringLiterals(t *testing.T) {
+	doc, diagnostics := ParseErdDSL(`{
+	  "entities": [
+	    {
+	      "name": "User",
+	      "table": "users",
+	      "comment": "User's account table",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true },
+	        { "name": "email", "type": "String", "comment": "User's login email" }
+	      ]
+	    },
+	    {
+	      "name": "Order",
+	      "table": "orders",
+	      "fields": [
+	        { "name": "id", "type": "Long", "id": true }
+	      ]
+	    }
+	  ],
+	  "relations": [
+	    {
+	      "from": "Order",
+	      "to": "User",
+	      "type": "many-to-one",
+	      "field": "user",
+	      "joinColumn": "user_id",
+	      "comment": "Order's customer"
+	    }
+	  ]
+	}`)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %#v", diagnostics)
+	}
+
+	ddl := GenerateMySQLDDL(doc)[0].Content
+	for _, want := range []string{
+		"`email` VARCHAR(255) COMMENT 'User''s login email'",
+		"`user_id` BIGINT COMMENT 'Order''s customer'",
+		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='User''s account table';",
+	} {
+		if !strings.Contains(ddl, want) {
+			t.Fatalf("expected MySQL DDL to contain %q:\n%s", want, ddl)
 		}
 	}
 }

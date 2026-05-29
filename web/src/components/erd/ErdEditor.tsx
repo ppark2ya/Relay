@@ -55,17 +55,19 @@ const DEFAULT_DSL = `{
     {
       "name": "User",
       "table": "users",
+      "comment": "Application user account",
       "fields": [
         { "name": "id", "type": "Long", "id": true },
-        { "name": "email", "type": "String", "length": 320, "nullable": false, "unique": true }
+        { "name": "email", "type": "String", "length": 320, "nullable": false, "unique": true, "comment": "Login email address" }
       ]
     },
     {
       "name": "Order",
       "table": "orders",
+      "comment": "Purchase order record",
       "fields": [
         { "name": "id", "type": "Long", "id": true },
-        { "name": "amount", "type": "BigDecimal", "precision": 12, "scale": 4, "nullable": false },
+        { "name": "amount", "type": "BigDecimal", "precision": 12, "scale": 4, "nullable": false, "comment": "Amount charged to the customer" },
         { "name": "status", "type": "String", "length": 32, "nullable": false, "index": true }
       ]
     }
@@ -77,7 +79,8 @@ const DEFAULT_DSL = `{
       "type": "many-to-one",
       "field": "user",
       "joinColumn": "user_id",
-      "nullable": false
+      "nullable": false,
+      "comment": "Customer who placed the order"
     }
   ]
 }`;
@@ -481,6 +484,7 @@ function ErdDslGuide() {
             rows={[
               ['name', 'string', 'Required. Generated class name and ERD entity label.'],
               ['table', 'string', 'Optional. Database table name. If omitted, the generator derives a snake-case plural table name.'],
+              ['comment', 'string', 'Optional. Emits KDoc/Javadoc and a MySQL table COMMENT. It is hidden from Preview table boxes.'],
               ['fields', 'array', 'Required. Scalar fields for columns and primary keys.'],
             ]}
           />
@@ -497,6 +501,7 @@ function ErdDslGuide() {
               ['name', 'string', 'Required. Generated property or field name.'],
               ['type', 'string', 'Required. Type such as Long, String, BigDecimal, Boolean, or LocalDateTime. Java generation maps Int to Integer.'],
               ['column', 'string', 'Optional. Database column name. If omitted, the generator derives snake-case from name.'],
+              ['comment', 'string', 'Optional. Emits KDoc/Javadoc and a MySQL column COMMENT. It is hidden from Preview table rows.'],
               ['id', 'boolean', 'Marks the primary key and emits @Id plus @GeneratedValue.'],
               ['nullable', 'boolean', 'Defaults to true. false emits a non-null Kotlin type and nullable = false.'],
               ['unique', 'boolean', 'Emits unique = true in @Column and UK in the preview field label.'],
@@ -523,6 +528,7 @@ function ErdDslGuide() {
               ['field', 'string', 'Required. Relationship property or field name and ERD line label. This is not the FK column name.'],
               ['joinColumn', 'string', 'FK column used for owning single-side associations such as many-to-one and one-to-one.'],
               ['nullable', 'boolean', 'Defaults to true. false emits optional = false and nullable = false where applicable.'],
+              ['comment', 'string', 'Optional. Emits KDoc/Javadoc and a MySQL COMMENT on generated owning-side FK columns.'],
             ]}
           />
         </GuideSection>
@@ -547,6 +553,7 @@ function ErdDslGuide() {
             <li>Relation annotations are generated from <code className="font-mono">relations</code>: <code className="font-mono">@ManyToOne</code>, <code className="font-mono">@OneToMany</code>, <code className="font-mono">@OneToOne</code>, or <code className="font-mono">@ManyToMany</code>.</li>
             <li>Explicit scalar fields are always generated as Kotlin properties, so a field named <code className="font-mono">user_id</code> is separate from a relation field named <code className="font-mono">user</code>.</li>
             <li><code className="font-mono">String.length</code> and <code className="font-mono">BigDecimal.precision/scale</code> are emitted as <code className="font-mono">@Column</code> options when provided.</li>
+            <li><code className="font-mono">comment</code> values are emitted as KDoc before classes and properties.</li>
             <li><code className="font-mono">BigDecimal</code> fields add <code className="font-mono">java.math.BigDecimal</code> imports.</li>
           </ul>
         </GuideSection>
@@ -558,6 +565,7 @@ function ErdDslGuide() {
             <li><code className="font-mono">index: true</code> scalar fields are emitted as <code className="font-mono">@Table(indexes = ...)</code>.</li>
             <li>Collection relations are generated as <code className="font-mono">List&lt;T&gt;</code> with <code className="font-mono">@Builder.Default</code> and <code className="font-mono">new ArrayList&lt;&gt;()</code>.</li>
             <li><code className="font-mono">String.length</code> and <code className="font-mono">BigDecimal.precision/scale</code> are emitted as <code className="font-mono">@Column</code> options when provided.</li>
+            <li><code className="font-mono">comment</code> values are emitted as Javadoc before classes and fields.</li>
             <li><code className="font-mono">BigDecimal</code>, <code className="font-mono">LocalDate</code>, <code className="font-mono">LocalDateTime</code>, and <code className="font-mono">Instant</code> fields add matching Java imports.</li>
           </ul>
         </GuideSection>
@@ -569,6 +577,7 @@ function ErdDslGuide() {
             <li>Generates primary keys, <code className="font-mono">AUTO_INCREMENT</code> for single integer primary keys, <code className="font-mono">NOT NULL</code>, and <code className="font-mono">UNIQUE KEY</code> constraints.</li>
             <li><code className="font-mono">String.length</code> changes <code className="font-mono">VARCHAR(255)</code>; <code className="font-mono">BigDecimal.precision/scale</code> changes <code className="font-mono">DECIMAL(19,2)</code>.</li>
             <li><code className="font-mono">index: true</code> scalar fields generate MySQL <code className="font-mono">KEY</code> entries.</li>
+            <li><code className="font-mono">comment</code> values generate table, column, and owning-side FK column comments.</li>
             <li><code className="font-mono">many-to-one</code> and <code className="font-mono">one-to-one</code> relations generate owning-side FK columns, indexes, and foreign key constraints.</li>
             <li><code className="font-mono">one-to-many</code> and <code className="font-mono">many-to-many</code> relations do not generate target FK columns or join tables in v1.</li>
           </ul>

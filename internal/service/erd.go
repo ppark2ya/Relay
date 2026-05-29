@@ -21,15 +21,17 @@ type ErdSpec struct {
 }
 
 type ErdEntity struct {
-	Name   string     `json:"name"`
-	Table  string     `json:"table"`
-	Fields []ErdField `json:"fields"`
+	Name    string     `json:"name"`
+	Table   string     `json:"table"`
+	Comment string     `json:"comment"`
+	Fields  []ErdField `json:"fields"`
 }
 
 type ErdField struct {
 	Name      string `json:"name"`
 	Type      string `json:"type"`
 	Column    string `json:"column"`
+	Comment   string `json:"comment"`
 	ID        bool   `json:"id"`
 	Nullable  *bool  `json:"nullable"`
 	Unique    bool   `json:"unique"`
@@ -45,6 +47,7 @@ type ErdRelation struct {
 	Type       string `json:"type"`
 	Field      string `json:"field"`
 	JoinColumn string `json:"joinColumn"`
+	Comment    string `json:"comment"`
 	Nullable   *bool  `json:"nullable"`
 }
 
@@ -500,6 +503,7 @@ func generateKotlinEntity(spec ErdSpec, entity ErdEntity, relations []ErdRelatio
 		b.WriteString("import java.math.BigDecimal\n")
 	}
 	b.WriteString("\n")
+	b.WriteString(sourceDocComment("", entity.Comment))
 	b.WriteString("@Entity\n")
 	b.WriteString(kotlinTableAnnotation(entity))
 	b.WriteString("\n")
@@ -537,6 +541,7 @@ func kotlinTableAnnotation(entity ErdEntity) string {
 
 func kotlinFieldProperty(field ErdField) string {
 	var b strings.Builder
+	b.WriteString(sourceDocComment("    ", field.Comment))
 	if field.ID {
 		b.WriteString("    @Id\n")
 		b.WriteString("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n")
@@ -579,6 +584,7 @@ func kotlinRelationProperty(relation ErdRelation) string {
 	}
 
 	var b strings.Builder
+	b.WriteString(sourceDocComment("    ", relation.Comment))
 	switch relation.Type {
 	case "one-to-one":
 		b.WriteString("    @OneToOne(fetch = FetchType.LAZY, optional = ")
@@ -652,6 +658,7 @@ func generateJavaEntity(spec ErdSpec, entity ErdEntity, relations []ErdRelation)
 		b.WriteString(";\n")
 	}
 	b.WriteString("\n")
+	b.WriteString(sourceDocComment("", entity.Comment))
 	b.WriteString("@Getter\n")
 	b.WriteString("@Setter\n")
 	b.WriteString("@Builder\n")
@@ -736,6 +743,7 @@ func javaImports(entity ErdEntity, relations []ErdRelation) []string {
 
 func javaFieldProperty(field ErdField) string {
 	var b strings.Builder
+	b.WriteString(sourceDocComment("    ", field.Comment))
 	if field.ID {
 		b.WriteString("    @Id\n")
 		b.WriteString("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n")
@@ -759,6 +767,7 @@ func javaRelationProperty(relation ErdRelation) string {
 	}
 
 	var b strings.Builder
+	b.WriteString(sourceDocComment("    ", relation.Comment))
 	switch relation.Type {
 	case "one-to-one":
 		b.WriteString("    @OneToOne(fetch = FetchType.LAZY, optional = ")
@@ -868,9 +877,57 @@ func javaType(typeName string) string {
 	}
 }
 
+func sourceDocComment(indent, comment string) string {
+	lines := sourceCommentLines(comment)
+	if len(lines) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString(indent)
+	b.WriteString("/**\n")
+	for _, line := range lines {
+		b.WriteString(indent)
+		if line == "" {
+			b.WriteString(" *\n")
+			continue
+		}
+		b.WriteString(" * ")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	b.WriteString(indent)
+	b.WriteString(" */\n")
+	return b.String()
+}
+
+func sourceCommentLines(comment string) []string {
+	trimmed := strings.TrimSpace(strings.ReplaceAll(comment, "\r\n", "\n"))
+	if trimmed == "" {
+		return nil
+	}
+
+	rawLines := strings.Split(strings.ReplaceAll(trimmed, "\r", "\n"), "\n")
+	lines := make([]string, 0, len(rawLines))
+	for _, line := range rawLines {
+		lines = append(lines, strings.ReplaceAll(strings.TrimSpace(line), "*/", "* /"))
+	}
+	return lines
+}
+
+func mysqlStringLiteral(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	trimmed = strings.ReplaceAll(trimmed, "'", "''")
+	return "'" + trimmed + "'"
+}
+
 type mysqlDDLColumn struct {
 	Name          string
 	Type          string
+	Comment       string
 	NotNull       bool
 	AutoIncrement bool
 }
@@ -900,6 +957,7 @@ func generateMySQLTableDDL(spec ErdSpec, entity ErdEntity, relations []ErdRelati
 		columns = append(columns, mysqlDDLColumn{
 			Name:          name,
 			Type:          fieldMySQLType(field),
+			Comment:       field.Comment,
 			NotNull:       field.ID || !fieldNullable(field),
 			AutoIncrement: field.ID && singleAutoIncrementPK && mysqlAutoIncrementType(field.Type),
 		})
@@ -921,6 +979,7 @@ func generateMySQLTableDDL(spec ErdSpec, entity ErdEntity, relations []ErdRelati
 		columns = appendOrMergeMySQLColumn(columns, mysqlDDLColumn{
 			Name:    column,
 			Type:    relationTargetIDMySQLType(spec, relation.To),
+			Comment: relation.Comment,
 			NotNull: !relationNullable(relation),
 		})
 		indexes = append(indexes, mysqlDDLIndex{
@@ -964,7 +1023,12 @@ func generateMySQLTableDDL(spec ErdSpec, entity ErdEntity, relations []ErdRelati
 		}
 		b.WriteString("\n")
 	}
-	b.WriteString(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;")
+	b.WriteString(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
+	if comment := mysqlStringLiteral(entity.Comment); comment != "" {
+		b.WriteString(" COMMENT=")
+		b.WriteString(comment)
+	}
+	b.WriteString(";")
 	return b.String()
 }
 
@@ -991,6 +1055,9 @@ func appendOrMergeMySQLColumn(columns []mysqlDDLColumn, next mysqlDDLColumn) []m
 		}
 		if column.Type == "" {
 			columns[i].Type = next.Type
+		}
+		if strings.TrimSpace(columns[i].Comment) == "" {
+			columns[i].Comment = next.Comment
 		}
 		columns[i].NotNull = column.NotNull || next.NotNull
 		columns[i].AutoIncrement = column.AutoIncrement || next.AutoIncrement
@@ -1019,6 +1086,10 @@ func mysqlColumnDDL(column mysqlDDLColumn) string {
 	}
 	if column.AutoIncrement {
 		b.WriteString(" AUTO_INCREMENT")
+	}
+	if comment := mysqlStringLiteral(column.Comment); comment != "" {
+		b.WriteString(" COMMENT ")
+		b.WriteString(comment)
 	}
 	return b.String()
 }
