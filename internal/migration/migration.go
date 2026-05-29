@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 )
 
 // Run executes all database migrations
@@ -13,7 +14,9 @@ func Run(db *sql.DB) error {
 	}
 
 	// Incremental migrations (idempotent)
-	migrateFlowSteps(db)
+	if err := migrateFlowSteps(db); err != nil {
+		return err
+	}
 	migrateProxyOverrides(db)
 	migrateCookies(db)
 	migrateWorkspaces(db)
@@ -31,6 +34,13 @@ func Run(db *sql.DB) error {
 
 func createTables(db *sql.DB) error {
 	schema := `
+CREATE TABLE IF NOT EXISTS workspaces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS collections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -92,8 +102,15 @@ CREATE TABLE IF NOT EXISTS flow_steps (
     headers TEXT DEFAULT '{}',
     body TEXT DEFAULT '',
     body_type TEXT DEFAULT 'none',
+    cookies TEXT DEFAULT '{}',
+    proxy_id INTEGER DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    workspace_id INTEGER NOT NULL DEFAULT 1 REFERENCES workspaces(id) ON DELETE CASCADE,
+    loop_count INTEGER DEFAULT 1,
+    pre_script TEXT DEFAULT '',
+    post_script TEXT DEFAULT '',
+    continue_on_error INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS request_history (
@@ -125,7 +142,55 @@ CREATE INDEX IF NOT EXISTS idx_history_created ON request_history(created_at DES
 	return err
 }
 
-func migrateFlowSteps(db *sql.DB) {
+type tableColumn struct {
+	notNull bool
+}
+
+func readTableColumns(db *sql.DB, table string) (map[string]tableColumn, error) {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columns := make(map[string]tableColumn)
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull int
+		var defaultValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+			return nil, err
+		}
+		columns[name] = tableColumn{notNull: notNull == 1}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return columns, nil
+}
+
+func flowStepsRequestIDNullable(db *sql.DB) (bool, error) {
+	columns, err := readTableColumns(db, "flow_steps")
+	if err != nil {
+		return false, err
+	}
+	column, ok := columns["request_id"]
+	if !ok {
+		return false, fmt.Errorf("flow_steps.request_id column not found")
+	}
+	return !column.notNull, nil
+}
+
+func flowStepCopyExpr(columns map[string]tableColumn, column, fallback string) string {
+	if _, ok := columns[column]; ok {
+		return column
+	}
+	return fallback
+}
+
+func migrateFlowSteps(db *sql.DB) error {
 	// Add new columns (ignore errors if they already exist)
 	alterStatements := []string{
 		"ALTER TABLE flow_steps ADD COLUMN name TEXT NOT NULL DEFAULT ''",
@@ -154,8 +219,46 @@ func migrateFlowSteps(db *sql.DB) {
 		log.Printf("Flow steps backfill: %v", err)
 	}
 
-	// Recreate table to make request_id nullable (SQLite doesn't support ALTER COLUMN)
-	_, err = db.Exec(`
+	requestIDNullable, err := flowStepsRequestIDNullable(db)
+	if err != nil {
+		return fmt.Errorf("check flow_steps request_id nullability: %w", err)
+	}
+	if requestIDNullable {
+		return nil
+	}
+
+	return recreateFlowStepsWithNullableRequestID(db)
+}
+
+func recreateFlowStepsWithNullableRequestID(db *sql.DB) error {
+	columns, err := readTableColumns(db, "flow_steps")
+	if err != nil {
+		return fmt.Errorf("read flow_steps columns: %w", err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`CREATE TABLE IF NOT EXISTS workspaces (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		return fmt.Errorf("create workspaces before flow_steps migration: %w", err)
+	}
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO workspaces (id, name) VALUES (1, 'Default')`); err != nil {
+		return fmt.Errorf("create default workspace before flow_steps migration: %w", err)
+	}
+
+	if _, err := tx.Exec("DROP TABLE IF EXISTS flow_steps_new"); err != nil {
+		return fmt.Errorf("drop stale flow_steps_new: %w", err)
+	}
+
+	if _, err := tx.Exec(`
 		CREATE TABLE IF NOT EXISTS flow_steps_new (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			flow_id INTEGER NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
@@ -170,41 +273,77 @@ func migrateFlowSteps(db *sql.DB) {
 			headers TEXT DEFAULT '{}',
 			body TEXT DEFAULT '',
 			body_type TEXT DEFAULT 'none',
+			cookies TEXT DEFAULT '{}',
+			proxy_id INTEGER DEFAULT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			workspace_id INTEGER NOT NULL DEFAULT 1 REFERENCES workspaces(id) ON DELETE CASCADE,
+			loop_count INTEGER DEFAULT 1,
+			pre_script TEXT DEFAULT '',
+			post_script TEXT DEFAULT '',
+			continue_on_error INTEGER DEFAULT 0
 		)
-	`)
-	if err != nil {
-		log.Printf("Flow steps new table: %v", err)
-		return
+	`); err != nil {
+		return fmt.Errorf("create flow_steps_new: %w", err)
 	}
 
-	_, err = db.Exec(`
+	insertColumns := []string{
+		"id", "flow_id", "request_id", "step_order", "delay_ms", "extract_vars", "condition",
+		"name", "method", "url", "headers", "body", "body_type", "cookies", "proxy_id",
+		"created_at", "updated_at", "workspace_id", "loop_count", "pre_script", "post_script",
+		"continue_on_error",
+	}
+	selectExpressions := []string{
+		"id",
+		"flow_id",
+		"request_id",
+		"step_order",
+		flowStepCopyExpr(columns, "delay_ms", "0"),
+		flowStepCopyExpr(columns, "extract_vars", "'{}'"),
+		flowStepCopyExpr(columns, "condition", "''"),
+		flowStepCopyExpr(columns, "name", "''"),
+		flowStepCopyExpr(columns, "method", "'GET'"),
+		flowStepCopyExpr(columns, "url", "''"),
+		flowStepCopyExpr(columns, "headers", "'{}'"),
+		flowStepCopyExpr(columns, "body", "''"),
+		flowStepCopyExpr(columns, "body_type", "'none'"),
+		flowStepCopyExpr(columns, "cookies", "'{}'"),
+		flowStepCopyExpr(columns, "proxy_id", "NULL"),
+		flowStepCopyExpr(columns, "created_at", "CURRENT_TIMESTAMP"),
+		flowStepCopyExpr(columns, "updated_at", "CURRENT_TIMESTAMP"),
+		flowStepCopyExpr(columns, "workspace_id", "1"),
+		flowStepCopyExpr(columns, "loop_count", "1"),
+		flowStepCopyExpr(columns, "pre_script", "''"),
+		flowStepCopyExpr(columns, "post_script", "''"),
+		flowStepCopyExpr(columns, "continue_on_error", "0"),
+	}
+
+	if _, err := tx.Exec(fmt.Sprintf(`
 		INSERT OR IGNORE INTO flow_steps_new
-			(id, flow_id, request_id, step_order, delay_ms, extract_vars, condition,
-			 name, method, url, headers, body, body_type, created_at, updated_at)
-		SELECT id, flow_id, request_id, step_order, delay_ms, extract_vars, condition,
-			   name, method, url, headers, body, body_type, created_at, updated_at
+			(%s)
+		SELECT %s
 		FROM flow_steps
-	`)
-	if err != nil {
-		log.Printf("Flow steps copy: %v", err)
-		return
+	`, strings.Join(insertColumns, ", "), strings.Join(selectExpressions, ", "))); err != nil {
+		return fmt.Errorf("copy flow_steps rows: %w", err)
 	}
 
-	if _, err = db.Exec("DROP TABLE flow_steps"); err != nil {
-		log.Printf("Flow steps drop: %v", err)
-		return
+	if _, err := tx.Exec("DROP TABLE flow_steps"); err != nil {
+		return fmt.Errorf("drop flow_steps: %w", err)
 	}
 
-	if _, err = db.Exec("ALTER TABLE flow_steps_new RENAME TO flow_steps"); err != nil {
-		log.Printf("Flow steps rename: %v", err)
-		return
+	if _, err := tx.Exec("ALTER TABLE flow_steps_new RENAME TO flow_steps"); err != nil {
+		return fmt.Errorf("rename flow_steps_new: %w", err)
 	}
 
 	// Recreate indexes
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_flow_steps_flow ON flow_steps(flow_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_flow_steps_order ON flow_steps(flow_id, step_order)")
+	if _, err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_flow_steps_flow ON flow_steps(flow_id)"); err != nil {
+		return fmt.Errorf("create idx_flow_steps_flow: %w", err)
+	}
+	if _, err := tx.Exec("CREATE INDEX IF NOT EXISTS idx_flow_steps_order ON flow_steps(flow_id, step_order)"); err != nil {
+		return fmt.Errorf("create idx_flow_steps_order: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 func migrateProxyOverrides(db *sql.DB) {
