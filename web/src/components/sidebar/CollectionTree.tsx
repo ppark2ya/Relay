@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useUpdateCollection } from '../../api/collections';
+import { exportPostmanCollection } from '../../api/collections/client';
 import type { Request, Collection } from '../../types';
 import { MethodBadge } from '../ui';
 import { containsRequest } from './sidebar-utils';
@@ -243,6 +244,29 @@ function SortableCollectionItem({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
         </button>
+        {!collection.parentId && (
+          <button
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                const blob = await exportPostmanCollection(collection.id);
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `${collection.name}.postman_collection.json`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+              } catch {
+                window.alert('Postman collection export failed.');
+              }
+            }}
+            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+            title="Export Postman JSON"
+          >
+            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16V4m0 12-4-4m4 4 4-4M4 20h16" />
+            </svg>
+          </button>
+        )}
         <button
           onClick={(e) => { e.stopPropagation(); onDeleteCollection(collection.id); }}
           className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
