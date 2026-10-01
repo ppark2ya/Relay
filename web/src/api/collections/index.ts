@@ -5,6 +5,8 @@ export {
   useUpdateCollection,
   useDeleteCollection,
   useDuplicateCollection,
+  useImportPostmanCollection,
   useReorderCollections,
 } from './hooks';
-export type { Collection } from './types';
+export { exportPostmanCollection } from './client';
+export type { Collection, PostmanImportResult } from './types';

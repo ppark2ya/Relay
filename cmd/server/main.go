@@ -104,6 +104,8 @@ func main() {
 		r.Put("/collections/{id}", collectionHandler.Update)
 		r.Delete("/collections/{id}", collectionHandler.Delete)
 		r.Post("/collections/{id}/duplicate", collectionHandler.Duplicate)
+		r.Get("/collections/{id}/export/postman", collectionHandler.ExportPostman)
+		r.Post("/collections/import/postman", collectionHandler.ImportPostman)
 
 		// Ad-hoc execute (no saved request needed)
 		r.Post("/execute", requestHandler.ExecuteAdhoc)

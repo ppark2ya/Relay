@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
 import type { DragEndEvent } from '@dnd-kit/core';
-import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useReorderCollections } from '../../api/collections';
+import { useCollections, useCreateCollection, useDeleteCollection, useDuplicateCollection, useImportPostmanCollection, useReorderCollections } from '../../api/collections';
 import { useCreateRequest, useDeleteRequest, useDuplicateRequest, useReorderRequests } from '../../api/requests';
 import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useReorderFlows } from '../../api/flows';
 import { useErds, useCreateErd, useDeleteErd, useDuplicateErd, useReorderErds } from '../../api/erds';
@@ -46,6 +46,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const deleteErd = useDeleteErd();
   const deleteErdCollection = useDeleteErdCollection();
   const duplicateCollection = useDuplicateCollection();
+  const importPostmanCollection = useImportPostmanCollection();
   const duplicateRequest = useDuplicateRequest();
   const duplicateFlow = useDuplicateFlow();
   const duplicateErd = useDuplicateErd();
@@ -67,6 +68,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const [showNewErdCollection, setShowNewErdCollection] = useState(false);
   const [expandedDateGroups, setExpandedDateGroups] = useState<Set<string>>(new Set(['Today', 'Yesterday']));
   const [filterQuery, setFilterQuery] = useState('');
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // Resizable sidebar
   const MIN_WIDTH = 220;
@@ -181,6 +183,23 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
 
   const handleCreateSubfolder = (parentId: number) => {
     createCollection.mutate({ name: 'New Folder', parentId });
+  };
+
+  const handlePostmanImport = (file?: File) => {
+    if (!file) return;
+    importPostmanCollection.mutate(file, {
+      onSuccess: (result) => {
+        setFilterQuery('');
+        if (result.warnings?.length) {
+          window.alert(`Imported with warnings:\n${result.warnings.join('\n')}`);
+        }
+      },
+      onError: async (error) => {
+        const response = (error as { response?: Response }).response;
+        const payload = response ? await response.json().catch(() => null) as { error?: string } | null : null;
+        window.alert(payload?.error ?? 'Postman collection import failed. Check the JSON format and try again.');
+      },
+    });
   };
 
   const handleCreateFlow = () => {
@@ -505,16 +524,37 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
       <div className="flex-1 overflow-y-auto p-2">
         {view === 'requests' && (
           <>
-            <div className="mb-2">
-              <InlineCreateForm
-                isOpen={showNewCollection}
-                onOpenChange={setShowNewCollection}
-                value={newCollectionName}
-                onValueChange={setNewCollectionName}
-                onSubmit={handleCreateCollection}
-                placeholder="Collection name"
-                buttonLabel="New Collection"
+            <div className="mb-2 flex gap-1">
+              <div className="flex-1">
+                <InlineCreateForm
+                  isOpen={showNewCollection}
+                  onOpenChange={setShowNewCollection}
+                  value={newCollectionName}
+                  onValueChange={setNewCollectionName}
+                  onSubmit={handleCreateCollection}
+                  placeholder="Collection name"
+                  buttonLabel="New Collection"
+                />
+              </div>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(event) => {
+                  handlePostmanImport(event.target.files?.[0]);
+                  event.target.value = '';
+                }}
               />
+              <button
+                type="button"
+                onClick={() => importInputRef.current?.click()}
+                disabled={importPostmanCollection.isPending}
+                className="shrink-0 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 dark:text-gray-200"
+                title="Import Postman Collection"
+              >
+                {importPostmanCollection.isPending ? 'Importing…' : 'Import'}
+              </button>
             </div>
             <CollectionTree
               collections={filteredCollections.collections}

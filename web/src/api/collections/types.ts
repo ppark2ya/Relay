@@ -10,3 +10,7 @@ export interface Collection {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface PostmanImportResult extends Collection {
+  warnings?: string[];
+}

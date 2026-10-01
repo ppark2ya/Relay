@@ -41,6 +41,17 @@ export const useDuplicateCollection = () => {
   });
 };
 
+export const useImportPostmanCollection = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.importPostmanCollection,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections });
+      queryClient.invalidateQueries({ queryKey: queryKeys.requests });
+    },
+  });
+};
+
 export const useReorderCollections = () => {
   const queryClient = useQueryClient();
   return useMutation({
