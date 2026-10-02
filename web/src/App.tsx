@@ -14,6 +14,7 @@ import { useErd } from './api/erds';
 import { useWebSocket } from './hooks/useWebSocket';
 import { WorkspaceContext, useWorkspaceProvider } from './hooks/useWorkspace';
 import { GlobalSearch } from './components/GlobalSearch';
+import { QAEditor } from './components/QAEditor';
 import type { Request, ExecuteResult, ScriptResult, Flow, History, ErdDocument } from './types';
 
 const queryClient = new QueryClient();
@@ -378,6 +379,7 @@ function AppContent() {
               onUpdate={setLocalErd}
             />
           </div>
+          {view === 'qa' && <QAEditor />}
           {view === 'history' && (
             <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
               <div className="text-center text-gray-500 dark:text-gray-400">

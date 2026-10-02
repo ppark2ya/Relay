@@ -18,8 +18,8 @@ import { ErdList } from './ErdList';
 import { HistoryList } from './HistoryList';
 
 interface SidebarProps {
-  view: 'requests' | 'flows' | 'history' | 'erds';
-  onViewChange: (view: 'requests' | 'flows' | 'history' | 'erds') => void;
+  view: 'requests' | 'flows' | 'history' | 'erds' | 'qa';
+  onViewChange: (view: 'requests' | 'flows' | 'history' | 'erds' | 'qa') => void;
   onSelectRequest: (request: Request | null) => void;
   onSelectFlow: (flow: Flow | null) => void;
   onSelectErd: (erd: ErdDocument | null) => void;
@@ -475,10 +475,11 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
           { key: 'requests', label: 'Requests' },
           { key: 'flows', label: 'Flows' },
           { key: 'erds', label: 'ERDs' },
+          { key: 'qa', label: 'QA' },
           { key: 'history', label: 'History' },
         ]}
         activeTab={view}
-        onTabChange={key => onViewChange(key as 'requests' | 'flows' | 'history' | 'erds')}
+        onTabChange={key => onViewChange(key as 'requests' | 'flows' | 'history' | 'erds' | 'qa')}
         tabClassName="flex-1"
       />
 
@@ -656,6 +657,9 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
             onDeleteHistory={id => deleteHistory.mutate(id)}
             emptyMessage={filterQuery.trim() ? 'No matching items' : 'No history yet'}
           />
+        )}
+        {view === 'qa' && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 p-2 text-center">QA 케이스는 메인 화면에서 관리합니다.</p>
         )}
       </div>
     </aside>

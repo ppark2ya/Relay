@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export type View = 'requests' | 'flows' | 'history' | 'erds';
+export type View = 'requests' | 'flows' | 'history' | 'erds' | 'qa';
 
 interface NavState {
   view: View;
@@ -38,6 +38,7 @@ function parseUrl(pathname: string): NavState {
   if (parts[0] === 'erds') {
     return { view: 'erds', resourceId: null };
   }
+  if (parts[0] === 'qa') return { view: 'qa', resourceId: null };
 
   if (parts[0] === 'flows') {
     return { view: 'flows', resourceId: null };
@@ -53,6 +54,7 @@ function buildUrl(view: View, resourceId?: number): string {
   if (view === 'history') return '/history';
   if (view === 'flows') return '/flows';
   if (view === 'erds') return '/erds';
+  if (view === 'qa') return '/qa';
   return '/';
 }
 
