@@ -1,0 +1,12 @@
+import api from '../client';
+import type { QACase, QACaseInput, QATopic } from './types';
+export const listQACases = (params?: Record<string, string>) => api.get('qa/cases', { searchParams: params }).json<QACase[]>();
+export const getQACase = (id: number) => api.get(`qa/cases/${id}`).json<QACase>();
+export const createQACase = (input: QACaseInput) => api.post('qa/cases', { json: input }).json<{id:number}>();
+export const updateQACase = (id:number,input:QACaseInput) => api.put(`qa/cases/${id}`, { json: input }).json<{id:number}>();
+export const deleteQACase = (id:number) => api.delete(`qa/cases/${id}`);
+export const listQATopics = () => api.get('qa/topics').json<QATopic[]>();
+export const createQATopic = (input: Pick<QATopic,'name'|'color'>) => api.post('qa/topics',{json:input}).json<QATopic>();
+export const deleteQATopic = (id:number) => api.delete(`qa/topics/${id}`);
+export const previewQAImport = (file: File) => { const data=new FormData(); data.set('file',file); return api.post('qa/import/preview',{body:data}).json<{valid:number;invalid:number;issues:Array<{sheet:string;row:number;message:string}>}>(); };
+export const importQAFile = (file: File) => { const data=new FormData(); data.set('file',file); return api.post('qa/import',{body:data}).json<{valid:number;invalid:number;issues:Array<{sheet:string;row:number;message:string}>}>(); };
