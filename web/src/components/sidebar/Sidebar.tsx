@@ -7,6 +7,7 @@ import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useReorderFlo
 import { useErds, useCreateErd, useDeleteErd, useDuplicateErd, useReorderErds } from '../../api/erds';
 import { useErdCollections, useCreateErdCollection, useDeleteErdCollection, useDuplicateErdCollection, useReorderErdCollections } from '../../api/erdCollections';
 import { useHistory, useDeleteHistory } from '../../api/history';
+import { useQACases, useQATopics } from '../../api/qa';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import type { Request, Flow, History, ErdDocument, ErdCollection } from '../../types';
 import { InlineCreateForm } from '../ui';
@@ -35,6 +36,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const { data: erds = [] } = useErds();
   const { data: erdCollections = [] } = useErdCollections();
   const { data: history = [] } = useHistory();
+  const { data: qaCases = [] } = useQACases();
+  const { data: qaTopics = [] } = useQATopics();
   const createCollection = useCreateCollection();
   const deleteCollection = useDeleteCollection();
   const createRequest = useCreateRequest();
@@ -507,8 +510,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
             <input
               type="text"
               value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder="Filter..."
+            onChange={(e) => { setFilterQuery(e.target.value); if (view === 'qa') window.dispatchEvent(new CustomEvent('qa:search', { detail: e.target.value })); }}
+            placeholder={view === 'qa' ? 'QA 케이스 검색' : 'Filter...'}
               className="w-full pl-7 pr-6 py-1 text-xs bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none focus:border-blue-400 dark:focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder-gray-400"
             />
             {filterQuery && (
@@ -664,7 +667,36 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
           />
         )}
         {view === 'qa' && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 p-2 text-center">QA 케이스는 메인 화면에서 관리합니다.</p>
+          <div className="space-y-5 px-1">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('qa:create'))}
+              className="w-full rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+            >
+              + QA 케이스 추가
+            </button>
+            <div>
+              <p className="mb-2 px-1 text-[10px] font-semibold tracking-wider text-gray-400">STATUS</p>
+              <div className="space-y-0.5">
+                {(['전체', '대기', '진행 중', '완료', '실패'] as const).map(status => {
+                  const count = status === '전체' ? qaCases.length : qaCases.filter(item => item.status === status).length;
+                  const color = status === '완료' ? 'bg-emerald-500' : status === '진행 중' ? 'bg-blue-500' : status === '실패' ? 'bg-rose-500' : 'bg-slate-400';
+                  return <button key={status} type="button" onClick={() => window.dispatchEvent(new CustomEvent('qa:status', { detail: status }))} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-600 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950/30">
+                    <span className={`h-1.5 w-1.5 rounded-full ${color}`} /><span className="flex-1">{status}</span><span className="text-[11px] text-gray-400">{count}</span>
+                  </button>;
+                })}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 px-1 text-[10px] font-semibold tracking-wider text-gray-400">TOPIC</p>
+              <div className="space-y-0.5">
+                {qaTopics.map(topic => <button key={topic.id} type="button" onClick={() => window.dispatchEvent(new CustomEvent('qa:topic', { detail: topic.id }))} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-600 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950/30">
+                  <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: topic.color }} /><span className="flex-1 truncate">{topic.name}</span><span className="text-[11px] text-gray-400">{topic.caseCount}</span>
+                </button>)}
+                {!qaTopics.length && <p className="px-2 py-1 text-xs text-gray-400">등록된 Topic이 없습니다.</p>}
+              </div>
+            </div>
+          </div>
         )}
       </div>
       </div>}

@@ -37,7 +37,7 @@ test('creates a QA case, links request and flow, and records its status', async 
   await sidebar.getByRole('button', { name: 'QA', exact: true }).click();
   await expect(sidebar.getByRole('button', { name: 'Collapse explorer' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'QA 케이스', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '+ QA 케이스 추가' }).click();
+  await sidebar.getByRole('button', { name: '+ QA 케이스 추가' }).click();
   await page.locator('label').filter({ hasText: '케이스명' }).locator('input').fill('사용자 조회 정상 응답');
   await page.getByPlaceholder('새 Topic').fill('사용자 관리');
   await page.getByRole('button', { name: '추가', exact: true }).click();
