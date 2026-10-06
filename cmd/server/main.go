@@ -72,6 +72,7 @@ func main() {
 	wsHandler := handler.NewWebSocketHandler(wsRelay)
 	erdHandler := handler.NewErdHandler(queries)
 	erdCollectionHandler := handler.NewErdCollectionHandler(queries, db)
+	qaHandler := handler.NewQAHandler(db)
 
 	// Setup router
 	r := chi.NewRouter()
@@ -169,6 +170,22 @@ func main() {
 		r.Post("/erds/generate/kotlin", erdHandler.GenerateKotlin)
 		r.Post("/erds/generate/java", erdHandler.GenerateJava)
 		r.Post("/erds/generate/mysql-ddl", erdHandler.GenerateMySQLDDL)
+
+		// QA management
+		r.Get("/qa/topics", qaHandler.ListTopics)
+		r.Post("/qa/topics", qaHandler.CreateTopic)
+		r.Put("/qa/topics/{id}", qaHandler.UpdateTopic)
+		r.Delete("/qa/topics/{id}", qaHandler.DeleteTopic)
+		r.Get("/qa/cases", qaHandler.ListCases)
+		r.Post("/qa/cases", qaHandler.CreateCase)
+		r.Get("/qa/cases/{id}", qaHandler.GetCase)
+		r.Put("/qa/cases/{id}", qaHandler.UpdateCase)
+		r.Delete("/qa/cases/{id}", qaHandler.DeleteCase)
+		r.Get("/qa/cases/{id}/history", qaHandler.History)
+		r.Get("/qa/template", qaHandler.Template)
+		r.Get("/qa/export", qaHandler.Export)
+		r.Post("/qa/import/preview", qaHandler.PreviewImport)
+		r.Post("/qa/import", qaHandler.Import)
 		r.Get("/erds/{id}", erdHandler.Get)
 		r.Put("/erds/{id}", erdHandler.Update)
 		r.Delete("/erds/{id}", erdHandler.Delete)

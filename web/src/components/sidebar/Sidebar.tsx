@@ -7,9 +7,10 @@ import { useFlows, useCreateFlow, useDeleteFlow, useDuplicateFlow, useReorderFlo
 import { useErds, useCreateErd, useDeleteErd, useDuplicateErd, useReorderErds } from '../../api/erds';
 import { useErdCollections, useCreateErdCollection, useDeleteErdCollection, useDuplicateErdCollection, useReorderErdCollections } from '../../api/erdCollections';
 import { useHistory, useDeleteHistory } from '../../api/history';
+import { useQACases, useQATopics } from '../../api/qa';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import type { Request, Flow, History, ErdDocument, ErdCollection } from '../../types';
-import { TabNav, InlineCreateForm } from '../ui';
+import { InlineCreateForm } from '../ui';
 import { filterCollectionTree, filterFlows, filterErds, filterErdCollectionTree, filterHistory } from '../../utils/searchUtils';
 import { groupHistoryByDate, findCollectionById, findCollectionSiblings, findRequestSiblings } from './sidebar-utils';
 import { CollectionTree } from './CollectionTree';
@@ -18,8 +19,8 @@ import { ErdList } from './ErdList';
 import { HistoryList } from './HistoryList';
 
 interface SidebarProps {
-  view: 'requests' | 'flows' | 'history' | 'erds';
-  onViewChange: (view: 'requests' | 'flows' | 'history' | 'erds') => void;
+  view: 'requests' | 'flows' | 'history' | 'erds' | 'qa';
+  onViewChange: (view: 'requests' | 'flows' | 'history' | 'erds' | 'qa') => void;
   onSelectRequest: (request: Request | null) => void;
   onSelectFlow: (flow: Flow | null) => void;
   onSelectErd: (erd: ErdDocument | null) => void;
@@ -35,6 +36,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
   const { data: erds = [] } = useErds();
   const { data: erdCollections = [] } = useErdCollections();
   const { data: history = [] } = useHistory();
+  const { data: qaCases = [] } = useQACases();
+  const { data: qaTopics = [] } = useQATopics();
   const createCollection = useCreateCollection();
   const deleteCollection = useDeleteCollection();
   const createRequest = useCreateRequest();
@@ -446,44 +449,59 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     }
   };
 
-  if (isCollapsed) {
-    return (
-      <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-2" style={{ width: 44, minWidth: 44 }}>
-        <button
-          onClick={() => setIsCollapsed(false)}
-          className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"
-          title="Expand sidebar"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-          </svg>
-        </button>
-      </aside>
-    );
-  }
-
   return (
-    <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden" style={{ width: sidebarWidth, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH }}>
+    <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex overflow-hidden" style={{ width: isCollapsed ? 64 : sidebarWidth, minWidth: isCollapsed ? 64 : MIN_WIDTH, maxWidth: MAX_WIDTH }}>
       {/* Resize handle */}
-      <div
+      {!isCollapsed && <div
         onMouseDown={handleResizeStart}
         className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400 active:bg-blue-500 z-10 transition-colors"
-      />
-      {/* View Tabs */}
-      <TabNav
-        tabs={[
-          { key: 'requests', label: 'Requests' },
-          { key: 'flows', label: 'Flows' },
-          { key: 'erds', label: 'ERDs' },
-          { key: 'history', label: 'History' },
-        ]}
-        activeTab={view}
-        onTabChange={key => onViewChange(key as 'requests' | 'flows' | 'history' | 'erds')}
-        tabClassName="flex-1"
-      />
+      />}
 
-      {/* Filter */}
-      <div className="px-2 pt-2">
+      {/* Fixed primary navigation: it stays visible while the explorer panel is collapsed. */}
+      <nav aria-label="Workspace sections" className="w-16 shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-2 gap-1 bg-gray-50/70 dark:bg-gray-900/30">
+        {[
+          { key: 'requests', label: 'Requests', short: 'R' },
+          { key: 'flows', label: 'Flows', short: 'F' },
+          { key: 'erds', label: 'ERDs', short: 'E' },
+          { key: 'qa', label: 'QA', short: 'Q' },
+          { key: 'history', label: 'History', short: 'H' },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            type="button"
+            aria-label={tab.label}
+            title={tab.label}
+            onClick={() => { onViewChange(tab.key as 'requests' | 'flows' | 'history' | 'erds' | 'qa'); setIsCollapsed(false); }}
+            className={`w-12 rounded-lg py-2 flex flex-col items-center gap-1 text-[10px] font-medium transition-colors ${
+              view === tab.key
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-bold ${view === tab.key ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>{tab.short}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(value => !value)}
+          className="mb-1 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"
+          title={isCollapsed ? 'Expand explorer' : 'Collapse explorer'}
+          aria-label={isCollapsed ? 'Expand explorer' : 'Collapse explorer'}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isCollapsed ? 'M9 5l7 7-7 7' : 'M15 19l-7-7 7-7'} />
+          </svg>
+        </button>
+      </nav>
+
+      {/* Contextual secondary explorer */}
+      {!isCollapsed && <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
+      <div className="px-2 pt-3">
+        <div className="mb-2 px-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
+          {{ requests: 'Requests', flows: 'Flows', erds: 'ERDs', qa: 'QA 관리', history: 'History' }[view]}
+        </div>
         <div className="flex items-center gap-1">
           <div className="relative flex-1 min-w-0">
             <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -492,8 +510,8 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
             <input
               type="text"
               value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder="Filter..."
+            onChange={(e) => { setFilterQuery(e.target.value); if (view === 'qa') window.dispatchEvent(new CustomEvent('qa:search', { detail: e.target.value })); }}
+            placeholder={view === 'qa' ? 'QA 케이스 검색' : 'Filter...'}
               className="w-full pl-7 pr-6 py-1 text-xs bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none focus:border-blue-400 dark:focus:border-blue-500 text-gray-900 dark:text-gray-100 placeholder-gray-400"
             />
             {filterQuery && (
@@ -508,15 +526,6 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
               </button>
             )}
           </div>
-          <button
-            onClick={() => setIsCollapsed(true)}
-            className="shrink-0 p-1.5 rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"
-            title="Collapse sidebar"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -657,7 +666,40 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
             emptyMessage={filterQuery.trim() ? 'No matching items' : 'No history yet'}
           />
         )}
+        {view === 'qa' && (
+          <div className="space-y-5 px-1">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('qa:create'))}
+              className="w-full rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
+            >
+              + QA 케이스 추가
+            </button>
+            <div>
+              <p className="mb-2 px-1 text-[10px] font-semibold tracking-wider text-gray-400">STATUS</p>
+              <div className="space-y-0.5">
+                {(['전체', '대기', '진행 중', '완료', '실패'] as const).map(status => {
+                  const count = status === '전체' ? qaCases.length : qaCases.filter(item => item.status === status).length;
+                  const color = status === '완료' ? 'bg-emerald-500' : status === '진행 중' ? 'bg-blue-500' : status === '실패' ? 'bg-rose-500' : 'bg-slate-400';
+                  return <button key={status} type="button" onClick={() => window.dispatchEvent(new CustomEvent('qa:status', { detail: status }))} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-600 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950/30">
+                    <span className={`h-1.5 w-1.5 rounded-full ${color}`} /><span className="flex-1">{status}</span><span className="text-[11px] text-gray-400">{count}</span>
+                  </button>;
+                })}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 px-1 text-[10px] font-semibold tracking-wider text-gray-400">TOPIC</p>
+              <div className="space-y-0.5">
+                {qaTopics.map(topic => <button key={topic.id} type="button" onClick={() => window.dispatchEvent(new CustomEvent('qa:topic', { detail: topic.id }))} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-gray-600 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950/30">
+                  <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: topic.color }} /><span className="flex-1 truncate">{topic.name}</span><span className="text-[11px] text-gray-400">{topic.caseCount}</span>
+                </button>)}
+                {!qaTopics.length && <p className="px-2 py-1 text-xs text-gray-400">등록된 Topic이 없습니다.</p>}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+      </div>}
     </aside>
   );
 }
