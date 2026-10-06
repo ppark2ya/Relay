@@ -9,7 +9,7 @@ import { useErdCollections, useCreateErdCollection, useDeleteErdCollection, useD
 import { useHistory, useDeleteHistory } from '../../api/history';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import type { Request, Flow, History, ErdDocument, ErdCollection } from '../../types';
-import { TabNav, InlineCreateForm } from '../ui';
+import { InlineCreateForm } from '../ui';
 import { filterCollectionTree, filterFlows, filterErds, filterErdCollectionTree, filterHistory } from '../../utils/searchUtils';
 import { groupHistoryByDate, findCollectionById, findCollectionSiblings, findRequestSiblings } from './sidebar-utils';
 import { CollectionTree } from './CollectionTree';
@@ -446,45 +446,59 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
     }
   };
 
-  if (isCollapsed) {
-    return (
-      <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-2" style={{ width: 44, minWidth: 44 }}>
-        <button
-          onClick={() => setIsCollapsed(false)}
-          className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"
-          title="Expand sidebar"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-          </svg>
-        </button>
-      </aside>
-    );
-  }
-
   return (
-    <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden" style={{ width: sidebarWidth, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH }}>
+    <aside className="relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex overflow-hidden" style={{ width: isCollapsed ? 64 : sidebarWidth, minWidth: isCollapsed ? 64 : MIN_WIDTH, maxWidth: MAX_WIDTH }}>
       {/* Resize handle */}
-      <div
+      {!isCollapsed && <div
         onMouseDown={handleResizeStart}
         className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-400 active:bg-blue-500 z-10 transition-colors"
-      />
-      {/* View Tabs */}
-      <TabNav
-        tabs={[
-          { key: 'requests', label: 'Requests' },
-          { key: 'flows', label: 'Flows' },
-          { key: 'erds', label: 'ERDs' },
-          { key: 'qa', label: 'QA' },
-          { key: 'history', label: 'History' },
-        ]}
-        activeTab={view}
-        onTabChange={key => onViewChange(key as 'requests' | 'flows' | 'history' | 'erds' | 'qa')}
-        tabClassName="flex-1"
-      />
+      />}
 
-      {/* Filter */}
-      <div className="px-2 pt-2">
+      {/* Fixed primary navigation: it stays visible while the explorer panel is collapsed. */}
+      <nav aria-label="Workspace sections" className="w-16 shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center py-2 gap-1 bg-gray-50/70 dark:bg-gray-900/30">
+        {[
+          { key: 'requests', label: 'Requests', short: 'R' },
+          { key: 'flows', label: 'Flows', short: 'F' },
+          { key: 'erds', label: 'ERDs', short: 'E' },
+          { key: 'qa', label: 'QA', short: 'Q' },
+          { key: 'history', label: 'History', short: 'H' },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            type="button"
+            aria-label={tab.label}
+            title={tab.label}
+            onClick={() => { onViewChange(tab.key as 'requests' | 'flows' | 'history' | 'erds' | 'qa'); setIsCollapsed(false); }}
+            className={`w-12 rounded-lg py-2 flex flex-col items-center gap-1 text-[10px] font-medium transition-colors ${
+              view === tab.key
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-bold ${view === tab.key ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>{tab.short}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(value => !value)}
+          className="mb-1 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"
+          title={isCollapsed ? 'Expand explorer' : 'Collapse explorer'}
+          aria-label={isCollapsed ? 'Expand explorer' : 'Collapse explorer'}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isCollapsed ? 'M9 5l7 7-7 7' : 'M15 19l-7-7 7-7'} />
+          </svg>
+        </button>
+      </nav>
+
+      {/* Contextual secondary explorer */}
+      {!isCollapsed && <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
+      <div className="px-2 pt-3">
+        <div className="mb-2 px-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
+          {{ requests: 'Requests', flows: 'Flows', erds: 'ERDs', qa: 'QA 관리', history: 'History' }[view]}
+        </div>
         <div className="flex items-center gap-1">
           <div className="relative flex-1 min-w-0">
             <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -509,15 +523,6 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
               </button>
             )}
           </div>
-          <button
-            onClick={() => setIsCollapsed(true)}
-            className="shrink-0 p-1.5 rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300"
-            title="Collapse sidebar"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -662,6 +667,7 @@ export function Sidebar({ view, onViewChange, onSelectRequest, onSelectFlow, onS
           <p className="text-xs text-gray-400 dark:text-gray-500 p-2 text-center">QA 케이스는 메인 화면에서 관리합니다.</p>
         )}
       </div>
+      </div>}
     </aside>
   );
 }

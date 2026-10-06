@@ -28,7 +28,14 @@ test('creates a QA case, links request and flow, and records its status', async 
   const flow = await request.post(`${API_BASE}/flows`, { data: { name: '사용자 조회 Flow', description: '' } });
   expect(flow.ok()).toBeTruthy();
 
-  await page.goto('/qa', { waitUntil: 'domcontentloaded' });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const sidebar = page.getByRole('complementary');
+  await sidebar.getByRole('button', { name: 'QA', exact: true }).click();
+  await expect(page).toHaveURL(/\/qa$/);
+  await sidebar.getByRole('button', { name: 'Collapse explorer' }).click();
+  await expect(sidebar.getByRole('button', { name: 'Expand explorer' })).toBeVisible();
+  await sidebar.getByRole('button', { name: 'QA', exact: true }).click();
+  await expect(sidebar.getByRole('button', { name: 'Collapse explorer' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'QA 케이스', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '+ QA 케이스 추가' }).click();
   await page.locator('label').filter({ hasText: '케이스명' }).locator('input').fill('사용자 조회 정상 응답');
