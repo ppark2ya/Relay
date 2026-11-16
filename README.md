@@ -39,3 +39,9 @@ the window hidden until the tray menu opens it, so the idle process does not
 keep a WebView window visible. Build it with `make build-desktop`; this needs
 the Wails v3 CLI and Windows WebView2 development prerequisites. The CLI and
 desktop shell call the same Agent core.
+
+## Release
+
+Pushing a `v*` Git tag runs the GitHub Actions release workflow. It tests the
+agent, builds the Windows amd64 desktop executable, and publishes
+`bridge-agent-windows-amd64.zip` to the matching GitHub Release.
