@@ -28,6 +28,7 @@ func Run(db *sql.DB) error {
 	migrateRequestScripts(db)
 	migrateSortOrder(db)
 	migrateErdDocuments(db)
+	migrateBridgeTransfers(db)
 
 	return nil
 }
@@ -477,4 +478,28 @@ func migrateErdDocuments(db *sql.DB) {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_erd_collections_workspace ON erd_collections(workspace_id, parent_id, sort_order)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_erd_documents_workspace ON erd_documents(workspace_id, sort_order)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_erd_documents_collection ON erd_documents(workspace_id, collection_id, sort_order)")
+}
+
+// migrateBridgeTransfers keeps Git bundle delivery separate from Relay's
+// Postman-style uploaded_files feature. Bridge clients are intentionally not
+// coupled to workspaces because they run outside the Relay web application.
+func migrateBridgeTransfers(db *sql.DB) {
+	db.Exec(`CREATE TABLE IF NOT EXISTS bridge_transfers (
+		id TEXT PRIMARY KEY,
+		project_id TEXT NOT NULL,
+		source_network TEXT NOT NULL,
+		target_network TEXT NOT NULL,
+		source_ref TEXT NOT NULL,
+		target_ref TEXT NOT NULL,
+		head_sha TEXT NOT NULL,
+		base_sha TEXT NOT NULL DEFAULT '',
+		bundle_sha256 TEXT NOT NULL,
+		stored_name TEXT NOT NULL UNIQUE,
+		size INTEGER NOT NULL,
+		created_at DATETIME NOT NULL,
+		downloaded_at DATETIME,
+		expires_at DATETIME NOT NULL
+	)`)
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_transfers_inbox ON bridge_transfers(project_id, target_network, expires_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_transfers_expiry ON bridge_transfers(expires_at)")
 }

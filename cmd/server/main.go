@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"io/fs"
@@ -8,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	"relay/internal/handler"
 	"relay/internal/middleware"
@@ -54,6 +57,23 @@ func main() {
 		log.Fatal("Failed to initialize file storage:", err)
 	}
 
+	bridgeUploadDir := os.Getenv("BRIDGE_UPLOAD_DIR")
+	if bridgeUploadDir == "" {
+		bridgeUploadDir = filepath.Join(filepath.Dir(dbPath), "bridge-bundles")
+	}
+	bridgeMaxBytes := int64(2 << 30)
+	if rawMax := os.Getenv("BRIDGE_MAX_UPLOAD_BYTES"); rawMax != "" {
+		bridgeMaxBytes, err = strconv.ParseInt(rawMax, 10, 64)
+		if err != nil || bridgeMaxBytes <= 0 {
+			log.Fatal("BRIDGE_MAX_UPLOAD_BYTES must be a positive integer")
+		}
+	}
+	bridgeStorage, err := service.NewBridgeStorage(bridgeUploadDir, bridgeMaxBytes)
+	if err != nil {
+		log.Fatal("Failed to initialize bridge storage:", err)
+	}
+	bridgeService := service.NewBridgeService(db, bridgeStorage, 30*24*time.Hour)
+
 	variableResolver := service.NewVariableResolver(queries)
 	requestExecutor := service.NewRequestExecutor(queries, variableResolver, fileStorage)
 	flowRunner := service.NewFlowRunner(queries, requestExecutor, variableResolver)
@@ -69,6 +89,7 @@ func main() {
 	flowHandler := handler.NewFlowHandler(queries, flowRunner, db)
 	historyHandler := handler.NewHistoryHandler(queries)
 	fileHandler := handler.NewFileHandler(db, queries, fileStorage)
+	bridgeHandler := handler.NewBridgeHandler(bridgeService)
 	wsHandler := handler.NewWebSocketHandler(wsRelay)
 	erdHandler := handler.NewErdHandler(queries)
 	erdCollectionHandler := handler.NewErdCollectionHandler(queries, db)
@@ -83,6 +104,16 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
+	})
+
+	// Bridge endpoints are consumed by installed desktop agents, so they do
+	// not use Relay's browser-workspace middleware.
+	r.Route("/api/bridge/v1", func(r chi.Router) {
+		r.Post("/transfers", bridgeHandler.Upload)
+		r.Get("/transfers", bridgeHandler.List)
+		r.Get("/transfers/{id}/bundle", bridgeHandler.Download)
+		r.Post("/transfers/{id}/download-ack", bridgeHandler.AcknowledgeDownload)
+		r.Delete("/transfers/{id}", bridgeHandler.Delete)
 	})
 
 	// API routes
@@ -213,6 +244,23 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+
+	go func() {
+		cleanup := func() {
+			count, err := bridgeService.CleanupExpired(context.Background())
+			if err != nil {
+				log.Printf("Bridge cleanup failed: %v", err)
+			} else if count > 0 {
+				log.Printf("Removed %d expired bridge transfer(s)", count)
+			}
+		}
+		cleanup()
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			cleanup()
+		}
+	}()
 
 	log.Printf("Server starting on http://localhost:%s", port)
 	if err := http.ListenAndServe(":"+port, r); err != nil {
