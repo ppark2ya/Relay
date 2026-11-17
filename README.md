@@ -1,13 +1,12 @@
 # Git Bridge Agent
 
-Windows users run one `bridge-agent.exe`: without arguments it runs in the
-background tray; with a command it runs as a CLI and exits when the command
-finishes.
-The v1 transfer flow sends committed Git branches as bundles through Relay; it
-does not create merge requests, push to GitLab/GitHub, merge branches, or copy
-ignored environment files.
+Windows에서는 `bridge-agent.exe` 하나만 사용합니다. 인수 없이 실행하면
+백그라운드 트레이 Agent로 시작하고, 명령을 전달하면 CLI로 실행된 후 종료합니다.
+v1 전송 흐름은 커밋된 Git 브랜치를 번들로 만들어 Relay를 통해 전달합니다.
+GitLab/GitHub에 푸시하거나 MR/PR을 생성·병합하지 않으며, 무시되는 환경 파일도
+복사하지 않습니다.
 
-## CLI setup
+## CLI 초기 설정
 
 ```powershell
 bridge-agent config set `
@@ -24,13 +23,13 @@ bridge-agent inbox
 bridge-agent download --id <transfer-id>
 ```
 
-`download` verifies the bundle, fetches it to `refs/bridge/incoming/<id>`, and
-checks out a new local `bridge/<network>/<branch>/<id>` branch. It refuses to
-overwrite a working tree with tracked changes. Ignored files such as `.env`
-remain in the existing clone and are never transferred.
+`download` 명령은 번들을 검증하고 `refs/bridge/incoming/<id>`로 가져온 뒤,
+새 로컬 브랜치 `bridge/<network>/<branch>/<id>`를 체크아웃합니다. 추적 대상
+파일이 변경된 작업 디렉터리는 덮어쓰지 않습니다. `.env` 같은 무시되는 파일은
+기존 복제본에 그대로 남으며 전송되지 않습니다.
 
-After testing, use normal Git commands to push the checked-out branch and
-create an MR/PR in GitLab/GitHub.
+테스트가 끝나면 일반 Git 명령으로 체크아웃된 브랜치를 푸시하고,
+GitLab/GitHub에서 MR/PR을 직접 생성합니다.
 
 ## CLI 명령어 안내
 
@@ -136,16 +135,16 @@ bridge-agent delete --id 12345678-1234-1234-1234-123456789abc
 Mac 한 대에서 Relay, A 복제본, B 복제본을 사용해 CLI 전체 흐름을 점검하는
 절차는 [CLI 사용자 검증 시나리오](docs/CLI_USER_TEST.md)에 정리되어 있습니다.
 
-## Desktop shell
+## 데스크톱 셸
 
-The Wails desktop shell is deliberately built only for the Agent UI. It keeps
-the window hidden until the tray menu opens it, so the idle process does not
-keep a WebView window visible. Build it with `make build-desktop`; this needs
-the Wails v3 CLI and Windows WebView2 development prerequisites. The CLI and
-desktop shell call the same Agent core.
+Wails 데스크톱 셸은 Agent UI 전용으로 빌드합니다. 트레이 메뉴에서 UI를 열기
+전까지 창을 숨기므로, 유휴 상태의 프로세스는 WebView 창을 표시한 채 유지하지
+않습니다. `make build-desktop`으로 빌드할 수 있으며 Wails v3 CLI와 Windows
+WebView2 개발 사전 조건이 필요합니다. CLI와 데스크톱 셸은 동일한 Agent core를
+사용합니다.
 
-## Release
+## 릴리스
 
-Pushing a `v*` Git tag runs the GitHub Actions release workflow. It tests the
-agent, builds the Windows amd64 desktop executable, and publishes
-`bridge-agent-windows-amd64.zip` to the matching GitHub Release.
+`v*` Git 태그를 푸시하면 GitHub Actions 릴리스 워크플로가 실행됩니다. Agent를
+테스트하고 Windows amd64 데스크톱 실행 파일을 빌드한 뒤,
+`bridge-agent-windows-amd64.zip`을 같은 버전의 GitHub 릴리스에 게시합니다.
