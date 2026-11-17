@@ -66,6 +66,26 @@ docker build -f Dockerfile.airgap \
 | `DB_PATH` | `./relay.db` | SQLite 데이터베이스 경로 |
 | `PORT` | `8080` | 서버 포트 |
 | `UPLOAD_DIR` | `./uploads` | 파일 업로드 저장 디렉토리 |
+| `BRIDGE_UPLOAD_DIR` | DB 경로 기준 `./bridge-bundles` | Git Bridge bundle 저장 디렉토리 |
+| `BRIDGE_MAX_UPLOAD_BYTES` | `2147483648` | Git Bridge bundle 최대 크기 (bytes) |
+
+## Git Bridge API
+
+설치형 Bridge Agent가 사용하는 전송 API다. 일반 `/api/files`와 별도 저장소와
+메타데이터를 사용하며, GitLab/GitHub repository나 MR/PR을 직접 관리하지 않는다.
+
+```text
+POST   /api/bridge/v1/transfers                         multipart: manifest + bundle
+GET    /api/bridge/v1/transfers?projectId=...&targetNetwork=A|B
+GET    /api/bridge/v1/transfers/:id/bundle
+POST   /api/bridge/v1/transfers/:id/download-ack
+DELETE /api/bridge/v1/transfers/:id
+```
+
+Bundle은 SHA-256 검증 후 저장되고 업로드 시점부터 30일 뒤 자동 삭제된다. 현재
+Bridge API는 배포망 ACL을 신뢰하며 사용자별 인증을 제공하지 않는다. 따라서 API에
+접근 가능한 사용자가 transfer ID를 알면 삭제할 수 있으므로, Bridge 경로는 반드시
+인가된 A/B Network에만 노출해야 한다.
 
 ## 사용법
 
