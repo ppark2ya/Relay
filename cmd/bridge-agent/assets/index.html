@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Git Bridge Agent</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; background: Canvas; color: CanvasText; }
+      main { max-width: 1040px; margin: 0 auto; padding: 28px; }
+      header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+      h1 { margin: 0; font-size: 24px; }
+      .muted { color: color-mix(in srgb, CanvasText 60%, Canvas); }
+      .card { margin-top: 20px; padding: 18px; border: 1px solid color-mix(in srgb, CanvasText 24%, Canvas); border-radius: 10px; }
+      form, .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      input { min-width: 260px; padding: 8px; border-radius: 6px; border: 1px solid color-mix(in srgb, CanvasText 30%, Canvas); background: Canvas; color: CanvasText; }
+      button { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; background: #2563eb; color: white; }
+      button.danger { background: #b91c1c; }
+      button.secondary { background: color-mix(in srgb, CanvasText 20%, Canvas); color: CanvasText; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+      th, td { padding: 10px 8px; border-bottom: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); text-align: left; vertical-align: top; }
+      code { overflow-wrap: anywhere; } #status { min-height: 24px; margin-top: 14px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div><h1>Git Bridge Agent</h1><p class="muted">수동 Git bundle 전송 · MR/PR과 원격 push는 사용자가 직접 수행</p></div>
+        <div class="actions"><button class="secondary" id="settings-toggle">설정</button><button class="secondary" id="refresh">수신함 새로고침</button></div>
+      </header>
+      <section class="card" id="settings" hidden>
+        <h2>Agent 설정</h2>
+        <form id="settings-form">
+          <input id="relay-url" required placeholder="https://relay.example.internal" />
+          <input id="project-id" required placeholder="project-a" />
+          <select id="network"><option value="A">A Network</option><option value="B">B Network</option></select>
+          <input id="repository-path" required placeholder="C:\\work\\project" />
+          <input id="target-ref" required value="main" placeholder="main" />
+          <button type="submit">설정 저장</button>
+        </form>
+      </section>
+      <section class="card">
+        <h2>브랜치 업로드</h2>
+        <form id="upload-form"><input id="branch" required placeholder="feature/payment" /><button type="submit">상대 Network로 업로드</button></form>
+      </section>
+      <section class="card">
+        <h2>수신함</h2>
+        <table><thead><tr><th>Source</th><th>Branch / Commit</th><th>Created / Expires</th><th>Size</th><th>Action</th></tr></thead><tbody id="inbox"><tr><td colspan="5" class="muted">수신함을 조회하세요.</td></tr></tbody></table>
+      </section>
+      <div id="status" role="status"></div>
+    </main>
+    <script type="importmap">{"imports":{"@wailsio/runtime":"/wails/runtime.js"}}</script>
+    <script type="module">
+      import { DesktopService } from "./bindings/bridge-agent/cmd/bridge-agent/index.js";
+      const status = document.getElementById("status");
+      const inbox = document.getElementById("inbox");
+      const formatSize = (bytes) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+      const showError = (error) => { status.textContent = `오류: ${error?.message || error}`; };
+      const showStatus = (message) => { status.textContent = message; };
+      async function loadConfig() {
+        try {
+          const config = await DesktopService.GetConfig();
+          document.getElementById("relay-url").value = config.relayUrl;
+          document.getElementById("project-id").value = config.projectId;
+          document.getElementById("network").value = config.network;
+          document.getElementById("repository-path").value = config.repositoryPath;
+          document.getElementById("target-ref").value = config.targetRef;
+        } catch (_) { document.getElementById("settings").hidden = false; }
+      }
+      async function refresh() {
+        showStatus("수신함을 조회하는 중...");
+        try {
+          const transfers = await DesktopService.Inbox();
+          inbox.replaceChildren();
+          if (transfers.length === 0) inbox.innerHTML = '<tr><td colspan="5" class="muted">수신 대기 중인 전송이 없습니다.</td></tr>';
+          for (const transfer of transfers) {
+            const row = document.createElement("tr");
+            row.innerHTML = `<td>${transfer.sourceNetwork} → ${transfer.targetNetwork}</td><td><code>${transfer.sourceRef}</code><br><code>${transfer.headSha}</code></td><td>${new Date(transfer.createdAt).toLocaleString()}<br>${new Date(transfer.expiresAt).toLocaleString()}</td><td>${formatSize(transfer.size)}</td><td class="actions"></td>`;
+            const actions = row.lastElementChild;
+            const download = document.createElement("button"); download.textContent = "Download 및 checkout";
+            download.onclick = async () => { try { showStatus("bundle 검증 및 checkout 중..."); const result = await DesktopService.Download(transfer.id); showStatus(`완료: ${result.branch}\n이제 테스트 후 일반 git push로 GitLab/GitHub에 반영하세요.`); await refresh(); } catch (error) { showError(error); } };
+            const remove = document.createElement("button"); remove.textContent = "삭제"; remove.className = "danger";
+            remove.onclick = async () => { if (!confirm("이 전송을 relay에서 즉시 삭제할까요?")) return; try { await DesktopService.Delete(transfer.id); await refresh(); } catch (error) { showError(error); } };
+            actions.append(download, remove); inbox.append(row);
+          }
+          showStatus(`수신함 ${transfers.length}건`);
+        } catch (error) { showError(error); }
+      }
+      document.getElementById("refresh").onclick = refresh;
+      document.getElementById("settings-toggle").onclick = () => { const settings = document.getElementById("settings"); settings.hidden = !settings.hidden; };
+      document.getElementById("settings-form").onsubmit = async (event) => {
+        event.preventDefault();
+        try {
+          await DesktopService.SaveConfig({ relayUrl: document.getElementById("relay-url").value, projectId: document.getElementById("project-id").value, network: document.getElementById("network").value, repositoryPath: document.getElementById("repository-path").value, targetRef: document.getElementById("target-ref").value });
+          document.getElementById("settings").hidden = true; showStatus("설정을 저장했습니다."); await refresh();
+        } catch (error) { showError(error); }
+      };
+      document.getElementById("upload-form").onsubmit = async (event) => {
+        event.preventDefault();
+        try { showStatus("Git bundle 생성 및 업로드 중..."); const transfer = await DesktopService.Upload(document.getElementById("branch").value); showStatus(`업로드 완료: ${transfer.id}`); } catch (error) { showError(error); }
+      };
+      loadConfig().then(refresh);
+    </script>
+  </body>
+</html>
