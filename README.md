@@ -68,6 +68,9 @@ docker build -f Dockerfile.airgap \
 | `UPLOAD_DIR` | `./uploads` | 파일 업로드 저장 디렉토리 |
 | `BRIDGE_UPLOAD_DIR` | DB 경로 기준 `./bridge-bundles` | Git Bridge bundle 저장 디렉토리 |
 | `BRIDGE_MAX_UPLOAD_BYTES` | `2147483648` | Git Bridge bundle 최대 크기 (bytes) |
+| `BRIDGE_FILE_UPLOAD_DIR` | DB 경로 기준 `./bridge-files` | Bridge 일반 파일 저장 디렉토리 |
+| `BRIDGE_FILE_MAX_UPLOAD_BYTES` | `524288000` | Bridge 일반 파일 최대 크기 (bytes) |
+| `BRIDGE_FILE_RETENTION_HOURS` | `336` | Bridge 일반 파일 보관 시간 (hours) |
 
 ## Git Bridge API
 
@@ -80,12 +83,19 @@ GET    /api/bridge/v1/transfers?projectId=...&targetNetwork=external|internal
 GET    /api/bridge/v1/transfers/:id/bundle
 POST   /api/bridge/v1/transfers/:id/download-ack
 DELETE /api/bridge/v1/transfers/:id
+POST   /api/bridge/v1/files                             multipart: manifest + file
+GET    /api/bridge/v1/files?projectId=...&targetNetwork=external|internal
+GET    /api/bridge/v1/files/:id/content
+POST   /api/bridge/v1/files/:id/download-ack
+DELETE /api/bridge/v1/files/:id
 ```
 
 Bundle은 SHA-256 검증 후 저장되고 업로드 시점부터 30일 뒤 자동 삭제된다. 현재
 Bridge API는 배포망 ACL을 신뢰하며 사용자별 인증을 제공하지 않는다. 따라서 API에
 접근 가능한 사용자가 transfer ID를 알면 삭제할 수 있으므로, Bridge 경로는 반드시
-인가된 A/B Network에만 노출해야 한다.
+인가된 A/B Network에만 노출해야 한다. 일반 파일도 SHA-256을 검증해 별도 저장소에
+보관하며 기본 500MiB·14일 정책을 사용한다. Relay는 파일을 검사·실행하지 않으므로
+비밀키나 인증서 등 민감한 파일은 별도 보안 절차로 관리해야 한다.
 
 ## 사용법
 
