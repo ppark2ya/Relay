@@ -41,7 +41,7 @@ func bridgeUploadRequest(t *testing.T, url string, content []byte) *http.Request
 	t.Helper()
 	hash := sha256.Sum256(content)
 	manifest, _ := json.Marshal(service.BridgeManifest{
-		ProjectID: "project-a", SourceNetwork: "B", TargetNetwork: "A",
+		ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal",
 		SourceRef: "refs/heads/feature/payment", TargetRef: "refs/heads/main", HeadSHA: "deadbeef",
 		BundleSHA256: hex.EncodeToString(hash[:]),
 	})

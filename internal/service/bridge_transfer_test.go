@@ -16,7 +16,7 @@ import (
 func bridgeManifest(content []byte) BridgeManifest {
 	hash := sha256.Sum256(content)
 	return BridgeManifest{
-		ProjectID: "project-a", SourceNetwork: "B", TargetNetwork: "A",
+		ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal",
 		SourceRef: "refs/heads/feature/payment", TargetRef: "refs/heads/main",
 		HeadSHA: "abcdef1234", BaseSHA: "1234abcdef", BundleSHA256: hex.EncodeToString(hash[:]),
 	}
@@ -38,7 +38,7 @@ func TestBridgeServiceCreateListOpenAndAcknowledge(t *testing.T) {
 		t.Fatalf("unexpected transfer: %+v", transfer)
 	}
 
-	transfers, err := service.List(context.Background(), "project-a", "A")
+	transfers, err := service.List(context.Background(), "project-a", "internal")
 	if err != nil || len(transfers) != 1 {
 		t.Fatalf("List: %v, %#v", err, transfers)
 	}
@@ -55,7 +55,7 @@ func TestBridgeServiceCreateListOpenAndAcknowledge(t *testing.T) {
 	if err := service.AcknowledgeDownload(context.Background(), transfer.ID); err != nil {
 		t.Fatal(err)
 	}
-	transfers, err = service.List(context.Background(), "project-a", "A")
+	transfers, err = service.List(context.Background(), "project-a", "internal")
 	if err != nil || transfers[0].DownloadedAt == nil {
 		t.Fatalf("acknowledgement was not persisted: %v %#v", err, transfers)
 	}
