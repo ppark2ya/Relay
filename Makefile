@@ -14,4 +14,4 @@ build-desktop:
 
 build-windows:
 	go run github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0 generate bindings -d cmd/bridge-agent/assets/bindings -f='-tags wails' ./cmd/bridge-agent
-	GOOS=windows GOARCH=amd64 go build -tags wails -o build/bridge-agent.exe ./cmd/bridge-agent
+	GOOS=windows GOARCH=amd64 go build -tags wails -ldflags="-H windowsgui" -o build/bridge-agent.exe ./cmd/bridge-agent
