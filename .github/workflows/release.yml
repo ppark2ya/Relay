@@ -26,7 +26,7 @@ jobs:
 
       - name: Build Windows amd64
         run: |
-          GOOS=windows GOARCH=amd64 go build -trimpath -tags wails -ldflags="-s -w" -o bridge-agent.exe ./cmd/bridge-agent
+          GOOS=windows GOARCH=amd64 go build -trimpath -tags wails -ldflags="-s -w -H windowsgui" -o bridge-agent.exe ./cmd/bridge-agent
           zip bridge-agent-windows-amd64.zip bridge-agent.exe
           rm bridge-agent.exe
 
