@@ -29,6 +29,14 @@ export function Delete(transferID) {
 
 /**
  * @param {string} transferID
+ * @returns {$CancellablePromise<void>}
+ */
+export function DeleteFile(transferID) {
+    return $Call.ByID(431932140, transferID);
+}
+
+/**
+ * @param {string} transferID
  * @returns {$CancellablePromise<any>}
  */
 export function Download(transferID) {
@@ -36,11 +44,29 @@ export function Download(transferID) {
 }
 
 /**
+ * @param {string} transferID
+ * @param {string} destination
+ * @returns {$CancellablePromise<void>}
+ */
+export function DownloadFile(transferID, destination) {
+    return $Call.ByID(18468767, transferID, destination);
+}
+
+/**
+ * @returns {$CancellablePromise<relay$0.FileTransfer[]>}
+ */
+export function FileInbox() {
+    return $Call.ByID(3706807929).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<config$0.Config>}
  */
 export function GetConfig() {
     return $Call.ByID(3281232725).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType2($result);
     }));
 }
 
@@ -49,8 +75,15 @@ export function GetConfig() {
  */
 export function Inbox() {
     return $Call.ByID(2919344315).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType4($result);
     }));
+}
+
+/**
+ * @returns {$CancellablePromise<string>}
+ */
+export function PickFilePath() {
+    return $Call.ByID(4107559269);
 }
 
 /**
@@ -61,6 +94,14 @@ export function Inbox() {
  */
 export function PickRepositoryPath(currentPath) {
     return $Call.ByID(4244859947, currentPath);
+}
+
+/**
+ * @param {string} filename
+ * @returns {$CancellablePromise<string>}
+ */
+export function PickSavePath(filename) {
+    return $Call.ByID(1757593222, filename);
 }
 
 /**
@@ -77,11 +118,23 @@ export function SaveConfig(settings) {
  */
 export function Upload(branch) {
     return $Call.ByID(1620244444, branch).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * @param {string} path
+ * @returns {$CancellablePromise<relay$0.FileTransfer>}
+ */
+export function UploadFile(path) {
+    return $Call.ByID(2957956970, path).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
     }));
 }
 
 // Private type creation functions
-const $$createType0 = config$0.Config.createFrom;
-const $$createType1 = relay$0.Transfer.createFrom;
-const $$createType2 = $Create.Array($$createType1);
+const $$createType0 = relay$0.FileTransfer.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = config$0.Config.createFrom;
+const $$createType3 = relay$0.Transfer.createFrom;
+const $$createType4 = $Create.Array($$createType3);

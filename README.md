@@ -4,7 +4,7 @@ Windows에서는 `bridge-agent.exe` 하나만 사용합니다. 인수 없이 실
 백그라운드 트레이 Agent로 시작하고, 명령을 전달하면 CLI로 실행된 후 종료합니다.
 트레이 Agent는 PowerShell 또는 콘솔 창을 열지 않습니다. 종료는 트레이 메뉴의
 `종료`를 사용합니다.
-v1 전송 흐름은 커밋된 Git 브랜치를 번들로 만들어 Relay를 통해 전달합니다.
+Git bundle 전송과 일반 단일 파일 전송을 Relay를 통해 반대편 네트워크로 전달합니다.
 GitLab/GitHub에 푸시하거나 MR/PR을 생성·병합하지 않으며, 무시되는 환경 파일도
 복사하지 않습니다.
 
@@ -23,6 +23,7 @@ bridge-agent config set `
 bridge-agent upload --branch feature/payment
 bridge-agent inbox
 bridge-agent download --id <transfer-id>
+bridge-agent file upload --path C:\release\result.zip
 ```
 
 `download` 명령은 번들을 검증하고 `refs/bridge/incoming/<id>`로 가져온 뒤,
@@ -132,6 +133,27 @@ bridge-agent delete --id 12345678-1234-1234-1234-123456789abc
 
 삭제된 bundle은 다시 다운로드할 수 없으므로, 실행 전에 대상 transfer ID와
 프로젝트를 확인해야 합니다.
+
+## 일반 파일 전송
+
+일반 파일은 Git bundle과 별도 수신함으로 전달됩니다. 현재 설정의 `project-id`와
+`network`를 사용하며, 업로드하면 자동으로 반대편 네트워크에만 표시됩니다. 폴더는
+전송할 수 없고 단일 파일만 지원합니다. 모든 확장자를 전송할 수 있지만, Agent는
+파일을 자동 실행하거나 자동으로 압축 해제하지 않습니다.
+
+Relay의 기본 정책은 파일당 최대 500MiB, 업로드 후 14일 보관입니다. 다운로드가
+성공하면 SHA-256을 검증한 뒤 수신 완료를 기록하며, 수신자는 수신함에서 불필요한
+파일을 직접 삭제할 수 있습니다.
+
+```powershell
+bridge-agent file upload --path C:\release\result.zip
+bridge-agent file inbox
+bridge-agent file download --id <transfer-id> --output C:\Users\me\Downloads\result.zip
+bridge-agent file delete --id <transfer-id>
+```
+
+트레이 UI에서는 **파일 전송** 탭에서 파일을 선택해 업로드하고, 수신 파일의
+**저장** 버튼을 누른 뒤 매번 저장 위치를 선택합니다.
 
 ## 사용자 환경 검증
 

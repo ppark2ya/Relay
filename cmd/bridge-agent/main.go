@@ -72,11 +72,66 @@ func runCLI(arguments []string) error {
 			}
 			return service.Delete(context.Background(), *id)
 		})
+	case "file":
+		err = runFile(arguments[1:])
 	default:
 		usage()
 		err = fmt.Errorf("unknown command %q", arguments[0])
 	}
 	return err
+}
+
+func runFile(arguments []string) error {
+	if len(arguments) == 0 {
+		return fmt.Errorf("file requires upload, inbox, download, or delete")
+	}
+	return withService(func(service *agent.Service) error {
+		switch arguments[0] {
+		case "upload":
+			flags := flag.NewFlagSet("file upload", flag.ContinueOnError)
+			path := flags.String("path", "", "local file path")
+			if err := flags.Parse(arguments[1:]); err != nil {
+				return err
+			}
+			if *path == "" {
+				return fmt.Errorf("--path is required")
+			}
+			transfer, err := service.UploadFile(context.Background(), *path)
+			if err == nil {
+				printJSON(transfer)
+			}
+			return err
+		case "inbox":
+			files, err := service.FileInbox(context.Background())
+			if err == nil {
+				printJSON(files)
+			}
+			return err
+		case "download":
+			flags := flag.NewFlagSet("file download", flag.ContinueOnError)
+			id := flags.String("id", "", "file transfer ID")
+			output := flags.String("output", "", "destination file path")
+			if err := flags.Parse(arguments[1:]); err != nil {
+				return err
+			}
+			if *id == "" || *output == "" {
+				return fmt.Errorf("--id and --output are required")
+			}
+			return service.DownloadFile(context.Background(), *id, *output)
+		case "delete":
+			flags := flag.NewFlagSet("file delete", flag.ContinueOnError)
+			id := flags.String("id", "", "file transfer ID")
+			if err := flags.Parse(arguments[1:]); err != nil {
+				return err
+			}
+			if *id == "" {
+				return fmt.Errorf("--id is required")
+			}
+			return service.DeleteFile(context.Background(), *id)
+		default:
+			return fmt.Errorf("unknown file command %q", arguments[0])
+		}
+	})
 }
 
 func withService(action func(*agent.Service) error) error {
@@ -144,5 +199,9 @@ func usage() {
   bridge-agent upload --branch feature/name
   bridge-agent inbox
   bridge-agent download --id TRANSFER_ID
-  bridge-agent delete --id TRANSFER_ID`)
+  bridge-agent delete --id TRANSFER_ID
+  bridge-agent file upload --path FILE
+  bridge-agent file inbox
+  bridge-agent file download --id TRANSFER_ID --output FILE
+  bridge-agent file delete --id TRANSFER_ID`)
 }

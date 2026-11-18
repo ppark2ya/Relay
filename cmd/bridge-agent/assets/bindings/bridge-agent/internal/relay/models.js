@@ -6,6 +6,97 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+export class FileTransfer {
+    /**
+     * Creates a new FileTransfer instance.
+     * @param {Partial<FileTransfer>} [$$source = {}] - The source object to create the FileTransfer.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("projectId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["projectId"] = "";
+        }
+        if (!("sourceNetwork" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["sourceNetwork"] = "";
+        }
+        if (!("targetNetwork" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["targetNetwork"] = "";
+        }
+        if (!("filename" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["filename"] = "";
+        }
+        if (!("sha256" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["sha256"] = "";
+        }
+        if (!("size" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["size"] = 0;
+        }
+        if (!("createdAt" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["createdAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | null | undefined}
+             */
+            this["downloadedAt"] = undefined;
+        }
+        if (!("expiresAt" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["expiresAt"] = "0001-01-01T00:00:00.000Z";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FileTransfer instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {FileTransfer}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new FileTransfer(/** @type {Partial<FileTransfer>} */($$parsedSource));
+    }
+}
+
 export class Transfer {
     /**
      * Creates a new Transfer instance.
