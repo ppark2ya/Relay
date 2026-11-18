@@ -1,7 +1,7 @@
 # CLI 사용자 검증 시나리오
 
-이 문서는 하나의 Mac에서 A/B 망을 모사해 Git Bridge의 bundle 전송 흐름을
-검증하는 절차다. 실제 A/B 네트워크, GitLab, GitHub 또는 Windows Agent는
+이 문서는 하나의 Mac에서 external/internal 환경을 모사해 Git Bridge의 bundle 전송 흐름을
+검증하는 절차다. 실제 네트워크 분리, GitLab, GitHub 또는 Windows Agent는
 필요하지 않다. 테스트 복제본 두 개는 반드시 같은 `main` 커밋에서 시작해야
 한다.
 
@@ -20,7 +20,7 @@ BRIDGE_UPLOAD_DIR="$PWD/.local-test/bridge-bundles" \
 go run ./cmd/server
 ```
 
-별도 터미널에서 같은 기준 커밋을 공유하는 A/B 작업 복제본을 준비한다. 이미
+별도 터미널에서 같은 기준 커밋을 공유하는 external/internal 작업 복제본을 준비한다. 이미
 테스트할 프로젝트의 bare 저장소가 있다면 그 주소를 `SOURCE_REPOSITORY`에
 사용한다.
 
@@ -42,10 +42,11 @@ git add bridge-e2e.txt
 git commit -m "test: bridge bundle transfer"
 ```
 
-## B에서 업로드
+## external에서 업로드
 
-Agent CLI는 사용자별 단일 설정을 사용한다. 따라서 한 Mac에서 A/B를 모사할
-때는 아래처럼 먼저 B 설정으로 업로드하고, 이후 A 설정으로 바꿔 다운로드한다.
+Agent CLI는 사용자별 단일 설정을 사용한다. 따라서 한 Mac에서 external/internal을
+모사할 때는 아래처럼 먼저 external 설정으로 업로드하고, 이후 internal 설정으로
+바꿔 다운로드한다.
 
 ```bash
 cd ~/workspace/git-bridge
@@ -53,7 +54,7 @@ cd ~/workspace/git-bridge
 go run ./cmd/bridge-agent config set \
   --relay-url http://127.0.0.1:18080 \
   --project-id mac-e2e \
-  --network B \
+  --network external \
   --repository ~/git-bridge-e2e/B-project \
   --target main
 
@@ -62,13 +63,13 @@ go run ./cmd/bridge-agent upload --branch feature/mac-e2e
 
 출력 JSON의 `id`를 기록한다. 이 값이 A에서 다운로드할 transfer ID다.
 
-## A에서 확인 및 다운로드
+## internal에서 확인 및 다운로드
 
 ```bash
 go run ./cmd/bridge-agent config set \
   --relay-url http://127.0.0.1:18080 \
   --project-id mac-e2e \
-  --network A \
+  --network internal \
   --repository ~/git-bridge-e2e/A-project \
   --target main
 
@@ -108,16 +109,16 @@ test -f .env && echo '.env preserved'
 
 다음을 모두 확인한다.
 
-- `bridge/B/feature-mac-e2e/<transfer-id 일부>` 형태의 새 로컬 브랜치가
+- `bridge/external/feature-mac-e2e/<transfer-id 일부>` 형태의 새 로컬 브랜치가
   checkout된다.
-- B에서 만든 `bridge-e2e.txt`와 커밋이 A에 존재한다.
+- external에서 만든 `bridge-e2e.txt`와 커밋이 internal에 존재한다.
 - `refs/bridge/incoming/<transfer-id>` ref가 보존된다.
 - A의 ignored 파일 `.env`는 그대로 남아 있다.
 - `go run ./cmd/bridge-agent inbox`에서 해당 transfer의 다운로드 완료 상태를
   확인할 수 있다.
 
-반대 방향(A에서 B)도 같은 순서로 검증할 수 있다. A에서 새 feature 브랜치를
-커밋하고 `--network A` 설정으로 업로드한 뒤, B 설정으로 바꾸어 inbox와
+반대 방향(internal에서 external)도 같은 순서로 검증할 수 있다. internal에서 새 feature 브랜치를
+커밋하고 `--network internal` 설정으로 업로드한 뒤, external 설정으로 바꾸어 inbox와
 download를 실행한다.
 
 ## 범위

@@ -13,7 +13,9 @@
       .muted { color: color-mix(in srgb, CanvasText 60%, Canvas); }
       .card { margin-top: 20px; padding: 18px; border: 1px solid color-mix(in srgb, CanvasText 24%, Canvas); border-radius: 10px; }
       form, .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-      input { min-width: 260px; padding: 8px; border-radius: 6px; border: 1px solid color-mix(in srgb, CanvasText 30%, Canvas); background: Canvas; color: CanvasText; }
+      input, select { min-width: 260px; padding: 8px; border-radius: 6px; border: 1px solid color-mix(in srgb, CanvasText 30%, Canvas); background: Canvas; color: CanvasText; }
+      .path-picker { display: flex; gap: 6px; align-items: center; }
+      .path-picker input { min-width: 360px; }
       button { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; background: #2563eb; color: white; }
       button.danger { background: #b91c1c; }
       button.secondary { background: color-mix(in srgb, CanvasText 20%, Canvas); color: CanvasText; }
@@ -33,15 +35,15 @@
         <form id="settings-form">
           <input id="relay-url" required placeholder="https://relay.example.internal" />
           <input id="project-id" required placeholder="project-a" />
-          <select id="network"><option value="A">A Network</option><option value="B">B Network</option></select>
-          <input id="repository-path" required placeholder="C:\\work\\project" />
+          <select id="network" aria-label="현재 네트워크"><option value="external">외부 개발망</option><option value="internal">내부 배포망</option></select>
+          <div class="path-picker"><input id="repository-path" required placeholder="Git 프로젝트 폴더" /><button type="button" class="secondary" id="repository-picker">폴더 선택</button></div>
           <input id="target-ref" required value="main" placeholder="main" />
           <button type="submit">설정 저장</button>
         </form>
       </section>
       <section class="card">
         <h2>브랜치 업로드</h2>
-        <form id="upload-form"><input id="branch" required placeholder="feature/payment" /><button type="submit">상대 Network로 업로드</button></form>
+        <form id="upload-form"><input id="branch" required placeholder="feature/payment" /><button type="submit">상대 환경으로 업로드</button></form>
       </section>
       <section class="card">
         <h2>수신함</h2>
@@ -54,6 +56,7 @@
       import { DesktopService } from "./bindings/bridge-agent/cmd/bridge-agent/index.js";
       const status = document.getElementById("status");
       const inbox = document.getElementById("inbox");
+      const networkName = (network) => ({ external: "외부 개발망", internal: "내부 배포망" }[network] || network);
       const formatSize = (bytes) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
       const showError = (error) => { status.textContent = `오류: ${error?.message || error}`; };
       const showStatus = (message) => { status.textContent = message; };
@@ -75,7 +78,7 @@
           if (transfers.length === 0) inbox.innerHTML = '<tr><td colspan="5" class="muted">수신 대기 중인 전송이 없습니다.</td></tr>';
           for (const transfer of transfers) {
             const row = document.createElement("tr");
-            row.innerHTML = `<td>${transfer.sourceNetwork} → ${transfer.targetNetwork}</td><td><code>${transfer.sourceRef}</code><br><code>${transfer.headSha}</code></td><td>${new Date(transfer.createdAt).toLocaleString()}<br>${new Date(transfer.expiresAt).toLocaleString()}</td><td>${formatSize(transfer.size)}</td><td class="actions"></td>`;
+            row.innerHTML = `<td>${networkName(transfer.sourceNetwork)} → ${networkName(transfer.targetNetwork)}</td><td><code>${transfer.sourceRef}</code><br><code>${transfer.headSha}</code></td><td>${new Date(transfer.createdAt).toLocaleString()}<br>${new Date(transfer.expiresAt).toLocaleString()}</td><td>${formatSize(transfer.size)}</td><td class="actions"></td>`;
             const actions = row.lastElementChild;
             const download = document.createElement("button"); download.textContent = "Download 및 checkout";
             download.onclick = async () => { try { showStatus("bundle 검증 및 checkout 중..."); const result = await DesktopService.Download(transfer.id); showStatus(`완료: ${result.branch}\n이제 테스트 후 일반 git push로 GitLab/GitHub에 반영하세요.`); await refresh(); } catch (error) { showError(error); } };
@@ -88,6 +91,13 @@
       }
       document.getElementById("refresh").onclick = refresh;
       document.getElementById("settings-toggle").onclick = () => { const settings = document.getElementById("settings"); settings.hidden = !settings.hidden; };
+      document.getElementById("repository-picker").onclick = async () => {
+        try {
+          const input = document.getElementById("repository-path");
+          const path = await DesktopService.PickRepositoryPath(input.value);
+          if (path) input.value = path;
+        } catch (error) { showError(error); }
+      };
       document.getElementById("settings-form").onsubmit = async (event) => {
         event.preventDefault();
         try {

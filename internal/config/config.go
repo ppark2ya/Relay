@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+const (
+	NetworkExternal = "external"
+	NetworkInternal = "internal"
+)
+
 type Config struct {
 	RelayURL       string `json:"relayUrl"`
 	ProjectID      string `json:"projectId"`
@@ -33,6 +38,7 @@ func Load(path string) (Config, error) {
 	if err := json.Unmarshal(data, &config); err != nil {
 		return Config{}, fmt.Errorf("parse bridge config: %w", err)
 	}
+	config.Network = normalizeNetwork(config.Network)
 	return config, config.Validate()
 }
 
@@ -43,8 +49,8 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.ProjectID) == "" {
 		return fmt.Errorf("projectId is required")
 	}
-	if c.Network != "A" && c.Network != "B" {
-		return fmt.Errorf("network must be A or B")
+	if c.Network != NetworkExternal && c.Network != NetworkInternal {
+		return fmt.Errorf("network must be external or internal")
 	}
 	if strings.TrimSpace(c.RepositoryPath) == "" {
 		return fmt.Errorf("repositoryPath is required")
@@ -56,6 +62,7 @@ func (c Config) Validate() error {
 }
 
 func Save(path string, config Config) error {
+	config.Network = normalizeNetwork(config.Network)
 	if err := config.Validate(); err != nil {
 		return err
 	}
@@ -71,4 +78,15 @@ func Save(path string, config Config) error {
 		return fmt.Errorf("write config: %w", err)
 	}
 	return os.Rename(temp, path)
+}
+
+func normalizeNetwork(network string) string {
+	switch strings.ToLower(strings.TrimSpace(network)) {
+	case "a", NetworkInternal:
+		return NetworkInternal
+	case "b", NetworkExternal:
+		return NetworkExternal
+	default:
+		return strings.ToLower(strings.TrimSpace(network))
+	}
 }

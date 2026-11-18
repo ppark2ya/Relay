@@ -37,10 +37,10 @@ func New(config config.Config, cacheDir string) (*Service, error) {
 }
 
 func otherNetwork(network string) string {
-	if network == "A" {
-		return "B"
+	if network == config.NetworkInternal {
+		return config.NetworkExternal
 	}
-	return "A"
+	return config.NetworkInternal
 }
 
 func (s *Service) Upload(ctx context.Context, branch string) (relay.Transfer, error) {
