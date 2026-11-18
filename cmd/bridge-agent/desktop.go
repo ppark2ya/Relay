@@ -57,6 +57,20 @@ func (service DesktopService) SaveConfig(settings config.Config) error {
 	return config.Save(path, settings)
 }
 
+// PickRepositoryPath opens the native directory picker used by the settings UI.
+// An empty result means the user cancelled the dialog.
+func (DesktopService) PickRepositoryPath(currentPath string) (string, error) {
+	dialog := application.Get().Dialog.OpenFile().
+		CanChooseDirectories(true).
+		CanChooseFiles(false).
+		SetTitle("Git 프로젝트 폴더 선택").
+		SetButtonText("선택")
+	if info, err := os.Stat(currentPath); err == nil && info.IsDir() {
+		dialog.SetDirectory(currentPath)
+	}
+	return dialog.PromptForSingleSelection()
+}
+
 func (service DesktopService) Inbox() ([]relay.Transfer, error) {
 	agentService, err := service.load()
 	if err != nil {

@@ -54,6 +54,16 @@ export function Inbox() {
 }
 
 /**
+ * PickRepositoryPath opens the native directory picker used by the settings UI.
+ * An empty result means the user cancelled the dialog.
+ * @param {string} currentPath
+ * @returns {$CancellablePromise<string>}
+ */
+export function PickRepositoryPath(currentPath) {
+    return $Call.ByID(4244859947, currentPath);
+}
+
+/**
  * @param {config$0.Config} settings
  * @returns {$CancellablePromise<void>}
  */

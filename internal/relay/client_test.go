@@ -16,7 +16,7 @@ import (
 func TestClientUploadListDownloadAndAcknowledge(t *testing.T) {
 	bundle := []byte("bundle data")
 	hash := sha256.Sum256(bundle)
-	transfer := Transfer{ID: "transfer-1", ProjectID: "project-a", SourceNetwork: "B", TargetNetwork: "A", SourceRef: "refs/heads/feature", TargetRef: "refs/heads/main", HeadSHA: "abc", BundleSHA256: hex.EncodeToString(hash[:])}
+	transfer := Transfer{ID: "transfer-1", ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", SourceRef: "refs/heads/feature", TargetRef: "refs/heads/main", HeadSHA: "abc", BundleSHA256: hex.EncodeToString(hash[:])}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch request.Method + " " + request.URL.Path {
 		case "POST /api/bridge/v1/transfers":
@@ -34,7 +34,7 @@ func TestClientUploadListDownloadAndAcknowledge(t *testing.T) {
 			writer.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(writer).Encode(transfer)
 		case "GET /api/bridge/v1/transfers":
-			if request.URL.Query().Get("projectId") != "project-a" || request.URL.Query().Get("targetNetwork") != "A" {
+			if request.URL.Query().Get("projectId") != "project-a" || request.URL.Query().Get("targetNetwork") != "internal" {
 				t.Fatalf("unexpected inbox query: %s", request.URL.RawQuery)
 			}
 			_ = json.NewEncoder(writer).Encode([]Transfer{transfer})
@@ -56,11 +56,11 @@ func TestClientUploadListDownloadAndAcknowledge(t *testing.T) {
 	if err := os.WriteFile(bundlePath, bundle, 0600); err != nil {
 		t.Fatal(err)
 	}
-	created, err := client.Upload(context.Background(), Manifest{ProjectID: "project-a", SourceNetwork: "B", TargetNetwork: "A", SourceRef: transfer.SourceRef, TargetRef: transfer.TargetRef, HeadSHA: transfer.HeadSHA, BundleSHA256: transfer.BundleSHA256}, bundlePath)
+	created, err := client.Upload(context.Background(), Manifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", SourceRef: transfer.SourceRef, TargetRef: transfer.TargetRef, HeadSHA: transfer.HeadSHA, BundleSHA256: transfer.BundleSHA256}, bundlePath)
 	if err != nil || created.ID != transfer.ID {
 		t.Fatalf("Upload = %#v, %v", created, err)
 	}
-	items, err := client.List(context.Background(), "project-a", "A")
+	items, err := client.List(context.Background(), "project-a", "internal")
 	if err != nil || len(items) != 1 {
 		t.Fatalf("List = %#v, %v", items, err)
 	}

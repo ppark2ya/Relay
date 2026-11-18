@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	"bridge-agent/internal/agent"
 	"bridge-agent/internal/config"
@@ -116,13 +115,13 @@ func runConfig(arguments []string) error {
 		flags := flag.NewFlagSet("config set", flag.ContinueOnError)
 		relayURL := flags.String("relay-url", "", "Relay base URL")
 		projectID := flags.String("project-id", "", "logical project ID")
-		network := flags.String("network", "", "A or B")
+		network := flags.String("network", "", "external or internal")
 		repository := flags.String("repository", "", "local Git repository path")
 		target := flags.String("target", "main", "target branch")
 		if err := flags.Parse(arguments[1:]); err != nil {
 			return err
 		}
-		settings := config.Config{RelayURL: *relayURL, ProjectID: *projectID, Network: strings.ToUpper(*network), RepositoryPath: *repository, TargetRef: *target}
+		settings := config.Config{RelayURL: *relayURL, ProjectID: *projectID, Network: *network, RepositoryPath: *repository, TargetRef: *target}
 		if err := config.Save(path, settings); err != nil {
 			return err
 		}
@@ -140,7 +139,7 @@ func printJSON(value any) {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, `Usage:
-  bridge-agent config set --relay-url URL --project-id ID --network A|B --repository PATH [--target main]
+  bridge-agent config set --relay-url URL --project-id ID --network external|internal --repository PATH [--target main]
   bridge-agent config show
   bridge-agent upload --branch feature/name
   bridge-agent inbox

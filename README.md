@@ -12,7 +12,7 @@ GitLab/GitHub에 푸시하거나 MR/PR을 생성·병합하지 않으며, 무시
 bridge-agent config set `
   --relay-url https://relay.example.internal `
   --project-id project-a `
-  --network B `
+  --network external `
   --repository C:\work\project `
   --target main
 ```
@@ -45,7 +45,7 @@ Git Bridge Agent는 커밋된 Git 브랜치를 bundle로 만들어 Relay를 통�
 bridge-agent config set `
   --relay-url https://relay.example.internal `
   --project-id project-a `
-  --network B `
+  --network external `
   --repository C:\work\project `
   --target main
 ```
@@ -53,14 +53,14 @@ bridge-agent config set `
 | 옵션 | 설명 |
 | --- | --- |
 | `--relay-url` | Relay 서버의 HTTP 또는 HTTPS 기본 URL |
-| `--project-id` | A/B Agent가 동일하게 사용하는 논리적 프로젝트 ID |
-| `--network` | 현재 Agent가 실행되는 망. `A` 또는 `B` |
+| `--project-id` | internal/external Agent가 동일하게 사용하는 논리적 프로젝트 ID |
+| `--network` | 현재 Agent가 실행되는 환경. `external` 또는 `internal` |
 | `--repository` | 동기화할 로컬 Git 저장소 절대 경로 |
 | `--target` | source 브랜치의 공통 기준 브랜치. 기본값은 `main` |
 
-설정은 사용자별로 하나만 저장됩니다. 한 PC에서 A/B 흐름을 순차 테스트하는
-경우에는 B에서 업로드한 뒤, `config set`으로 A 저장소와 `--network A`를 다시
-지정합니다.
+설정은 사용자별로 하나만 저장됩니다. 한 PC에서 external/internal 흐름을 순차
+테스트하는 경우에는 external에서 업로드한 뒤, `config set`으로 internal 저장소와
+`--network internal`을 다시 지정합니다.
 
 ### 현재 설정 확인: `config show`
 
@@ -74,7 +74,8 @@ bridge-agent config show
 ### 브랜치 업로드: `upload --branch <브랜치>`
 
 설정된 저장소의 로컬 브랜치를 Git bundle로 만들고 반대편 네트워크의 Relay inbox에
-업로드합니다. 예를 들어 B Agent에서 실행하면 A Agent의 inbox에 나타납니다.
+업로드합니다. 예를 들어 external Agent에서 실행하면 internal Agent의 inbox에
+나타납니다.
 
 ```powershell
 bridge-agent upload --branch feature/payment
@@ -109,8 +110,8 @@ bridge-agent download --id 12345678-1234-1234-1234-123456789abc
 - 감사 및 추적용 ref: `refs/bridge/incoming/<transfer-id>`
 - 검토용 checkout 브랜치: `bridge/<보낸-망>/<source-branch>/<transfer-id 앞 8자리>`
 
-예를 들어 B의 `feature/payment`을 받으면
-`bridge/B/feature-payment/12345678` 브랜치가 checkout됩니다. tracked 파일을
+예를 들어 external의 `feature/payment`을 받으면
+`bridge/external/feature-payment/12345678` 브랜치가 checkout됩니다. tracked 파일을
 변경한 작업 디렉터리에서는 덮어쓰기 방지를 위해 명령이 실패합니다. `.env`처럼
 ignored 파일은 기존 복제본에 그대로 남고 bundle에도 포함되지 않습니다.
 

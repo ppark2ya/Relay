@@ -55,11 +55,11 @@ func TestCreateBundleAndImportPreservesIgnoredEnvironmentFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := ImportAndCheckout(ctx, receiver, bundle.Path, "transfer-12345678", "B", bundle.SourceRef, bundle.SHA256)
+	result, err := ImportAndCheckout(ctx, receiver, bundle.Path, "transfer-12345678", "external", bundle.SourceRef, bundle.SHA256)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(result.Branch, "bridge/B/feature-payment/") {
+	if !strings.HasPrefix(result.Branch, "bridge/external/feature-payment/") {
 		t.Fatalf("unexpected branch %q", result.Branch)
 	}
 	app, err := os.ReadFile(filepath.Join(receiver, "app.txt"))
