@@ -85,7 +85,7 @@ func TestBridgeHandlerRoundTrip(t *testing.T) {
 	}
 	response.Body.Close()
 
-	response, err = http.Get(server.URL + "/api/bridge/v1/transfers?projectId=project-a&targetNetwork=A")
+	response, err = http.Get(server.URL + "/api/bridge/v1/transfers?projectId=project-a&targetNetwork=internal")
 	if err != nil || response.StatusCode != http.StatusOK {
 		t.Fatalf("list = %v, %v", response.Status, err)
 	}

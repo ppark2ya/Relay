@@ -29,7 +29,6 @@ func Run(db *sql.DB) error {
 	migrateSortOrder(db)
 	migrateErdDocuments(db)
 	migrateBridgeTransfers(db)
-	migrateBridgeNetworkNames(db)
 
 	return nil
 }
@@ -503,13 +502,4 @@ func migrateBridgeTransfers(db *sql.DB) {
 	)`)
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_transfers_inbox ON bridge_transfers(project_id, target_network, expires_at)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_transfers_expiry ON bridge_transfers(expires_at)")
-}
-
-// migrateBridgeNetworkNames updates records created before network names were
-// made user-facing. It is safe to run on every startup.
-func migrateBridgeNetworkNames(db *sql.DB) {
-	db.Exec("UPDATE bridge_transfers SET source_network = 'internal' WHERE source_network = 'A'")
-	db.Exec("UPDATE bridge_transfers SET target_network = 'internal' WHERE target_network = 'A'")
-	db.Exec("UPDATE bridge_transfers SET source_network = 'external' WHERE source_network = 'B'")
-	db.Exec("UPDATE bridge_transfers SET target_network = 'external' WHERE target_network = 'B'")
 }

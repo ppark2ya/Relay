@@ -19,13 +19,12 @@ const (
 	BridgeNetworkInternal = "internal"
 )
 
-// NormalizeBridgeNetwork maps legacy A/B values to the user-facing
-// external/internal values so existing Agents and transfers remain usable.
+// NormalizeBridgeNetwork validates and canonicalizes a user-facing network role.
 func NormalizeBridgeNetwork(network string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(network)) {
-	case "a", BridgeNetworkInternal:
+	case BridgeNetworkInternal:
 		return BridgeNetworkInternal, true
-	case "b", BridgeNetworkExternal:
+	case BridgeNetworkExternal:
 		return BridgeNetworkExternal, true
 	default:
 		return "", false
