@@ -81,12 +81,5 @@ func Save(path string, config Config) error {
 }
 
 func normalizeNetwork(network string) string {
-	switch strings.ToLower(strings.TrimSpace(network)) {
-	case "a", NetworkInternal:
-		return NetworkInternal
-	case "b", NetworkExternal:
-		return NetworkExternal
-	default:
-		return strings.ToLower(strings.TrimSpace(network))
-	}
+	return strings.ToLower(strings.TrimSpace(network))
 }
