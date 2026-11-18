@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 
 	"bridge-agent/internal/agent"
 	"bridge-agent/internal/config"
@@ -68,7 +69,25 @@ func (DesktopService) PickRepositoryPath(currentPath string) (string, error) {
 	if info, err := os.Stat(currentPath); err == nil && info.IsDir() {
 		dialog.SetDirectory(currentPath)
 	}
-	return dialog.PromptForSingleSelection()
+	return promptSelection(dialog.PromptForSingleSelection)
+}
+
+func promptSelection(prompt func() (string, error)) (string, error) {
+	selection, err := prompt()
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "cancel") {
+		return "", nil
+	}
+	return selection, err
+}
+
+func (DesktopService) PickFilePath() (string, error) {
+	dialog := application.Get().Dialog.OpenFile().CanChooseFiles(true).CanChooseDirectories(false).SetTitle("전송할 파일 선택").SetButtonText("선택")
+	return promptSelection(dialog.PromptForSingleSelection)
+}
+
+func (DesktopService) PickSavePath(filename string) (string, error) {
+	dialog := application.Get().Dialog.SaveFile().SetMessage("파일 저장 위치 선택").SetFilename(filename).SetButtonText("저장")
+	return promptSelection(dialog.PromptForSingleSelection)
 }
 
 func (service DesktopService) Inbox() ([]relay.Transfer, error) {
@@ -101,6 +120,38 @@ func (service DesktopService) Delete(transferID string) error {
 		return err
 	}
 	return agentService.Delete(context.Background(), transferID)
+}
+
+func (service DesktopService) FileInbox() ([]relay.FileTransfer, error) {
+	agentService, err := service.load()
+	if err != nil {
+		return nil, err
+	}
+	return agentService.FileInbox(context.Background())
+}
+
+func (service DesktopService) UploadFile(path string) (relay.FileTransfer, error) {
+	agentService, err := service.load()
+	if err != nil {
+		return relay.FileTransfer{}, err
+	}
+	return agentService.UploadFile(context.Background(), path)
+}
+
+func (service DesktopService) DownloadFile(transferID, destination string) error {
+	agentService, err := service.load()
+	if err != nil {
+		return err
+	}
+	return agentService.DownloadFile(context.Background(), transferID, destination)
+}
+
+func (service DesktopService) DeleteFile(transferID string) error {
+	agentService, err := service.load()
+	if err != nil {
+		return err
+	}
+	return agentService.DeleteFile(context.Background(), transferID)
 }
 
 func main() {

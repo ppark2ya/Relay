@@ -78,3 +78,66 @@ func TestClientUploadListDownloadAndAcknowledge(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestClientFileUploadListDownloadAndAcknowledge(t *testing.T) {
+	content := []byte("general file")
+	hash := sha256.Sum256(content)
+	transfer := FileTransfer{ID: "file-1", ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", Filename: "release.zip", SHA256: hex.EncodeToString(hash[:])}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.Method + " " + request.URL.Path {
+		case "POST /api/bridge/v1/files":
+			if err := request.ParseMultipartForm(1024 * 1024); err != nil {
+				t.Fatal(err)
+			}
+			file, _, err := request.FormFile("file")
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(file)
+			if string(body) != string(content) {
+				t.Fatalf("file = %q", body)
+			}
+			writer.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(writer).Encode(transfer)
+		case "GET /api/bridge/v1/files":
+			_ = json.NewEncoder(writer).Encode([]FileTransfer{transfer})
+		case "GET /api/bridge/v1/files/file-1/content":
+			_, _ = writer.Write(content)
+		case "POST /api/bridge/v1/files/file-1/download-ack", "DELETE /api/bridge/v1/files/file-1":
+			writer.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", request.Method, request.URL.Path)
+		}
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(t.TempDir(), "release.zip")
+	if err := os.WriteFile(source, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	created, err := client.UploadFile(context.Background(), FileManifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", Filename: "release.zip", SHA256: hex.EncodeToString(hash[:])}, source)
+	if err != nil || created.ID != transfer.ID {
+		t.Fatalf("UploadFile = %#v, %v", created, err)
+	}
+	files, err := client.ListFiles(context.Background(), "project-a", "internal")
+	if err != nil || len(files) != 1 {
+		t.Fatalf("ListFiles = %#v, %v", files, err)
+	}
+	destination := filepath.Join(t.TempDir(), "download", "release.zip")
+	if err := client.DownloadFile(context.Background(), transfer.ID, destination, transfer.SHA256); err != nil {
+		t.Fatal(err)
+	}
+	received, err := os.ReadFile(destination)
+	if err != nil || string(received) != string(content) {
+		t.Fatalf("download = %q, %v", received, err)
+	}
+	if err := client.AcknowledgeFileDownload(context.Background(), transfer.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.DeleteFile(context.Background(), transfer.ID); err != nil {
+		t.Fatal(err)
+	}
+}

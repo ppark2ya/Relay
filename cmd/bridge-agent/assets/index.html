@@ -16,6 +16,8 @@
       input, select { min-width: 260px; padding: 8px; border-radius: 6px; border: 1px solid color-mix(in srgb, CanvasText 30%, Canvas); background: Canvas; color: CanvasText; }
       .path-picker { display: flex; gap: 6px; align-items: center; }
       .path-picker input { min-width: 360px; }
+      .tabs { display: flex; gap: 8px; margin-top: 20px; }
+      .tabs button.active { background: #1d4ed8; }
       button { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; background: #2563eb; color: white; }
       button.danger { background: #b91c1c; }
       button.secondary { background: color-mix(in srgb, CanvasText 20%, Canvas); color: CanvasText; }
@@ -30,6 +32,8 @@
         <div><h1>Git Bridge Agent</h1><p class="muted">수동 Git bundle 전송 · MR/PR과 원격 push는 사용자가 직접 수행</p></div>
         <div class="actions"><button class="secondary" id="settings-toggle">설정</button><button class="secondary" id="refresh">수신함 새로고침</button></div>
       </header>
+      <nav class="tabs" aria-label="전송 유형"><button id="git-tab" class="active">Git 전송</button><button id="file-tab" class="secondary">파일 전송</button></nav>
+      <div id="git-panel">
       <section class="card" id="settings" hidden>
         <h2>Agent 설정</h2>
         <form id="settings-form">
@@ -49,6 +53,18 @@
         <h2>수신함</h2>
         <table><thead><tr><th>Source</th><th>Branch / Commit</th><th>Created / Expires</th><th>Size</th><th>Action</th></tr></thead><tbody id="inbox"><tr><td colspan="5" class="muted">수신함을 조회하세요.</td></tr></tbody></table>
       </section>
+      </div>
+      <div id="file-panel" hidden>
+        <section class="card">
+          <h2>일반 파일 업로드</h2>
+          <p class="muted">단일 파일만 전송합니다. 최대 500MiB이며 Relay에서 14일 후 자동 삭제됩니다.</p>
+          <div class="actions"><button id="file-picker">파일 선택 및 상대 환경으로 업로드</button></div>
+        </section>
+        <section class="card">
+          <h2>파일 수신함</h2>
+          <table><thead><tr><th>Source</th><th>파일 / SHA-256</th><th>Created / Expires</th><th>Size</th><th>Action</th></tr></thead><tbody id="file-inbox"><tr><td colspan="5" class="muted">파일 수신함을 조회하세요.</td></tr></tbody></table>
+        </section>
+      </div>
       <div id="status" role="status"></div>
     </main>
     <script type="importmap">{"imports":{"@wailsio/runtime":"/wails/runtime.js"}}</script>
@@ -56,6 +72,7 @@
       import { DesktopService } from "./bindings/bridge-agent/cmd/bridge-agent/index.js";
       const status = document.getElementById("status");
       const inbox = document.getElementById("inbox");
+      const fileInbox = document.getElementById("file-inbox");
       const networkName = (network) => ({ external: "외부 개발망", internal: "내부 배포망" }[network] || network);
       const formatSize = (bytes) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
       const showError = (error) => { status.textContent = `오류: ${error?.message || error}`; };
@@ -89,7 +106,30 @@
           showStatus(`수신함 ${transfers.length}건`);
         } catch (error) { showError(error); }
       }
-      document.getElementById("refresh").onclick = refresh;
+      async function refreshFiles() {
+        try {
+          const files = await DesktopService.FileInbox();
+          fileInbox.replaceChildren();
+          if (files.length === 0) { fileInbox.innerHTML = '<tr><td colspan="5" class="muted">수신 대기 중인 파일이 없습니다.</td></tr>'; return; }
+          for (const file of files) {
+            const row = document.createElement("tr");
+            const source = document.createElement("td"); source.textContent = `${networkName(file.sourceNetwork)} → ${networkName(file.targetNetwork)}`;
+            const metadata = document.createElement("td"); const name = document.createElement("code"); name.textContent = file.filename; const hash = document.createElement("code"); hash.textContent = file.sha256; metadata.append(name, document.createElement("br"), hash);
+            const dates = document.createElement("td"); dates.textContent = `${new Date(file.createdAt).toLocaleString()}\n${new Date(file.expiresAt).toLocaleString()}`;
+            const size = document.createElement("td"); size.textContent = formatSize(file.size);
+            const actions = document.createElement("td"); actions.className = "actions";
+            const download = document.createElement("button"); download.textContent = "저장";
+            download.onclick = async () => { try { const destination = await DesktopService.PickSavePath(file.filename); if (!destination) return; showStatus("파일을 검증하며 저장 중..."); await DesktopService.DownloadFile(file.id, destination); showStatus(`저장 완료: ${destination}`); await refreshFiles(); } catch (error) { showError(error); } };
+            const remove = document.createElement("button"); remove.textContent = "삭제"; remove.className = "danger";
+            remove.onclick = async () => { if (!confirm("이 파일을 Relay에서 즉시 삭제할까요?")) return; try { await DesktopService.DeleteFile(file.id); await refreshFiles(); } catch (error) { showError(error); } };
+            actions.append(download, remove); row.append(source, metadata, dates, size, actions); fileInbox.append(row);
+          }
+        } catch (error) { showError(error); }
+      }
+      document.getElementById("refresh").onclick = async () => { showStatus("수신함을 조회하는 중..."); await Promise.all([refresh(), refreshFiles()]); };
+      const selectPanel = (name) => { const git = name === "git"; document.getElementById("git-panel").hidden = !git; document.getElementById("file-panel").hidden = git; document.getElementById("git-tab").className = git ? "active" : "secondary"; document.getElementById("file-tab").className = git ? "secondary" : "active"; };
+      document.getElementById("git-tab").onclick = () => selectPanel("git");
+      document.getElementById("file-tab").onclick = async () => { selectPanel("file"); showStatus("파일 수신함을 조회하는 중..."); await refreshFiles(); };
       document.getElementById("settings-toggle").onclick = () => { const settings = document.getElementById("settings"); settings.hidden = !settings.hidden; };
       document.getElementById("repository-picker").onclick = async () => {
         try {
@@ -108,6 +148,9 @@
       document.getElementById("upload-form").onsubmit = async (event) => {
         event.preventDefault();
         try { showStatus("Git bundle 생성 및 업로드 중..."); const transfer = await DesktopService.Upload(document.getElementById("branch").value); showStatus(`업로드 완료: ${transfer.id}`); } catch (error) { showError(error); }
+      };
+      document.getElementById("file-picker").onclick = async () => {
+        try { const path = await DesktopService.PickFilePath(); if (!path) return; showStatus("파일 업로드 중..."); const transfer = await DesktopService.UploadFile(path); showStatus(`파일 업로드 완료: ${transfer.filename} (${transfer.id})`); await refreshFiles(); } catch (error) { showError(error); }
       };
       loadConfig().then(refresh);
     </script>

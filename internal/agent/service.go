@@ -2,7 +2,10 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,4 +106,61 @@ func (s *Service) Download(ctx context.Context, transferID string) (gitops.Impor
 
 func (s *Service) Delete(ctx context.Context, transferID string) error {
 	return s.Relay.Delete(ctx, transferID)
+}
+
+func fileSHA256(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+func (s *Service) UploadFile(ctx context.Context, path string) (relay.FileTransfer, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return relay.FileTransfer{}, err
+	}
+	if !info.Mode().IsRegular() {
+		return relay.FileTransfer{}, fmt.Errorf("only regular files can be uploaded")
+	}
+	sha, err := fileSHA256(path)
+	if err != nil {
+		return relay.FileTransfer{}, err
+	}
+	return s.Relay.UploadFile(ctx, relay.FileManifest{ProjectID: s.Config.ProjectID, SourceNetwork: s.Config.Network, TargetNetwork: otherNetwork(s.Config.Network), Filename: filepath.Base(path), SHA256: sha}, path)
+}
+
+func (s *Service) FileInbox(ctx context.Context) ([]relay.FileTransfer, error) {
+	return s.Relay.ListFiles(ctx, s.Config.ProjectID, s.Config.Network)
+}
+
+func (s *Service) DownloadFile(ctx context.Context, transferID, destination string) error {
+	files, err := s.FileInbox(ctx)
+	if err != nil {
+		return err
+	}
+	var transfer *relay.FileTransfer
+	for index := range files {
+		if files[index].ID == transferID {
+			transfer = &files[index]
+			break
+		}
+	}
+	if transfer == nil {
+		return fmt.Errorf("file transfer %s is not in this agent's inbox", transferID)
+	}
+	if err := s.Relay.DownloadFile(ctx, transfer.ID, destination, transfer.SHA256); err != nil {
+		return err
+	}
+	return s.Relay.AcknowledgeFileDownload(ctx, transfer.ID)
+}
+
+func (s *Service) DeleteFile(ctx context.Context, transferID string) error {
+	return s.Relay.DeleteFile(ctx, transferID)
 }
