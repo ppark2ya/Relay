@@ -58,6 +58,46 @@ func (service DesktopService) SaveConfig(settings config.Config) error {
 	return config.Save(path, settings)
 }
 
+func (service DesktopService) GetProfiles() (config.ProfileStore, error) {
+	path, err := service.configPath()
+	if err != nil {
+		return config.ProfileStore{}, err
+	}
+	return config.LoadProfiles(path)
+}
+
+func (service DesktopService) SetActiveProfile(name string) error {
+	path, err := service.configPath()
+	if err != nil {
+		return err
+	}
+	return config.SetActiveProfile(path, name)
+}
+
+func (service DesktopService) CreateProfile(profile config.Profile) error {
+	path, err := service.configPath()
+	if err != nil {
+		return err
+	}
+	return config.CreateProfile(path, profile)
+}
+
+func (service DesktopService) UpdateProfile(currentName string, profile config.Profile) error {
+	path, err := service.configPath()
+	if err != nil {
+		return err
+	}
+	return config.UpdateProfile(path, currentName, profile)
+}
+
+func (service DesktopService) DeleteProfile(name string) error {
+	path, err := service.configPath()
+	if err != nil {
+		return err
+	}
+	return config.DeleteProfile(path, name)
+}
+
 // PickRepositoryPath opens the native directory picker used by the settings UI.
 // An empty result means the user cancelled the dialog.
 func (DesktopService) PickRepositoryPath(currentPath string) (string, error) {

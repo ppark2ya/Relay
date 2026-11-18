@@ -18,6 +18,7 @@
       .path-picker input { min-width: 360px; }
       .tabs { display: flex; gap: 8px; margin-top: 20px; }
       .tabs button.active { background: #1d4ed8; }
+      #profile-select { min-width: 180px; }
       button { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; background: #2563eb; color: white; }
       button.danger { background: #b91c1c; }
       button.secondary { background: color-mix(in srgb, CanvasText 20%, Canvas); color: CanvasText; }
@@ -30,13 +31,14 @@
     <main>
       <header>
         <div><h1>Git Bridge Agent</h1><p class="muted">수동 Git bundle 전송 · MR/PR과 원격 push는 사용자가 직접 수행</p></div>
-        <div class="actions"><button class="secondary" id="settings-toggle">설정</button><button class="secondary" id="refresh">수신함 새로고침</button></div>
+        <div class="actions"><select id="profile-select" aria-label="활성 프로젝트" hidden></select><button class="secondary" id="profile-add">프로젝트 추가</button><button class="secondary" id="profile-delete" hidden>프로젝트 삭제</button><button class="secondary" id="settings-toggle">설정</button><button class="secondary" id="refresh">수신함 새로고침</button></div>
       </header>
       <nav class="tabs" aria-label="전송 유형"><button id="git-tab" class="active">Git 전송</button><button id="file-tab" class="secondary">파일 전송</button></nav>
       <div id="git-panel">
       <section class="card" id="settings" hidden>
         <h2>Agent 설정</h2>
         <form id="settings-form">
+          <input id="profile-name" required placeholder="프로필 이름 (예: logging)" />
           <input id="relay-url" required placeholder="https://relay.example.internal" />
           <input id="project-id" required placeholder="project-a" />
           <select id="network" aria-label="현재 네트워크"><option value="external">외부 개발망</option><option value="internal">내부 배포망</option></select>
@@ -73,19 +75,34 @@
       const status = document.getElementById("status");
       const inbox = document.getElementById("inbox");
       const fileInbox = document.getElementById("file-inbox");
+      const profileSelect = document.getElementById("profile-select");
+      let editingNewProfile = false;
       const networkName = (network) => ({ external: "외부 개발망", internal: "내부 배포망" }[network] || network);
       const formatSize = (bytes) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
       const showError = (error) => { status.textContent = `오류: ${error?.message || error}`; };
       const showStatus = (message) => { status.textContent = message; };
+      function fillProfile(profile) {
+        document.getElementById("profile-name").value = profile.name || "";
+        document.getElementById("relay-url").value = profile.relayUrl || "";
+        document.getElementById("project-id").value = profile.projectId || "";
+        document.getElementById("network").value = profile.network || "external";
+        document.getElementById("repository-path").value = profile.repositoryPath || "";
+        document.getElementById("target-ref").value = profile.targetRef || "main";
+      }
+      function emptyProfile() {
+        fillProfile({ name: "", relayUrl: "", projectId: "", network: "external", repositoryPath: "", targetRef: "main" });
+      }
       async function loadConfig() {
         try {
-          const config = await DesktopService.GetConfig();
-          document.getElementById("relay-url").value = config.relayUrl;
-          document.getElementById("project-id").value = config.projectId;
-          document.getElementById("network").value = config.network;
-          document.getElementById("repository-path").value = config.repositoryPath;
-          document.getElementById("target-ref").value = config.targetRef;
-        } catch (_) { document.getElementById("settings").hidden = false; }
+          const store = await DesktopService.GetProfiles();
+          profileSelect.replaceChildren();
+          for (const profile of store.profiles) { const option = document.createElement("option"); option.value = profile.name; option.textContent = profile.name; profileSelect.append(option); }
+          profileSelect.value = store.activeProfile;
+          profileSelect.hidden = false;
+          document.getElementById("profile-delete").hidden = false;
+          const active = store.profiles.find((profile) => profile.name === store.activeProfile);
+          fillProfile(active); editingNewProfile = false;
+        } catch (_) { profileSelect.hidden = true; document.getElementById("profile-delete").hidden = true; editingNewProfile = true; emptyProfile(); document.getElementById("settings").hidden = false; }
       }
       async function refresh() {
         showStatus("수신함을 조회하는 중...");
@@ -131,6 +148,15 @@
       document.getElementById("git-tab").onclick = () => selectPanel("git");
       document.getElementById("file-tab").onclick = async () => { selectPanel("file"); showStatus("파일 수신함을 조회하는 중..."); await refreshFiles(); };
       document.getElementById("settings-toggle").onclick = () => { const settings = document.getElementById("settings"); settings.hidden = !settings.hidden; };
+      profileSelect.onchange = async () => {
+        try { await DesktopService.SetActiveProfile(profileSelect.value); await loadConfig(); showStatus("활성 프로젝트를 변경했습니다."); await Promise.all([refresh(), refreshFiles()]); } catch (error) { showError(error); }
+      };
+      document.getElementById("profile-add").onclick = () => { editingNewProfile = true; emptyProfile(); document.getElementById("settings").hidden = false; document.getElementById("profile-name").focus(); };
+      document.getElementById("profile-delete").onclick = async () => {
+        const name = profileSelect.value;
+        if (!confirm(`프로젝트 설정 '${name}'을(를) 삭제할까요? Relay 전송 파일과 로컬 Git 저장소는 삭제되지 않습니다.`)) return;
+        try { await DesktopService.DeleteProfile(name); await loadConfig(); showStatus("프로젝트 설정을 삭제했습니다."); await Promise.all([refresh(), refreshFiles()]); } catch (error) { showError(error); }
+      };
       document.getElementById("repository-picker").onclick = async () => {
         try {
           const input = document.getElementById("repository-path");
@@ -141,8 +167,9 @@
       document.getElementById("settings-form").onsubmit = async (event) => {
         event.preventDefault();
         try {
-          await DesktopService.SaveConfig({ relayUrl: document.getElementById("relay-url").value, projectId: document.getElementById("project-id").value, network: document.getElementById("network").value, repositoryPath: document.getElementById("repository-path").value, targetRef: document.getElementById("target-ref").value });
-          document.getElementById("settings").hidden = true; showStatus("설정을 저장했습니다."); await refresh();
+          const profile = { name: document.getElementById("profile-name").value, relayUrl: document.getElementById("relay-url").value, projectId: document.getElementById("project-id").value, network: document.getElementById("network").value, repositoryPath: document.getElementById("repository-path").value, targetRef: document.getElementById("target-ref").value };
+          if (editingNewProfile) await DesktopService.CreateProfile(profile); else await DesktopService.UpdateProfile(profileSelect.value, profile);
+          await loadConfig(); document.getElementById("settings").hidden = true; showStatus("프로젝트 설정을 저장했습니다."); await Promise.all([refresh(), refreshFiles()]);
         } catch (error) { showError(error); }
       };
       document.getElementById("upload-form").onsubmit = async (event) => {
