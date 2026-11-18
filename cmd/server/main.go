@@ -73,6 +73,30 @@ func main() {
 		log.Fatal("Failed to initialize bridge storage:", err)
 	}
 	bridgeService := service.NewBridgeService(db, bridgeStorage, 30*24*time.Hour)
+	bridgeFileUploadDir := os.Getenv("BRIDGE_FILE_UPLOAD_DIR")
+	if bridgeFileUploadDir == "" {
+		bridgeFileUploadDir = filepath.Join(filepath.Dir(dbPath), "bridge-files")
+	}
+	bridgeFileMaxBytes := int64(500 * 1024 * 1024)
+	if rawMax := os.Getenv("BRIDGE_FILE_MAX_UPLOAD_BYTES"); rawMax != "" {
+		bridgeFileMaxBytes, err = strconv.ParseInt(rawMax, 10, 64)
+		if err != nil || bridgeFileMaxBytes <= 0 {
+			log.Fatal("BRIDGE_FILE_MAX_UPLOAD_BYTES must be a positive integer")
+		}
+	}
+	bridgeFileRetention := 14 * 24 * time.Hour
+	if rawHours := os.Getenv("BRIDGE_FILE_RETENTION_HOURS"); rawHours != "" {
+		hours, parseErr := strconv.ParseInt(rawHours, 10, 64)
+		if parseErr != nil || hours <= 0 {
+			log.Fatal("BRIDGE_FILE_RETENTION_HOURS must be a positive integer")
+		}
+		bridgeFileRetention = time.Duration(hours) * time.Hour
+	}
+	bridgeFileStorage, err := service.NewBridgeFileStorage(bridgeFileUploadDir, bridgeFileMaxBytes)
+	if err != nil {
+		log.Fatal("Failed to initialize bridge file storage:", err)
+	}
+	bridgeFileService := service.NewBridgeFileService(db, bridgeFileStorage, bridgeFileRetention)
 
 	variableResolver := service.NewVariableResolver(queries)
 	requestExecutor := service.NewRequestExecutor(queries, variableResolver, fileStorage)
@@ -90,6 +114,7 @@ func main() {
 	historyHandler := handler.NewHistoryHandler(queries)
 	fileHandler := handler.NewFileHandler(db, queries, fileStorage)
 	bridgeHandler := handler.NewBridgeHandler(bridgeService)
+	bridgeFileHandler := handler.NewBridgeFileHandler(bridgeFileService)
 	wsHandler := handler.NewWebSocketHandler(wsRelay)
 	erdHandler := handler.NewErdHandler(queries)
 	erdCollectionHandler := handler.NewErdCollectionHandler(queries, db)
@@ -114,6 +139,11 @@ func main() {
 		r.Get("/transfers/{id}/bundle", bridgeHandler.Download)
 		r.Post("/transfers/{id}/download-ack", bridgeHandler.AcknowledgeDownload)
 		r.Delete("/transfers/{id}", bridgeHandler.Delete)
+		r.Post("/files", bridgeFileHandler.Upload)
+		r.Get("/files", bridgeFileHandler.List)
+		r.Get("/files/{id}/content", bridgeFileHandler.Download)
+		r.Post("/files/{id}/download-ack", bridgeFileHandler.AcknowledgeDownload)
+		r.Delete("/files/{id}", bridgeFileHandler.Delete)
 	})
 
 	// API routes
@@ -252,6 +282,12 @@ func main() {
 				log.Printf("Bridge cleanup failed: %v", err)
 			} else if count > 0 {
 				log.Printf("Removed %d expired bridge transfer(s)", count)
+			}
+			fileCount, err := bridgeFileService.CleanupExpired(context.Background())
+			if err != nil {
+				log.Printf("Bridge file cleanup failed: %v", err)
+			} else if fileCount > 0 {
+				log.Printf("Removed %d expired bridge file(s)", fileCount)
 			}
 		}
 		cleanup()
