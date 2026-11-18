@@ -6,6 +6,9 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+/**
+ * Config is the runtime configuration used by one project.
+ */
 export class Config {
     /**
      * Creates a new Config instance.
@@ -61,3 +64,115 @@ export class Config {
         return new Config(/** @type {Partial<Config>} */($$parsedSource));
     }
 }
+
+/**
+ * Profile is a named project configuration saved on one user's Agent.
+ */
+export class Profile {
+    /**
+     * Creates a new Profile instance.
+     * @param {Partial<Profile>} [$$source = {}] - The source object to create the Profile.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("relayUrl" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["relayUrl"] = "";
+        }
+        if (!("projectId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["projectId"] = "";
+        }
+        if (!("network" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["network"] = "";
+        }
+        if (!("repositoryPath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["repositoryPath"] = "";
+        }
+        if (!("targetRef" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["targetRef"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Profile instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {Profile}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Profile(/** @type {Partial<Profile>} */($$parsedSource));
+    }
+}
+
+/**
+ * ProfileStore keeps profiles in display order and records the selected one.
+ */
+export class ProfileStore {
+    /**
+     * Creates a new ProfileStore instance.
+     * @param {Partial<ProfileStore>} [$$source = {}] - The source object to create the ProfileStore.
+     */
+    constructor($$source = {}) {
+        if (!("activeProfile" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["activeProfile"] = "";
+        }
+        if (!("profiles" in $$source)) {
+            /**
+             * @member
+             * @type {Profile[]}
+             */
+            this["profiles"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ProfileStore instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ProfileStore}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType1;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("profiles" in $$parsedSource) {
+            $$parsedSource["profiles"] = $$createField1_0($$parsedSource["profiles"]);
+        }
+        return new ProfileStore(/** @type {Partial<ProfileStore>} */($$parsedSource));
+    }
+}
+
+// Private type creation functions
+const $$createType0 = Profile.createFrom;
+const $$createType1 = $Create.Array($$createType0);

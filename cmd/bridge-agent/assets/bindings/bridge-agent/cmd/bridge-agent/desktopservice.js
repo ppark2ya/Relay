@@ -20,6 +20,14 @@ import * as config$0 from "../../internal/config/models.js";
 import * as relay$0 from "../../internal/relay/models.js";
 
 /**
+ * @param {config$0.Profile} profile
+ * @returns {$CancellablePromise<void>}
+ */
+export function CreateProfile(profile) {
+    return $Call.ByID(1608291750, profile);
+}
+
+/**
  * @param {string} transferID
  * @returns {$CancellablePromise<void>}
  */
@@ -33,6 +41,14 @@ export function Delete(transferID) {
  */
 export function DeleteFile(transferID) {
     return $Call.ByID(431932140, transferID);
+}
+
+/**
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function DeleteProfile(name) {
+    return $Call.ByID(245512743, name);
 }
 
 /**
@@ -71,11 +87,20 @@ export function GetConfig() {
 }
 
 /**
+ * @returns {$CancellablePromise<config$0.ProfileStore>}
+ */
+export function GetProfiles() {
+    return $Call.ByID(1563439201).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<relay$0.Transfer[]>}
  */
 export function Inbox() {
     return $Call.ByID(2919344315).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
@@ -113,12 +138,29 @@ export function SaveConfig(settings) {
 }
 
 /**
+ * @param {string} name
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetActiveProfile(name) {
+    return $Call.ByID(593884182, name);
+}
+
+/**
+ * @param {string} currentName
+ * @param {config$0.Profile} profile
+ * @returns {$CancellablePromise<void>}
+ */
+export function UpdateProfile(currentName, profile) {
+    return $Call.ByID(1633362017, currentName, profile);
+}
+
+/**
  * @param {string} branch
  * @returns {$CancellablePromise<relay$0.Transfer>}
  */
 export function Upload(branch) {
     return $Call.ByID(1620244444, branch).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
     }));
 }
 
@@ -136,5 +178,6 @@ export function UploadFile(path) {
 const $$createType0 = relay$0.FileTransfer.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = config$0.Config.createFrom;
-const $$createType3 = relay$0.Transfer.createFrom;
-const $$createType4 = $Create.Array($$createType3);
+const $$createType3 = config$0.ProfileStore.createFrom;
+const $$createType4 = relay$0.Transfer.createFrom;
+const $$createType5 = $Create.Array($$createType4);
