@@ -41,7 +41,7 @@ func bridgeUploadRequest(t *testing.T, url string, content []byte) *http.Request
 	t.Helper()
 	hash := sha256.Sum256(content)
 	manifest, _ := json.Marshal(service.BridgeManifest{
-		ProjectID: "project-a", SourceNetwork: "B", TargetNetwork: "A",
+		ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal",
 		SourceRef: "refs/heads/feature/payment", TargetRef: "refs/heads/main", HeadSHA: "deadbeef",
 		BundleSHA256: hex.EncodeToString(hash[:]),
 	})
@@ -85,7 +85,7 @@ func TestBridgeHandlerRoundTrip(t *testing.T) {
 	}
 	response.Body.Close()
 
-	response, err = http.Get(server.URL + "/api/bridge/v1/transfers?projectId=project-a&targetNetwork=A")
+	response, err = http.Get(server.URL + "/api/bridge/v1/transfers?projectId=project-a&targetNetwork=internal")
 	if err != nil || response.StatusCode != http.StatusOK {
 		t.Fatalf("list = %v, %v", response.Status, err)
 	}

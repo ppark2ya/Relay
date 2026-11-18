@@ -53,9 +53,9 @@ func (h *BridgeHandler) Upload(w http.ResponseWriter, r *http.Request) {
 
 func (h *BridgeHandler) List(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("projectId")
-	targetNetwork := r.URL.Query().Get("targetNetwork")
-	if projectID == "" || (targetNetwork != "A" && targetNetwork != "B") {
-		respondError(w, http.StatusBadRequest, "projectId and targetNetwork (A or B) are required")
+	targetNetwork, validNetwork := service.NormalizeBridgeNetwork(r.URL.Query().Get("targetNetwork"))
+	if projectID == "" || !validNetwork {
+		respondError(w, http.StatusBadRequest, "projectId and targetNetwork (external or internal) are required")
 		return
 	}
 	transfers, err := h.bridge.List(r.Context(), projectID, targetNetwork)

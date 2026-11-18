@@ -76,7 +76,7 @@ docker build -f Dockerfile.airgap \
 
 ```text
 POST   /api/bridge/v1/transfers                         multipart: manifest + bundle
-GET    /api/bridge/v1/transfers?projectId=...&targetNetwork=A|B
+GET    /api/bridge/v1/transfers?projectId=...&targetNetwork=external|internal
 GET    /api/bridge/v1/transfers/:id/bundle
 POST   /api/bridge/v1/transfers/:id/download-ack
 DELETE /api/bridge/v1/transfers/:id

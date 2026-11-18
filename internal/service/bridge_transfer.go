@@ -14,6 +14,23 @@ import (
 
 var ErrInvalidBridgeManifest = errors.New("invalid bridge manifest")
 
+const (
+	BridgeNetworkExternal = "external"
+	BridgeNetworkInternal = "internal"
+)
+
+// NormalizeBridgeNetwork validates and canonicalizes a user-facing network role.
+func NormalizeBridgeNetwork(network string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(network)) {
+	case BridgeNetworkInternal:
+		return BridgeNetworkInternal, true
+	case BridgeNetworkExternal:
+		return BridgeNetworkExternal, true
+	default:
+		return "", false
+	}
+}
+
 type BridgeManifest struct {
 	ProjectID     string `json:"projectId"`
 	SourceNetwork string `json:"sourceNetwork"`
@@ -63,10 +80,12 @@ func validateBridgeManifest(m BridgeManifest) error {
 			return fmt.Errorf("%w: %s is required", ErrInvalidBridgeManifest, name)
 		}
 	}
-	if (m.SourceNetwork != "A" && m.SourceNetwork != "B") || (m.TargetNetwork != "A" && m.TargetNetwork != "B") {
-		return fmt.Errorf("%w: sourceNetwork and targetNetwork must be A or B", ErrInvalidBridgeManifest)
+	sourceNetwork, sourceOK := NormalizeBridgeNetwork(m.SourceNetwork)
+	targetNetwork, targetOK := NormalizeBridgeNetwork(m.TargetNetwork)
+	if !sourceOK || !targetOK {
+		return fmt.Errorf("%w: sourceNetwork and targetNetwork must be external or internal", ErrInvalidBridgeManifest)
 	}
-	if m.SourceNetwork == m.TargetNetwork {
+	if sourceNetwork == targetNetwork {
 		return fmt.Errorf("%w: sourceNetwork and targetNetwork must differ", ErrInvalidBridgeManifest)
 	}
 	if len(m.BundleSHA256) != 64 {
@@ -79,6 +98,8 @@ func (s *BridgeService) Create(ctx context.Context, manifest BridgeManifest, bun
 	if err := validateBridgeManifest(manifest); err != nil {
 		return BridgeTransfer{}, err
 	}
+	manifest.SourceNetwork, _ = NormalizeBridgeNetwork(manifest.SourceNetwork)
+	manifest.TargetNetwork, _ = NormalizeBridgeNetwork(manifest.TargetNetwork)
 	storedName, size, _, err := s.storage.Store(bundle, manifest.BundleSHA256)
 	if err != nil {
 		return BridgeTransfer{}, err
