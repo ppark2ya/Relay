@@ -71,6 +71,27 @@ docker build -f Dockerfile.airgap \
 | `BRIDGE_FILE_UPLOAD_DIR` | DB 경로 기준 `./bridge-files` | Bridge 일반 파일 저장 디렉토리 |
 | `BRIDGE_FILE_MAX_UPLOAD_BYTES` | `524288000` | Bridge 일반 파일 최대 크기 (bytes) |
 | `BRIDGE_FILE_RETENTION_HOURS` | `336` | Bridge 일반 파일 보관 시간 (hours) |
+| `BRIDGE_STORAGE_OWNER_UID` | 미설정 | `bridge-bundles`, `bridge-files`의 소유자로 지정할 Unix UID. `BRIDGE_STORAGE_OWNER_GID`와 함께 설정해야 함 |
+| `BRIDGE_STORAGE_OWNER_GID` | 미설정 | `bridge-bundles`, `bridge-files`의 소유 그룹으로 지정할 Unix GID. `BRIDGE_STORAGE_OWNER_UID`와 함께 설정해야 함 |
+
+### Bridge 저장소 권한 초기화
+
+호스트 볼륨에 기존 `root` 소유 데이터가 있어 Relay를 비-root 사용자로 실행할 수 없는 경우에만,
+초기화 기동 한 번에 아래 환경 변수를 함께 설정한다. Relay는 `bridge-bundles`와
+`bridge-files` 및 그 하위 항목만 재귀적으로 `UID:GID` 소유자로 변경한다. SQLite DB,
+`uploads`, Relay 실행 파일 등 다른 경로는 변경하지 않는다.
+
+```yaml
+environment:
+  BRIDGE_STORAGE_OWNER_UID: "10001"
+  BRIDGE_STORAGE_OWNER_GID: "10001"
+```
+
+이 초기화 기동은 소유권 변경 권한이 있는 사용자(일반적으로 root)로 실행해야 한다. 기존
+데이터를 유지하려면 초기화 중 `BRIDGE_UPLOAD_DIR`과 `BRIDGE_FILE_UPLOAD_DIR`을 평소와
+동일하게 유지한다. 정상 기동 로그를 확인한 뒤 두 환경 변수를 제거하고, Docker Swarm의
+`user: "10001:10001"`처럼 같은 UID/GID로 Relay를 실행한다. 변수 하나만 설정하거나
+소유권 변경에 실패하면 Relay는 시작하지 않는다.
 
 ## Git Bridge API
 

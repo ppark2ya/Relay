@@ -96,6 +96,19 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to initialize bridge file storage:", err)
 	}
+	bridgeStorageOwner, initializeBridgeStorageOwner, err := service.ParseBridgeStorageOwner(
+		os.Getenv("BRIDGE_STORAGE_OWNER_UID"),
+		os.Getenv("BRIDGE_STORAGE_OWNER_GID"),
+	)
+	if err != nil {
+		log.Fatal("Invalid bridge storage owner configuration:", err)
+	}
+	if initializeBridgeStorageOwner {
+		if err := service.ApplyBridgeStorageOwnership(bridgeStorageOwner, bridgeUploadDir, bridgeFileUploadDir); err != nil {
+			log.Fatal("Failed to initialize bridge storage ownership:", err)
+		}
+		log.Printf("Initialized bridge storage ownership for %s and %s as %d:%d", bridgeUploadDir, bridgeFileUploadDir, bridgeStorageOwner.UID, bridgeStorageOwner.GID)
+	}
 	bridgeFileService := service.NewBridgeFileService(db, bridgeFileStorage, bridgeFileRetention)
 
 	variableResolver := service.NewVariableResolver(queries)
