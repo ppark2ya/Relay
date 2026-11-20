@@ -231,7 +231,7 @@ func main() {
 				Width:         900,
 				Height:        650,
 				DisableResize: false,
-				Windows:       application.WindowsWindow{HiddenOnTaskbar: true},
+				Windows:       application.WindowsWindow{HiddenOnTaskbar: false},
 			})
 			window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 				window.Hide()
