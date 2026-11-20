@@ -18,6 +18,7 @@ const (
 	BridgeNetworkExternal = "external"
 	BridgeNetworkInternal = "internal"
 	UnknownBridgeUserName = "알 수 없음"
+	DefaultBridgeGroupID  = "anonymous"
 )
 
 // NormalizeBridgeNetwork validates and canonicalizes a user-facing network role.
@@ -39,6 +40,13 @@ func normalizeBridgeUserName(userName string) string {
 	return userName
 }
 
+func NormalizeBridgeGroupID(groupID string) string {
+	if groupID = strings.TrimSpace(groupID); groupID == "" {
+		return DefaultBridgeGroupID
+	}
+	return groupID
+}
+
 // BridgeDownload records the first successful download by one Agent user.
 type BridgeDownload struct {
 	UserName     string    `json:"userName"`
@@ -47,6 +55,7 @@ type BridgeDownload struct {
 
 type BridgeManifest struct {
 	ProjectID     string `json:"projectId"`
+	GroupID       string `json:"groupId,omitempty"`
 	SourceNetwork string `json:"sourceNetwork"`
 	TargetNetwork string `json:"targetNetwork"`
 	SourceRef     string `json:"sourceRef"`
@@ -60,6 +69,7 @@ type BridgeManifest struct {
 type BridgeTransfer struct {
 	ID            string           `json:"id"`
 	ProjectID     string           `json:"projectId"`
+	GroupID       string           `json:"groupId"`
 	SourceNetwork string           `json:"sourceNetwork"`
 	TargetNetwork string           `json:"targetNetwork"`
 	SourceRef     string           `json:"sourceRef"`
@@ -117,6 +127,7 @@ func (s *BridgeService) Create(ctx context.Context, manifest BridgeManifest, bun
 	}
 	manifest.SourceNetwork, _ = NormalizeBridgeNetwork(manifest.SourceNetwork)
 	manifest.TargetNetwork, _ = NormalizeBridgeNetwork(manifest.TargetNetwork)
+	manifest.GroupID = NormalizeBridgeGroupID(manifest.GroupID)
 	manifest.UserName = normalizeBridgeUserName(manifest.UserName)
 	storedName, size, _, err := s.storage.Store(bundle, manifest.BundleSHA256)
 	if err != nil {
@@ -125,16 +136,16 @@ func (s *BridgeService) Create(ctx context.Context, manifest BridgeManifest, bun
 
 	now := s.now().UTC()
 	transfer := BridgeTransfer{
-		ID: uuid.NewString(), ProjectID: manifest.ProjectID, SourceNetwork: manifest.SourceNetwork,
+		ID: uuid.NewString(), ProjectID: manifest.ProjectID, GroupID: manifest.GroupID, SourceNetwork: manifest.SourceNetwork,
 		TargetNetwork: manifest.TargetNetwork, SourceRef: manifest.SourceRef, TargetRef: manifest.TargetRef,
 		HeadSHA: manifest.HeadSHA, BaseSHA: manifest.BaseSHA, BundleSHA256: manifest.BundleSHA256,
 		UploadedBy: manifest.UserName, Size: size, CreatedAt: now, ExpiresAt: now.Add(s.retention), storedName: storedName,
 		Downloads: []BridgeDownload{},
 	}
 	_, err = s.db.ExecContext(ctx, `INSERT INTO bridge_transfers
-		(id, project_id, source_network, target_network, source_ref, target_ref, head_sha, base_sha, bundle_sha256, uploaded_by, stored_name, size, created_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		transfer.ID, transfer.ProjectID, transfer.SourceNetwork, transfer.TargetNetwork, transfer.SourceRef, transfer.TargetRef,
+		(id, project_id, group_id, source_network, target_network, source_ref, target_ref, head_sha, base_sha, bundle_sha256, uploaded_by, stored_name, size, created_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		transfer.ID, transfer.ProjectID, transfer.GroupID, transfer.SourceNetwork, transfer.TargetNetwork, transfer.SourceRef, transfer.TargetRef,
 		transfer.HeadSHA, transfer.BaseSHA, transfer.BundleSHA256, transfer.UploadedBy, storedName, transfer.Size, transfer.CreatedAt, transfer.ExpiresAt)
 	if err != nil {
 		_ = s.storage.Delete(storedName)
@@ -147,10 +158,11 @@ func scanBridgeTransfer(scanner interface{ Scan(...any) error }) (BridgeTransfer
 	var transfer BridgeTransfer
 	var downloaded sql.NullTime
 	var uploadedBy sql.NullString
-	err := scanner.Scan(&transfer.ID, &transfer.ProjectID, &transfer.SourceNetwork, &transfer.TargetNetwork,
+	err := scanner.Scan(&transfer.ID, &transfer.ProjectID, &transfer.GroupID, &transfer.SourceNetwork, &transfer.TargetNetwork,
 		&transfer.SourceRef, &transfer.TargetRef, &transfer.HeadSHA, &transfer.BaseSHA, &transfer.BundleSHA256,
 		&uploadedBy, &transfer.storedName, &transfer.Size, &transfer.CreatedAt, &downloaded, &transfer.ExpiresAt)
 	transfer.UploadedBy = UnknownBridgeUserName
+	transfer.GroupID = NormalizeBridgeGroupID(transfer.GroupID)
 	if uploadedBy.Valid {
 		transfer.UploadedBy = normalizeBridgeUserName(uploadedBy.String)
 	}
@@ -161,7 +173,7 @@ func scanBridgeTransfer(scanner interface{ Scan(...any) error }) (BridgeTransfer
 	return transfer, err
 }
 
-const bridgeTransferColumns = `id, project_id, source_network, target_network, source_ref, target_ref, head_sha, base_sha,
+const bridgeTransferColumns = `id, project_id, group_id, source_network, target_network, source_ref, target_ref, head_sha, base_sha,
 	bundle_sha256, uploaded_by, stored_name, size, created_at, downloaded_at, expires_at`
 
 func (s *BridgeService) Get(ctx context.Context, id string) (BridgeTransfer, error) {
@@ -176,9 +188,10 @@ func (s *BridgeService) Get(ctx context.Context, id string) (BridgeTransfer, err
 	return s.loadDownloads(ctx, transfer)
 }
 
-func (s *BridgeService) List(ctx context.Context, projectID, targetNetwork string) ([]BridgeTransfer, error) {
+func (s *BridgeService) List(ctx context.Context, projectID, targetNetwork, groupID string) ([]BridgeTransfer, error) {
+	groupID = NormalizeBridgeGroupID(groupID)
 	rows, err := s.db.QueryContext(ctx, `SELECT `+bridgeTransferColumns+` FROM bridge_transfers
-		WHERE project_id = ? AND target_network = ? AND expires_at > ? ORDER BY created_at DESC`, projectID, targetNetwork, s.now().UTC())
+		WHERE project_id = ? AND target_network = ? AND group_id = ? AND expires_at > ? ORDER BY created_at DESC`, projectID, targetNetwork, groupID, s.now().UTC())
 	if err != nil {
 		return nil, err
 	}

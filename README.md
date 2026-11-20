@@ -99,22 +99,23 @@ environment:
 메타데이터를 사용하며, GitLab/GitHub repository나 MR/PR을 직접 관리하지 않는다.
 
 ```text
-POST   /api/bridge/v1/transfers                         multipart: manifest(userName 포함 가능) + bundle
-GET    /api/bridge/v1/transfers?projectId=...&targetNetwork=external|internal
+POST   /api/bridge/v1/transfers                         multipart: manifest(groupId, userName 포함 가능) + bundle
+GET    /api/bridge/v1/transfers?projectId=...&targetNetwork=external|internal&groupId=...
 GET    /api/bridge/v1/transfers/:id/bundle
 POST   /api/bridge/v1/transfers/:id/download-ack        JSON: { "userName": "..." }
 DELETE /api/bridge/v1/transfers/:id
-POST   /api/bridge/v1/files                             multipart: manifest(userName 포함 가능) + file
-GET    /api/bridge/v1/files?projectId=...&targetNetwork=external|internal
+POST   /api/bridge/v1/files                             multipart: manifest(groupId, userName 포함 가능) + file
+GET    /api/bridge/v1/files?projectId=...&targetNetwork=external|internal&groupId=...
 GET    /api/bridge/v1/files/:id/content
 POST   /api/bridge/v1/files/:id/download-ack            JSON: { "userName": "..." }
 DELETE /api/bridge/v1/files/:id
 ```
 
 Bundle은 SHA-256 검증 후 저장되고 업로드 시점부터 30일 뒤 자동 삭제된다. 일반 파일은
-기본 14일 뒤 자동 삭제된다. `userName`이 제공되면 업로드자와 사용자별 최초 다운로드
-시각을 목록 응답의 `uploadedBy`, `downloads`에 기록한다. 구버전 Agent처럼 사용자명을
-보내지 않는 요청도 호환을 위해 허용하며 `알 수 없음`으로 표시한다. 전송이 만료되거나
+기본 14일 뒤 자동 삭제된다. `groupId`는 공용 전송함을 구분하는 값이며, 같은 프로젝트·
+대상 네트워크·그룹을 선택한 Agent만 같은 목록을 조회한다. 값이 없는 기존 요청·데이터는
+호환을 위해 `anonymous` 그룹으로 처리한다. `userName`이 제공되면 업로드자와 사용자별
+최초 다운로드 시각을 목록 응답의 `uploadedBy`, `downloads`에 기록한다. 전송이 만료되거나
 삭제되면 관련 사용자 이력도 함께 삭제된다.
 
 현재 Bridge API는 배포망 ACL을 신뢰하며 사용자별 인증을 제공하지 않는다. 따라서

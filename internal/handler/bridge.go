@@ -58,7 +58,7 @@ func (h *BridgeHandler) List(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "projectId and targetNetwork (external or internal) are required")
 		return
 	}
-	transfers, err := h.bridge.List(r.Context(), projectID, targetNetwork)
+	transfers, err := h.bridge.List(r.Context(), projectID, targetNetwork, service.NormalizeBridgeGroupID(r.URL.Query().Get("groupId")))
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "list bridge transfers: "+err.Error())
 		return

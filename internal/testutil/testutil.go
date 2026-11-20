@@ -169,6 +169,7 @@ CREATE INDEX IF NOT EXISTS idx_history_created ON request_history(created_at DES
 CREATE TABLE IF NOT EXISTS bridge_transfers (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
+    group_id TEXT NOT NULL DEFAULT 'anonymous',
     source_network TEXT NOT NULL,
     target_network TEXT NOT NULL,
     source_ref TEXT NOT NULL,
@@ -184,6 +185,7 @@ CREATE TABLE IF NOT EXISTS bridge_transfers (
     expires_at DATETIME NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_bridge_transfers_inbox ON bridge_transfers(project_id, target_network, expires_at);
+CREATE INDEX IF NOT EXISTS idx_bridge_transfers_group_inbox ON bridge_transfers(project_id, target_network, group_id, expires_at);
 CREATE INDEX IF NOT EXISTS idx_bridge_transfers_expiry ON bridge_transfers(expires_at);
 CREATE TABLE IF NOT EXISTS bridge_transfer_downloads (
     transfer_id TEXT NOT NULL,
@@ -196,6 +198,7 @@ CREATE TABLE IF NOT EXISTS bridge_transfer_downloads (
 CREATE TABLE IF NOT EXISTS bridge_files (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
+    group_id TEXT NOT NULL DEFAULT 'anonymous',
     source_network TEXT NOT NULL,
     target_network TEXT NOT NULL,
     filename TEXT NOT NULL,
@@ -208,6 +211,7 @@ CREATE TABLE IF NOT EXISTS bridge_files (
     expires_at DATETIME NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_bridge_files_inbox ON bridge_files(project_id, target_network, expires_at);
+CREATE INDEX IF NOT EXISTS idx_bridge_files_group_inbox ON bridge_files(project_id, target_network, group_id, expires_at);
 CREATE INDEX IF NOT EXISTS idx_bridge_files_expiry ON bridge_files(expires_at);
 CREATE TABLE IF NOT EXISTS bridge_file_downloads (
     file_id TEXT NOT NULL,

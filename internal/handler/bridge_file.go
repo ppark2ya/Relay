@@ -54,7 +54,7 @@ func (h *BridgeFileHandler) List(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "projectId and targetNetwork (external or internal) are required")
 		return
 	}
-	files, err := h.files.List(r.Context(), projectID, targetNetwork)
+	files, err := h.files.List(r.Context(), projectID, targetNetwork, service.NormalizeBridgeGroupID(r.URL.Query().Get("groupId")))
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "list bridge files: "+err.Error())
 		return

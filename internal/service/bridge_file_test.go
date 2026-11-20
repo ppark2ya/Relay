@@ -29,7 +29,7 @@ func TestBridgeFileServiceRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	files, err := service.List(context.Background(), "project-a", "internal")
+	files, err := service.List(context.Background(), "project-a", "internal", DefaultBridgeGroupID)
 	if err != nil || len(files) != 1 || files[0].Filename != "release.zip" {
 		t.Fatalf("List = %#v, %v", files, err)
 	}
@@ -45,14 +45,14 @@ func TestBridgeFileServiceRoundTrip(t *testing.T) {
 	if err := service.AcknowledgeDownload(context.Background(), transfer.ID, "배포 담당자"); err != nil {
 		t.Fatal(err)
 	}
-	files, err = service.List(context.Background(), "project-a", "internal")
+	files, err = service.List(context.Background(), "project-a", "internal", DefaultBridgeGroupID)
 	if err != nil || files[0].UploadedBy != "개발자 A" || len(files[0].Downloads) != 1 || files[0].Downloads[0].UserName != "배포 담당자" {
 		t.Fatalf("download history = %#v, %v", files, err)
 	}
 	if err := service.Delete(context.Background(), transfer.ID); err != nil {
 		t.Fatal(err)
 	}
-	files, err = service.List(context.Background(), "project-a", "internal")
+	files, err = service.List(context.Background(), "project-a", "internal", DefaultBridgeGroupID)
 	if err != nil || len(files) != 0 {
 		t.Fatalf("List after delete = %#v, %v", files, err)
 	}
