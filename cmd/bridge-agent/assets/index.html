@@ -38,6 +38,7 @@
       <section class="card" id="settings" hidden>
         <h2>Agent 설정</h2>
         <form id="settings-form">
+          <input id="user-name" required placeholder="사용자명 (예: 홍길동)" />
           <input id="profile-name" required placeholder="프로필 이름 (예: logging)" />
           <input id="relay-url" required placeholder="https://relay.example.internal" />
           <input id="project-id" required placeholder="project-a" />
@@ -53,7 +54,7 @@
       </section>
       <section class="card">
         <h2>수신함</h2>
-        <table><thead><tr><th>Source</th><th>Branch / Commit</th><th>Created / Expires</th><th>Size</th><th>Action</th></tr></thead><tbody id="inbox"><tr><td colspan="5" class="muted">수신함을 조회하세요.</td></tr></tbody></table>
+          <table><thead><tr><th>Source</th><th>Branch / Commit</th><th>Created / Expires</th><th>Size</th><th>사용자 이력</th><th>Action</th></tr></thead><tbody id="inbox"><tr><td colspan="6" class="muted">수신함을 조회하세요.</td></tr></tbody></table>
       </section>
       </div>
       <div id="file-panel" hidden>
@@ -64,7 +65,7 @@
         </section>
         <section class="card">
           <h2>파일 수신함</h2>
-          <table><thead><tr><th>Source</th><th>파일 / SHA-256</th><th>Created / Expires</th><th>Size</th><th>Action</th></tr></thead><tbody id="file-inbox"><tr><td colspan="5" class="muted">파일 수신함을 조회하세요.</td></tr></tbody></table>
+          <table><thead><tr><th>Source</th><th>파일 / SHA-256</th><th>Created / Expires</th><th>Size</th><th>사용자 이력</th><th>Action</th></tr></thead><tbody id="file-inbox"><tr><td colspan="6" class="muted">파일 수신함을 조회하세요.</td></tr></tbody></table>
         </section>
       </div>
       <div id="status" role="status"></div>
@@ -79,6 +80,12 @@
       let editingNewProfile = false;
       const networkName = (network) => ({ external: "외부 개발망", internal: "내부 배포망" }[network] || network);
       const formatSize = (bytes) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+      const displayUser = (name) => name || "알 수 없음";
+      const formatHistory = (transfer) => {
+        const downloads = transfer.downloads || [];
+        const received = downloads.length === 0 ? "아직 없음" : downloads.map((download) => `${displayUser(download.userName)} (${new Date(download.downloadedAt).toLocaleString()})`).join("\n");
+        return `업로드: ${displayUser(transfer.uploadedBy)}\n다운로드: ${received}`;
+      };
       const showError = (error) => { status.textContent = `오류: ${error?.message || error}`; };
       const showStatus = (message) => { status.textContent = message; };
       function fillProfile(profile) {
@@ -101,7 +108,9 @@
           profileSelect.hidden = false;
           document.getElementById("profile-delete").hidden = false;
           const active = store.profiles.find((profile) => profile.name === store.activeProfile);
+          document.getElementById("user-name").value = store.userName || "";
           fillProfile(active); editingNewProfile = false;
+          if (!store.userName) { document.getElementById("settings").hidden = false; showStatus("전송 전에 사용자명을 설정하세요."); }
         } catch (_) { profileSelect.hidden = true; document.getElementById("profile-delete").hidden = true; editingNewProfile = true; emptyProfile(); document.getElementById("settings").hidden = false; }
       }
       async function refresh() {
@@ -109,10 +118,11 @@
         try {
           const transfers = await DesktopService.Inbox();
           inbox.replaceChildren();
-          if (transfers.length === 0) inbox.innerHTML = '<tr><td colspan="5" class="muted">수신 대기 중인 전송이 없습니다.</td></tr>';
+          if (transfers.length === 0) inbox.innerHTML = '<tr><td colspan="6" class="muted">수신 대기 중인 전송이 없습니다.</td></tr>';
           for (const transfer of transfers) {
             const row = document.createElement("tr");
-            row.innerHTML = `<td>${networkName(transfer.sourceNetwork)} → ${networkName(transfer.targetNetwork)}</td><td><code>${transfer.sourceRef}</code><br><code>${transfer.headSha}</code></td><td>${new Date(transfer.createdAt).toLocaleString()}<br>${new Date(transfer.expiresAt).toLocaleString()}</td><td>${formatSize(transfer.size)}</td><td class="actions"></td>`;
+            row.innerHTML = `<td>${networkName(transfer.sourceNetwork)} → ${networkName(transfer.targetNetwork)}</td><td><code>${transfer.sourceRef}</code><br><code>${transfer.headSha}</code></td><td>${new Date(transfer.createdAt).toLocaleString()}<br>${new Date(transfer.expiresAt).toLocaleString()}</td><td>${formatSize(transfer.size)}</td><td></td><td class="actions"></td>`;
+            row.children[4].textContent = formatHistory(transfer);
             const actions = row.lastElementChild;
             const download = document.createElement("button"); download.textContent = "Download 및 checkout";
             download.onclick = async () => { try { showStatus("bundle 검증 및 checkout 중..."); const result = await DesktopService.Download(transfer.id); showStatus(`완료: ${result.branch}\n이제 테스트 후 일반 git push로 GitLab/GitHub에 반영하세요.`); await refresh(); } catch (error) { showError(error); } };
@@ -127,19 +137,20 @@
         try {
           const files = await DesktopService.FileInbox();
           fileInbox.replaceChildren();
-          if (files.length === 0) { fileInbox.innerHTML = '<tr><td colspan="5" class="muted">수신 대기 중인 파일이 없습니다.</td></tr>'; return; }
+          if (files.length === 0) { fileInbox.innerHTML = '<tr><td colspan="6" class="muted">수신 대기 중인 파일이 없습니다.</td></tr>'; return; }
           for (const file of files) {
             const row = document.createElement("tr");
             const source = document.createElement("td"); source.textContent = `${networkName(file.sourceNetwork)} → ${networkName(file.targetNetwork)}`;
             const metadata = document.createElement("td"); const name = document.createElement("code"); name.textContent = file.filename; const hash = document.createElement("code"); hash.textContent = file.sha256; metadata.append(name, document.createElement("br"), hash);
             const dates = document.createElement("td"); dates.textContent = `${new Date(file.createdAt).toLocaleString()}\n${new Date(file.expiresAt).toLocaleString()}`;
             const size = document.createElement("td"); size.textContent = formatSize(file.size);
+            const history = document.createElement("td"); history.textContent = formatHistory(file);
             const actions = document.createElement("td"); actions.className = "actions";
             const download = document.createElement("button"); download.textContent = "저장";
             download.onclick = async () => { try { const destination = await DesktopService.PickSavePath(file.filename); if (!destination) return; showStatus("파일을 검증하며 저장 중..."); await DesktopService.DownloadFile(file.id, destination); showStatus(`저장 완료: ${destination}`); await refreshFiles(); } catch (error) { showError(error); } };
             const remove = document.createElement("button"); remove.textContent = "삭제"; remove.className = "danger";
             remove.onclick = async () => { if (!confirm("이 파일을 Relay에서 즉시 삭제할까요?")) return; try { await DesktopService.DeleteFile(file.id); await refreshFiles(); } catch (error) { showError(error); } };
-            actions.append(download, remove); row.append(source, metadata, dates, size, actions); fileInbox.append(row);
+            actions.append(download, remove); row.append(source, metadata, dates, size, history, actions); fileInbox.append(row);
           }
         } catch (error) { showError(error); }
       }
@@ -167,8 +178,10 @@
       document.getElementById("settings-form").onsubmit = async (event) => {
         event.preventDefault();
         try {
+          const userName = document.getElementById("user-name").value;
           const profile = { name: document.getElementById("profile-name").value, relayUrl: document.getElementById("relay-url").value, projectId: document.getElementById("project-id").value, network: document.getElementById("network").value, repositoryPath: document.getElementById("repository-path").value, targetRef: document.getElementById("target-ref").value };
           if (editingNewProfile) await DesktopService.CreateProfile(profile); else await DesktopService.UpdateProfile(profileSelect.value, profile);
+          await DesktopService.SetUserName(userName);
           await loadConfig(); document.getElementById("settings").hidden = true; showStatus("프로젝트 설정을 저장했습니다."); await Promise.all([refresh(), refreshFiles()]);
         } catch (error) { showError(error); }
       };

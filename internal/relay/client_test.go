@@ -40,7 +40,15 @@ func TestClientUploadListDownloadAndAcknowledge(t *testing.T) {
 			_ = json.NewEncoder(writer).Encode([]Transfer{transfer})
 		case "GET /api/bridge/v1/transfers/transfer-1/bundle":
 			_, _ = writer.Write(bundle)
-		case "POST /api/bridge/v1/transfers/transfer-1/download-ack", "DELETE /api/bridge/v1/transfers/transfer-1":
+		case "POST /api/bridge/v1/transfers/transfer-1/download-ack":
+			var acknowledgement struct {
+				UserName string `json:"userName"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&acknowledgement); err != nil || acknowledgement.UserName != "배포 담당자" {
+				t.Fatalf("download acknowledgement = %#v, %v", acknowledgement, err)
+			}
+			writer.WriteHeader(http.StatusNoContent)
+		case "DELETE /api/bridge/v1/transfers/transfer-1":
 			writer.WriteHeader(http.StatusNoContent)
 		default:
 			http.NotFound(writer, request)
@@ -56,7 +64,7 @@ func TestClientUploadListDownloadAndAcknowledge(t *testing.T) {
 	if err := os.WriteFile(bundlePath, bundle, 0600); err != nil {
 		t.Fatal(err)
 	}
-	created, err := client.Upload(context.Background(), Manifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", SourceRef: transfer.SourceRef, TargetRef: transfer.TargetRef, HeadSHA: transfer.HeadSHA, BundleSHA256: transfer.BundleSHA256}, bundlePath)
+	created, err := client.Upload(context.Background(), Manifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", SourceRef: transfer.SourceRef, TargetRef: transfer.TargetRef, HeadSHA: transfer.HeadSHA, BundleSHA256: transfer.BundleSHA256, UserName: "개발자 A"}, bundlePath)
 	if err != nil || created.ID != transfer.ID {
 		t.Fatalf("Upload = %#v, %v", created, err)
 	}
@@ -71,7 +79,7 @@ func TestClientUploadListDownloadAndAcknowledge(t *testing.T) {
 	if received, _ := os.ReadFile(destination); string(received) != string(bundle) {
 		t.Fatalf("downloaded = %q", received)
 	}
-	if err := client.AcknowledgeDownload(context.Background(), transfer.ID); err != nil {
+	if err := client.AcknowledgeDownload(context.Background(), transfer.ID, "배포 담당자"); err != nil {
 		t.Fatal(err)
 	}
 	if err := client.Delete(context.Background(), transfer.ID); err != nil {
@@ -103,7 +111,15 @@ func TestClientFileUploadListDownloadAndAcknowledge(t *testing.T) {
 			_ = json.NewEncoder(writer).Encode([]FileTransfer{transfer})
 		case "GET /api/bridge/v1/files/file-1/content":
 			_, _ = writer.Write(content)
-		case "POST /api/bridge/v1/files/file-1/download-ack", "DELETE /api/bridge/v1/files/file-1":
+		case "POST /api/bridge/v1/files/file-1/download-ack":
+			var acknowledgement struct {
+				UserName string `json:"userName"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&acknowledgement); err != nil || acknowledgement.UserName != "배포 담당자" {
+				t.Fatalf("file download acknowledgement = %#v, %v", acknowledgement, err)
+			}
+			writer.WriteHeader(http.StatusNoContent)
+		case "DELETE /api/bridge/v1/files/file-1":
 			writer.WriteHeader(http.StatusNoContent)
 		default:
 			t.Fatalf("unexpected request %s %s", request.Method, request.URL.Path)
@@ -118,7 +134,7 @@ func TestClientFileUploadListDownloadAndAcknowledge(t *testing.T) {
 	if err := os.WriteFile(source, content, 0600); err != nil {
 		t.Fatal(err)
 	}
-	created, err := client.UploadFile(context.Background(), FileManifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", Filename: "release.zip", SHA256: hex.EncodeToString(hash[:])}, source)
+	created, err := client.UploadFile(context.Background(), FileManifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", Filename: "release.zip", SHA256: hex.EncodeToString(hash[:]), UserName: "개발자 A"}, source)
 	if err != nil || created.ID != transfer.ID {
 		t.Fatalf("UploadFile = %#v, %v", created, err)
 	}
@@ -134,7 +150,7 @@ func TestClientFileUploadListDownloadAndAcknowledge(t *testing.T) {
 	if err != nil || string(received) != string(content) {
 		t.Fatalf("download = %q, %v", received, err)
 	}
-	if err := client.AcknowledgeFileDownload(context.Background(), transfer.ID); err != nil {
+	if err := client.AcknowledgeFileDownload(context.Background(), transfer.ID, "배포 담당자"); err != nil {
 		t.Fatal(err)
 	}
 	if err := client.DeleteFile(context.Background(), transfer.ID); err != nil {

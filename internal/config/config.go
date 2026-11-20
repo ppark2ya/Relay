@@ -16,6 +16,7 @@ const (
 
 // Config is the runtime configuration used by one project.
 type Config struct {
+	UserName       string `json:"userName"`
 	RelayURL       string `json:"relayUrl"`
 	ProjectID      string `json:"projectId"`
 	Network        string `json:"network"`
@@ -45,11 +46,12 @@ func (p Profile) Validate() error {
 	if strings.TrimSpace(p.Name) == "" {
 		return fmt.Errorf("profile name is required")
 	}
-	return p.Config().Validate()
+	return p.Config().ValidateProject()
 }
 
 // ProfileStore keeps profiles in display order and records the selected one.
 type ProfileStore struct {
+	UserName      string    `json:"userName"`
 	ActiveProfile string    `json:"activeProfile"`
 	Profiles      []Profile `json:"profiles"`
 }
@@ -67,11 +69,19 @@ func normalizeNetwork(network string) string {
 }
 
 func (c Config) normalized() Config {
+	c.UserName = strings.TrimSpace(c.UserName)
 	c.Network = normalizeNetwork(c.Network)
 	return c
 }
 
 func (c Config) Validate() error {
+	if strings.TrimSpace(c.UserName) == "" {
+		return fmt.Errorf("userName is required")
+	}
+	return c.ValidateProject()
+}
+
+func (c Config) ValidateProject() error {
 	if strings.TrimSpace(c.RelayURL) == "" {
 		return fmt.Errorf("relayUrl is required")
 	}
@@ -153,11 +163,11 @@ func LoadProfiles(path string) (ProfileStore, error) {
 			return ProfileStore{}, fmt.Errorf("parse bridge config: %w", err)
 		}
 		legacy = legacy.normalized()
-		if err := legacy.Validate(); err != nil {
+		if err := legacy.ValidateProject(); err != nil {
 			return ProfileStore{}, err
 		}
 		name := legacyProfileName(legacy)
-		store := ProfileStore{ActiveProfile: name, Profiles: []Profile{normalizeProfile(ProfileFromConfig(name, legacy))}}
+		store := ProfileStore{UserName: legacy.UserName, ActiveProfile: name, Profiles: []Profile{normalizeProfile(ProfileFromConfig(name, legacy))}}
 		if err := SaveProfiles(path, store); err != nil {
 			return ProfileStore{}, fmt.Errorf("migrate bridge config: %w", err)
 		}
@@ -168,6 +178,7 @@ func LoadProfiles(path string) (ProfileStore, error) {
 		return ProfileStore{}, fmt.Errorf("parse bridge profile store: %w", err)
 	}
 	store.ActiveProfile = strings.TrimSpace(store.ActiveProfile)
+	store.UserName = strings.TrimSpace(store.UserName)
 	for index := range store.Profiles {
 		store.Profiles[index] = normalizeProfile(store.Profiles[index])
 	}
@@ -176,6 +187,7 @@ func LoadProfiles(path string) (ProfileStore, error) {
 
 func SaveProfiles(path string, store ProfileStore) error {
 	store.ActiveProfile = strings.TrimSpace(store.ActiveProfile)
+	store.UserName = strings.TrimSpace(store.UserName)
 	for index := range store.Profiles {
 		store.Profiles[index] = normalizeProfile(store.Profiles[index])
 	}
@@ -205,7 +217,9 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return profile.Config(), nil
+	settings := profile.Config()
+	settings.UserName = store.UserName
+	return settings, settings.Validate()
 }
 
 // Save updates the active profile for backward-compatible CLI configuration.
@@ -217,18 +231,32 @@ func Save(path string, settings Config) error {
 	store, err := LoadProfiles(path)
 	if errors.Is(err, os.ErrNotExist) {
 		name := legacyProfileName(settings)
-		return SaveProfiles(path, ProfileStore{ActiveProfile: name, Profiles: []Profile{ProfileFromConfig(name, settings)}})
+		return SaveProfiles(path, ProfileStore{UserName: settings.UserName, ActiveProfile: name, Profiles: []Profile{ProfileFromConfig(name, settings)}})
 	}
 	if err != nil {
 		return err
 	}
 	for index := range store.Profiles {
 		if store.Profiles[index].Name == store.ActiveProfile {
+			store.UserName = settings.UserName
 			store.Profiles[index] = ProfileFromConfig(store.ActiveProfile, settings)
 			return SaveProfiles(path, store)
 		}
 	}
 	return fmt.Errorf("active profile %q does not exist", store.ActiveProfile)
+}
+
+func SetUserName(path, userName string) error {
+	store, err := LoadProfiles(path)
+	if err != nil {
+		return err
+	}
+	userName = strings.TrimSpace(userName)
+	if userName == "" {
+		return fmt.Errorf("userName is required")
+	}
+	store.UserName = userName
+	return SaveProfiles(path, store)
 }
 
 func SetActiveProfile(path, name string) error {

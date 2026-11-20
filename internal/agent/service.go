@@ -63,7 +63,7 @@ func (s *Service) Upload(ctx context.Context, branch string) (relay.Transfer, er
 	return s.Relay.Upload(ctx, relay.Manifest{
 		ProjectID: s.Config.ProjectID, SourceNetwork: s.Config.Network, TargetNetwork: otherNetwork(s.Config.Network),
 		SourceRef: bundle.SourceRef, TargetRef: s.Config.TargetRef, HeadSHA: bundle.HeadSHA,
-		BaseSHA: bundle.BaseSHA, BundleSHA256: bundle.SHA256,
+		BaseSHA: bundle.BaseSHA, BundleSHA256: bundle.SHA256, UserName: s.Config.UserName,
 	}, bundle.Path)
 }
 
@@ -98,7 +98,7 @@ func (s *Service) Download(ctx context.Context, transferID string) (gitops.Impor
 	if err != nil {
 		return gitops.ImportResult{}, err
 	}
-	if err := s.Relay.AcknowledgeDownload(ctx, transfer.ID); err != nil {
+	if err := s.Relay.AcknowledgeDownload(ctx, transfer.ID, s.Config.UserName); err != nil {
 		return gitops.ImportResult{}, err
 	}
 	return result, nil
@@ -133,7 +133,7 @@ func (s *Service) UploadFile(ctx context.Context, path string) (relay.FileTransf
 	if err != nil {
 		return relay.FileTransfer{}, err
 	}
-	return s.Relay.UploadFile(ctx, relay.FileManifest{ProjectID: s.Config.ProjectID, SourceNetwork: s.Config.Network, TargetNetwork: otherNetwork(s.Config.Network), Filename: filepath.Base(path), SHA256: sha}, path)
+	return s.Relay.UploadFile(ctx, relay.FileManifest{ProjectID: s.Config.ProjectID, SourceNetwork: s.Config.Network, TargetNetwork: otherNetwork(s.Config.Network), Filename: filepath.Base(path), SHA256: sha, UserName: s.Config.UserName}, path)
 }
 
 func (s *Service) FileInbox(ctx context.Context) ([]relay.FileTransfer, error) {
@@ -158,7 +158,7 @@ func (s *Service) DownloadFile(ctx context.Context, transferID, destination stri
 	if err := s.Relay.DownloadFile(ctx, transfer.ID, destination, transfer.SHA256); err != nil {
 		return err
 	}
-	return s.Relay.AcknowledgeFileDownload(ctx, transfer.ID)
+	return s.Relay.AcknowledgeFileDownload(ctx, transfer.ID, s.Config.UserName)
 }
 
 func (s *Service) DeleteFile(ctx context.Context, transferID string) error {

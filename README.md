@@ -12,6 +12,7 @@ GitLab/GitHub에 푸시하거나 MR/PR을 생성·병합하지 않으며, 무시
 
 ```powershell
 bridge-agent config set `
+  --user-name 홍길동 `
   --relay-url https://relay.example.internal `
   --project-id project-a `
   --network external `
@@ -46,6 +47,7 @@ Git Bridge Agent는 커밋된 Git 브랜치를 bundle로 만들어 Relay를 통�
 
 ```powershell
 bridge-agent config set `
+  --user-name 홍길동 `
   --relay-url https://relay.example.internal `
   --project-id project-a `
   --network external `
@@ -55,6 +57,7 @@ bridge-agent config set `
 
 | 옵션 | 설명 |
 | --- | --- |
+| `--user-name` | 이 PC의 Agent 설치에서 공통으로 사용할 사용자명. 업로드·다운로드 이력에 기록됨 |
 | `--relay-url` | Relay 서버의 HTTP 또는 HTTPS 기본 URL |
 | `--project-id` | internal/external Agent가 동일하게 사용하는 논리적 프로젝트 ID |
 | `--network` | 현재 Agent가 실행되는 환경. `external` 또는 `internal` |
@@ -64,6 +67,19 @@ bridge-agent config set `
 처음 설정하면 해당 프로젝트가 활성 프로필로 저장됩니다. 한 PC에서 external/internal
 흐름을 순차 테스트하는 경우에는 별도 프로필을 만들거나, 활성 프로필의 `--network`와
 저장소 경로를 변경합니다.
+
+### 사용자명 설정: `config user set --name <사용자명>`
+
+사용자명은 프로젝트별 설정이 아니라 Agent 설치 전체에서 공통으로 사용합니다. Git bundle과
+일반 파일을 업로드한 사람, 그리고 다운로드를 완료한 사람이 수신함에 표시됩니다. 기존
+설정을 사용하는 Agent는 업데이트 후 사용자명을 한 번 설정해야 새 전송을 수행할 수 있습니다.
+
+```powershell
+bridge-agent config user set --name 홍길동
+```
+
+Relay는 현재 배포망 ACL을 신뢰하고 사용자별 로그인이나 토큰 인증을 제공하지 않습니다.
+따라서 사용자명은 사내 표시·추적용이며 권한 제어 또는 변조 방지 감사 수단은 아닙니다.
 
 ## 여러 프로젝트 사용
 
@@ -112,8 +128,8 @@ bridge-agent inbox
 bridge-agent status
 ```
 
-각 항목에는 transfer ID, 보낸 네트워크, source 브랜치, bundle SHA-256, 생성·만료
-시각, 다운로드 완료 시각이 포함됩니다.
+각 항목에는 transfer ID, 보낸 네트워크, source 브랜치, bundle SHA-256, 업로드자,
+생성·만료 시각, 사용자별 다운로드 완료 이력이 포함됩니다.
 
 ### 브랜치 다운로드: `download --id <transfer-id>`
 
@@ -156,8 +172,9 @@ bridge-agent delete --id 12345678-1234-1234-1234-123456789abc
 파일을 자동 실행하거나 자동으로 압축 해제하지 않습니다.
 
 Relay의 기본 정책은 파일당 최대 500MiB, 업로드 후 14일 보관입니다. 다운로드가
-성공하면 SHA-256을 검증한 뒤 수신 완료를 기록하며, 수신자는 수신함에서 불필요한
-파일을 직접 삭제할 수 있습니다.
+성공하면 SHA-256을 검증한 뒤 사용자별 수신 완료를 기록하며, 수신자는 수신함에서
+불필요한 파일을 직접 삭제할 수 있습니다. 전송 파일이 만료되거나 삭제되면 관련
+사용자 이력도 함께 제거됩니다.
 
 ```powershell
 bridge-agent file upload --path C:\release\result.zip

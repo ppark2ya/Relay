@@ -160,14 +160,30 @@ func runConfig(arguments []string) error {
 	}
 	switch arguments[0] {
 	case "show":
-		settings, err := config.Load(path)
+		store, err := config.LoadProfiles(path)
 		if err != nil {
 			return err
 		}
+		profile, err := store.Active()
+		if err != nil {
+			return err
+		}
+		settings := profile.Config()
+		settings.UserName = store.UserName
 		printJSON(settings)
+		return nil
+	case "user":
+		if len(arguments) != 4 || arguments[1] != "set" || arguments[2] != "--name" {
+			return fmt.Errorf("usage: bridge-agent config user set --name USER_NAME")
+		}
+		if err := config.SetUserName(path, arguments[3]); err != nil {
+			return err
+		}
+		fmt.Println("saved", path)
 		return nil
 	case "set":
 		flags := flag.NewFlagSet("config set", flag.ContinueOnError)
+		userName := flags.String("user-name", "", "Agent user name")
 		relayURL := flags.String("relay-url", "", "Relay base URL")
 		projectID := flags.String("project-id", "", "logical project ID")
 		network := flags.String("network", "", "external or internal")
@@ -176,7 +192,7 @@ func runConfig(arguments []string) error {
 		if err := flags.Parse(arguments[1:]); err != nil {
 			return err
 		}
-		settings := config.Config{RelayURL: *relayURL, ProjectID: *projectID, Network: *network, RepositoryPath: *repository, TargetRef: *target}
+		settings := config.Config{UserName: *userName, RelayURL: *relayURL, ProjectID: *projectID, Network: *network, RepositoryPath: *repository, TargetRef: *target}
 		if err := config.Save(path, settings); err != nil {
 			return err
 		}
@@ -194,8 +210,9 @@ func printJSON(value any) {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, `Usage:
-  bridge-agent config set --relay-url URL --project-id ID --network external|internal --repository PATH [--target main]
+  bridge-agent config set --user-name NAME --relay-url URL --project-id ID --network external|internal --repository PATH [--target main]
   bridge-agent config show
+  bridge-agent config user set --name NAME
   bridge-agent upload --branch feature/name
   bridge-agent inbox
   bridge-agent download --id TRANSFER_ID

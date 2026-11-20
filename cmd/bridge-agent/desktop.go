@@ -66,6 +66,14 @@ func (service DesktopService) GetProfiles() (config.ProfileStore, error) {
 	return config.LoadProfiles(path)
 }
 
+func (service DesktopService) SetUserName(userName string) error {
+	path, err := service.configPath()
+	if err != nil {
+		return err
+	}
+	return config.SetUserName(path, userName)
+}
+
 func (service DesktopService) SetActiveProfile(name string) error {
 	path, err := service.configPath()
 	if err != nil {

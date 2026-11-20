@@ -15,6 +15,13 @@ export class Config {
      * @param {Partial<Config>} [$$source = {}] - The source object to create the Config.
      */
     constructor($$source = {}) {
+        if (!("userName" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["userName"] = "";
+        }
         if (!("relayUrl" in $$source)) {
             /**
              * @member
@@ -140,6 +147,13 @@ export class ProfileStore {
      * @param {Partial<ProfileStore>} [$$source = {}] - The source object to create the ProfileStore.
      */
     constructor($$source = {}) {
+        if (!("userName" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["userName"] = "";
+        }
         if (!("activeProfile" in $$source)) {
             /**
              * @member
@@ -164,10 +178,10 @@ export class ProfileStore {
      * @returns {ProfileStore}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType1;
+        const $$createField2_0 = $$createType1;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("profiles" in $$parsedSource) {
-            $$parsedSource["profiles"] = $$createField1_0($$parsedSource["profiles"]);
+            $$parsedSource["profiles"] = $$createField2_0($$parsedSource["profiles"]);
         }
         return new ProfileStore(/** @type {Partial<ProfileStore>} */($$parsedSource));
     }

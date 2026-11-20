@@ -27,6 +27,12 @@ type Manifest struct {
 	HeadSHA       string `json:"headSha"`
 	BaseSHA       string `json:"baseSha"`
 	BundleSHA256  string `json:"bundleSha256"`
+	UserName      string `json:"userName,omitempty"`
+}
+
+type Download struct {
+	UserName     string    `json:"userName"`
+	DownloadedAt time.Time `json:"downloadedAt"`
 }
 
 type Transfer struct {
@@ -39,9 +45,11 @@ type Transfer struct {
 	HeadSHA       string     `json:"headSha"`
 	BaseSHA       string     `json:"baseSha"`
 	BundleSHA256  string     `json:"bundleSha256"`
+	UploadedBy    string     `json:"uploadedBy"`
 	Size          int64      `json:"size"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	DownloadedAt  *time.Time `json:"downloadedAt,omitempty"`
+	Downloads     []Download `json:"downloads"`
 	ExpiresAt     time.Time  `json:"expiresAt"`
 }
 
@@ -51,6 +59,7 @@ type FileManifest struct {
 	TargetNetwork string `json:"targetNetwork"`
 	Filename      string `json:"filename"`
 	SHA256        string `json:"sha256"`
+	UserName      string `json:"userName,omitempty"`
 }
 
 type FileTransfer struct {
@@ -60,9 +69,11 @@ type FileTransfer struct {
 	TargetNetwork string     `json:"targetNetwork"`
 	Filename      string     `json:"filename"`
 	SHA256        string     `json:"sha256"`
+	UploadedBy    string     `json:"uploadedBy"`
 	Size          int64      `json:"size"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	DownloadedAt  *time.Time `json:"downloadedAt,omitempty"`
+	Downloads     []Download `json:"downloads"`
 	ExpiresAt     time.Time  `json:"expiresAt"`
 }
 
@@ -210,8 +221,8 @@ func (c *Client) Download(ctx context.Context, id, destination string) error {
 	return os.Rename(tempPath, destination)
 }
 
-func (c *Client) AcknowledgeDownload(ctx context.Context, id string) error {
-	return c.noContent(ctx, http.MethodPost, []string{"transfers", id, "download-ack"})
+func (c *Client) AcknowledgeDownload(ctx context.Context, id, userName string) error {
+	return c.acknowledge(ctx, []string{"transfers", id, "download-ack"}, userName)
 }
 
 func (c *Client) Delete(ctx context.Context, id string) error {
@@ -342,8 +353,8 @@ func (c *Client) DownloadFile(ctx context.Context, id, destination, expectedSHA2
 	return nil
 }
 
-func (c *Client) AcknowledgeFileDownload(ctx context.Context, id string) error {
-	return c.noContent(ctx, http.MethodPost, []string{"files", id, "download-ack"})
+func (c *Client) AcknowledgeFileDownload(ctx context.Context, id, userName string) error {
+	return c.acknowledge(ctx, []string{"files", id, "download-ack"}, userName)
 }
 func (c *Client) DeleteFile(ctx context.Context, id string) error {
 	return c.noContent(ctx, http.MethodDelete, []string{"files", id})
@@ -354,6 +365,28 @@ func (c *Client) noContent(ctx context.Context, method string, parts []string) e
 	if err != nil {
 		return err
 	}
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return err
+	}
+	if response.StatusCode != http.StatusNoContent {
+		return parseError(response)
+	}
+	return response.Body.Close()
+}
+
+func (c *Client) acknowledge(ctx context.Context, parts []string, userName string) error {
+	payload, err := json.Marshal(struct {
+		UserName string `json:"userName"`
+	}{UserName: userName})
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint(parts...), bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		return err

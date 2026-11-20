@@ -105,3 +105,24 @@ func TestUpdateProfileRejectsDuplicateName(t *testing.T) {
 		t.Fatal("expected duplicate name error")
 	}
 }
+
+func TestLoadRequiresUserNameAfterProfileMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	profile := Profile{Name: "logging", RelayURL: "https://relay.example", ProjectID: "logging", Network: "external", RepositoryPath: `C:\work\logging`, TargetRef: "main"}
+	if err := CreateProfile(path, profile); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected an Agent without userName to be blocked")
+	}
+	if err := SetUserName(path, "홍길동"); err != nil {
+		t.Fatal(err)
+	}
+	settings, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.UserName != "홍길동" {
+		t.Fatalf("userName = %q", settings.UserName)
+	}
+}

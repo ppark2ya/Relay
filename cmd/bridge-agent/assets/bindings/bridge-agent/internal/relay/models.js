@@ -6,6 +6,41 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+export class Download {
+    /**
+     * Creates a new Download instance.
+     * @param {Partial<Download>} [$$source = {}] - The source object to create the Download.
+     */
+    constructor($$source = {}) {
+        if (!("userName" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["userName"] = "";
+        }
+        if (!("downloadedAt" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["downloadedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Download instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {Download}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Download(/** @type {Partial<Download>} */($$parsedSource));
+    }
+}
+
 export class FileTransfer {
     /**
      * Creates a new FileTransfer instance.
@@ -54,6 +89,13 @@ export class FileTransfer {
              */
             this["sha256"] = "";
         }
+        if (!("uploadedBy" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["uploadedBy"] = "";
+        }
         if (!("size" in $$source)) {
             /**
              * @member
@@ -75,6 +117,13 @@ export class FileTransfer {
              */
             this["downloadedAt"] = undefined;
         }
+        if (!("downloads" in $$source)) {
+            /**
+             * @member
+             * @type {Download[]}
+             */
+            this["downloads"] = [];
+        }
         if (!("expiresAt" in $$source)) {
             /**
              * @member
@@ -92,7 +141,11 @@ export class FileTransfer {
      * @returns {FileTransfer}
      */
     static createFrom($$source = {}) {
+        const $$createField10_0 = $$createType1;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("downloads" in $$parsedSource) {
+            $$parsedSource["downloads"] = $$createField10_0($$parsedSource["downloads"]);
+        }
         return new FileTransfer(/** @type {Partial<FileTransfer>} */($$parsedSource));
     }
 }
@@ -166,6 +219,13 @@ export class Transfer {
              */
             this["bundleSha256"] = "";
         }
+        if (!("uploadedBy" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["uploadedBy"] = "";
+        }
         if (!("size" in $$source)) {
             /**
              * @member
@@ -187,6 +247,13 @@ export class Transfer {
              */
             this["downloadedAt"] = undefined;
         }
+        if (!("downloads" in $$source)) {
+            /**
+             * @member
+             * @type {Download[]}
+             */
+            this["downloads"] = [];
+        }
         if (!("expiresAt" in $$source)) {
             /**
              * @member
@@ -204,7 +271,15 @@ export class Transfer {
      * @returns {Transfer}
      */
     static createFrom($$source = {}) {
+        const $$createField13_0 = $$createType1;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("downloads" in $$parsedSource) {
+            $$parsedSource["downloads"] = $$createField13_0($$parsedSource["downloads"]);
+        }
         return new Transfer(/** @type {Partial<Transfer>} */($$parsedSource));
     }
 }
+
+// Private type creation functions
+const $$createType0 = Download.createFrom;
+const $$createType1 = $Create.Array($$createType0);

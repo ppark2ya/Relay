@@ -146,6 +146,14 @@ export function SetActiveProfile(name) {
 }
 
 /**
+ * @param {string} userName
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetUserName(userName) {
+    return $Call.ByID(2651982915, userName);
+}
+
+/**
  * @param {string} currentName
  * @param {config$0.Profile} profile
  * @returns {$CancellablePromise<void>}
