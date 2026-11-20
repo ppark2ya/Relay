@@ -26,23 +26,28 @@ var (
 // inspect or execute its contents.
 type BridgeFileManifest struct {
 	ProjectID     string `json:"projectId"`
+	GroupID       string `json:"groupId,omitempty"`
 	SourceNetwork string `json:"sourceNetwork"`
 	TargetNetwork string `json:"targetNetwork"`
 	Filename      string `json:"filename"`
 	SHA256        string `json:"sha256"`
+	UserName      string `json:"userName,omitempty"`
 }
 
 type BridgeFile struct {
-	ID            string     `json:"id"`
-	ProjectID     string     `json:"projectId"`
-	SourceNetwork string     `json:"sourceNetwork"`
-	TargetNetwork string     `json:"targetNetwork"`
-	Filename      string     `json:"filename"`
-	SHA256        string     `json:"sha256"`
-	Size          int64      `json:"size"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	DownloadedAt  *time.Time `json:"downloadedAt,omitempty"`
-	ExpiresAt     time.Time  `json:"expiresAt"`
+	ID            string           `json:"id"`
+	ProjectID     string           `json:"projectId"`
+	GroupID       string           `json:"groupId"`
+	SourceNetwork string           `json:"sourceNetwork"`
+	TargetNetwork string           `json:"targetNetwork"`
+	Filename      string           `json:"filename"`
+	SHA256        string           `json:"sha256"`
+	UploadedBy    string           `json:"uploadedBy"`
+	Size          int64            `json:"size"`
+	CreatedAt     time.Time        `json:"createdAt"`
+	DownloadedAt  *time.Time       `json:"downloadedAt,omitempty"`
+	Downloads     []BridgeDownload `json:"downloads"`
+	ExpiresAt     time.Time        `json:"expiresAt"`
 	storedName    string
 }
 
@@ -168,13 +173,15 @@ func (s *BridgeFileService) Create(ctx context.Context, manifest BridgeFileManif
 	}
 	manifest.SourceNetwork, _ = NormalizeBridgeNetwork(manifest.SourceNetwork)
 	manifest.TargetNetwork, _ = NormalizeBridgeNetwork(manifest.TargetNetwork)
+	manifest.GroupID = NormalizeBridgeGroupID(manifest.GroupID)
+	manifest.UserName = normalizeBridgeUserName(manifest.UserName)
 	storedName, size, actualSHA, err := s.storage.Store(file, manifest.SHA256)
 	if err != nil {
 		return BridgeFile{}, err
 	}
 	now := s.now().UTC()
-	transfer := BridgeFile{ID: uuid.NewString(), ProjectID: manifest.ProjectID, SourceNetwork: manifest.SourceNetwork, TargetNetwork: manifest.TargetNetwork, Filename: manifest.Filename, SHA256: actualSHA, Size: size, CreatedAt: now, ExpiresAt: now.Add(s.retention), storedName: storedName}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO bridge_files (id, project_id, source_network, target_network, filename, sha256, stored_name, size, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, transfer.ID, transfer.ProjectID, transfer.SourceNetwork, transfer.TargetNetwork, transfer.Filename, transfer.SHA256, transfer.storedName, transfer.Size, transfer.CreatedAt, transfer.ExpiresAt)
+	transfer := BridgeFile{ID: uuid.NewString(), ProjectID: manifest.ProjectID, GroupID: manifest.GroupID, SourceNetwork: manifest.SourceNetwork, TargetNetwork: manifest.TargetNetwork, Filename: manifest.Filename, SHA256: actualSHA, UploadedBy: manifest.UserName, Size: size, CreatedAt: now, ExpiresAt: now.Add(s.retention), storedName: storedName, Downloads: []BridgeDownload{}}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO bridge_files (id, project_id, group_id, source_network, target_network, filename, sha256, uploaded_by, stored_name, size, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, transfer.ID, transfer.ProjectID, transfer.GroupID, transfer.SourceNetwork, transfer.TargetNetwork, transfer.Filename, transfer.SHA256, transfer.UploadedBy, transfer.storedName, transfer.Size, transfer.CreatedAt, transfer.ExpiresAt)
 	if err != nil {
 		_ = s.storage.Delete(storedName)
 		return BridgeFile{}, fmt.Errorf("save bridge file: %w", err)
@@ -182,12 +189,19 @@ func (s *BridgeFileService) Create(ctx context.Context, manifest BridgeFileManif
 	return transfer, nil
 }
 
-const bridgeFileColumns = `id, project_id, source_network, target_network, filename, sha256, stored_name, size, created_at, downloaded_at, expires_at`
+const bridgeFileColumns = `id, project_id, group_id, source_network, target_network, filename, sha256, uploaded_by, stored_name, size, created_at, downloaded_at, expires_at`
 
 func scanBridgeFile(scanner interface{ Scan(...any) error }) (BridgeFile, error) {
 	var file BridgeFile
 	var downloaded sql.NullTime
-	err := scanner.Scan(&file.ID, &file.ProjectID, &file.SourceNetwork, &file.TargetNetwork, &file.Filename, &file.SHA256, &file.storedName, &file.Size, &file.CreatedAt, &downloaded, &file.ExpiresAt)
+	var uploadedBy sql.NullString
+	err := scanner.Scan(&file.ID, &file.ProjectID, &file.GroupID, &file.SourceNetwork, &file.TargetNetwork, &file.Filename, &file.SHA256, &uploadedBy, &file.storedName, &file.Size, &file.CreatedAt, &downloaded, &file.ExpiresAt)
+	file.UploadedBy = UnknownBridgeUserName
+	file.GroupID = NormalizeBridgeGroupID(file.GroupID)
+	if uploadedBy.Valid {
+		file.UploadedBy = normalizeBridgeUserName(uploadedBy.String)
+	}
+	file.Downloads = []BridgeDownload{}
 	if err == nil && downloaded.Valid {
 		file.DownloadedAt = &downloaded.Time
 	}
@@ -195,11 +209,16 @@ func scanBridgeFile(scanner interface{ Scan(...any) error }) (BridgeFile, error)
 }
 
 func (s *BridgeFileService) Get(ctx context.Context, id string) (BridgeFile, error) {
-	return scanBridgeFile(s.db.QueryRowContext(ctx, `SELECT `+bridgeFileColumns+` FROM bridge_files WHERE id = ? AND expires_at > ?`, id, s.now().UTC()))
+	file, err := scanBridgeFile(s.db.QueryRowContext(ctx, `SELECT `+bridgeFileColumns+` FROM bridge_files WHERE id = ? AND expires_at > ?`, id, s.now().UTC()))
+	if err != nil {
+		return file, err
+	}
+	return s.loadDownloads(ctx, file)
 }
 
-func (s *BridgeFileService) List(ctx context.Context, projectID, targetNetwork string) ([]BridgeFile, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+bridgeFileColumns+` FROM bridge_files WHERE project_id = ? AND target_network = ? AND expires_at > ? ORDER BY created_at DESC`, projectID, targetNetwork, s.now().UTC())
+func (s *BridgeFileService) List(ctx context.Context, projectID, targetNetwork, groupID string) ([]BridgeFile, error) {
+	groupID = NormalizeBridgeGroupID(groupID)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+bridgeFileColumns+` FROM bridge_files WHERE project_id = ? AND target_network = ? AND group_id = ? AND expires_at > ? ORDER BY created_at DESC`, projectID, targetNetwork, groupID, s.now().UTC())
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +231,20 @@ func (s *BridgeFileService) List(ctx context.Context, projectID, targetNetwork s
 		}
 		files = append(files, file)
 	}
-	return files, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	for index := range files {
+		file, err := s.loadDownloads(ctx, files[index])
+		if err != nil {
+			return nil, err
+		}
+		files[index] = file
+	}
+	return files, nil
 }
 
 func (s *BridgeFileService) Open(ctx context.Context, id string) (BridgeFile, io.ReadCloser, error) {
@@ -224,8 +256,14 @@ func (s *BridgeFileService) Open(ctx context.Context, id string) (BridgeFile, io
 	return file, reader, err
 }
 
-func (s *BridgeFileService) AcknowledgeDownload(ctx context.Context, id string) error {
-	result, err := s.db.ExecContext(ctx, `UPDATE bridge_files SET downloaded_at = COALESCE(downloaded_at, ?) WHERE id = ? AND expires_at > ?`, s.now().UTC(), id, s.now().UTC())
+func (s *BridgeFileService) AcknowledgeDownload(ctx context.Context, id, userName string) error {
+	now := s.now().UTC()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `UPDATE bridge_files SET downloaded_at = COALESCE(downloaded_at, ?) WHERE id = ? AND expires_at > ?`, now, id, now)
 	if err != nil {
 		return err
 	}
@@ -236,7 +274,10 @@ func (s *BridgeFileService) AcknowledgeDownload(ctx context.Context, id string) 
 	if count == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO bridge_file_downloads (file_id, user_name, downloaded_at) VALUES (?, ?, ?)`, id, normalizeBridgeUserName(userName), now); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *BridgeFileService) Delete(ctx context.Context, id string) error {
@@ -246,6 +287,9 @@ func (s *BridgeFileService) Delete(ctx context.Context, id string) error {
 	}
 	if err := s.storage.Delete(file.storedName); err != nil {
 		return fmt.Errorf("delete bridge file: %w", err)
+	}
+	if _, err = s.db.ExecContext(ctx, "DELETE FROM bridge_file_downloads WHERE file_id = ?", id); err != nil {
+		return err
 	}
 	_, err = s.db.ExecContext(ctx, "DELETE FROM bridge_files WHERE id = ?", id)
 	return err
@@ -272,9 +316,28 @@ func (s *BridgeFileService) CleanupExpired(ctx context.Context) (int, error) {
 		if err := s.storage.Delete(file.storedName); err != nil {
 			return 0, err
 		}
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM bridge_file_downloads WHERE file_id = ?", file.ID); err != nil {
+			return 0, err
+		}
 		if _, err := s.db.ExecContext(ctx, "DELETE FROM bridge_files WHERE id = ?", file.ID); err != nil {
 			return 0, err
 		}
 	}
 	return len(files), nil
+}
+
+func (s *BridgeFileService) loadDownloads(ctx context.Context, file BridgeFile) (BridgeFile, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT user_name, downloaded_at FROM bridge_file_downloads WHERE file_id = ? ORDER BY downloaded_at ASC, user_name ASC`, file.ID)
+	if err != nil {
+		return BridgeFile{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var download BridgeDownload
+		if err := rows.Scan(&download.UserName, &download.DownloadedAt); err != nil {
+			return BridgeFile{}, err
+		}
+		file.Downloads = append(file.Downloads, download)
+	}
+	return file, rows.Err()
 }

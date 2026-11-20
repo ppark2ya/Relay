@@ -58,7 +58,7 @@ func (h *BridgeHandler) List(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "projectId and targetNetwork (external or internal) are required")
 		return
 	}
-	transfers, err := h.bridge.List(r.Context(), projectID, targetNetwork)
+	transfers, err := h.bridge.List(r.Context(), projectID, targetNetwork, service.NormalizeBridgeGroupID(r.URL.Query().Get("groupId")))
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "list bridge transfers: "+err.Error())
 		return
@@ -89,7 +89,16 @@ func (h *BridgeHandler) Download(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BridgeHandler) AcknowledgeDownload(w http.ResponseWriter, r *http.Request) {
-	if err := h.bridge.AcknowledgeDownload(r.Context(), chi.URLParam(r, "id")); err != nil {
+	var payload struct {
+		UserName string `json:"userName"`
+	}
+	if r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			respondError(w, http.StatusBadRequest, "download acknowledgement must be valid JSON")
+			return
+		}
+	}
+	if err := h.bridge.AcknowledgeDownload(r.Context(), chi.URLParam(r, "id"), payload.UserName); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "bridge transfer not found")
 			return

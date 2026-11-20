@@ -488,6 +488,7 @@ func migrateBridgeTransfers(db *sql.DB) {
 	db.Exec(`CREATE TABLE IF NOT EXISTS bridge_transfers (
 		id TEXT PRIMARY KEY,
 		project_id TEXT NOT NULL,
+		group_id TEXT NOT NULL DEFAULT 'anonymous',
 		source_network TEXT NOT NULL,
 		target_network TEXT NOT NULL,
 		source_ref TEXT NOT NULL,
@@ -501,7 +502,17 @@ func migrateBridgeTransfers(db *sql.DB) {
 		downloaded_at DATETIME,
 		expires_at DATETIME NOT NULL
 	)`)
+	db.Exec("ALTER TABLE bridge_transfers ADD COLUMN uploaded_by TEXT")
+	db.Exec("ALTER TABLE bridge_transfers ADD COLUMN group_id TEXT NOT NULL DEFAULT 'anonymous'")
+	db.Exec(`CREATE TABLE IF NOT EXISTS bridge_transfer_downloads (
+		transfer_id TEXT NOT NULL,
+		user_name TEXT NOT NULL,
+		downloaded_at DATETIME NOT NULL,
+		PRIMARY KEY (transfer_id, user_name),
+		FOREIGN KEY (transfer_id) REFERENCES bridge_transfers(id) ON DELETE CASCADE
+	)`)
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_transfers_inbox ON bridge_transfers(project_id, target_network, expires_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_transfers_group_inbox ON bridge_transfers(project_id, target_network, group_id, expires_at)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_transfers_expiry ON bridge_transfers(expires_at)")
 }
 
@@ -509,6 +520,7 @@ func migrateBridgeFiles(db *sql.DB) {
 	db.Exec(`CREATE TABLE IF NOT EXISTS bridge_files (
 		id TEXT PRIMARY KEY,
 		project_id TEXT NOT NULL,
+		group_id TEXT NOT NULL DEFAULT 'anonymous',
 		source_network TEXT NOT NULL,
 		target_network TEXT NOT NULL,
 		filename TEXT NOT NULL,
@@ -519,6 +531,16 @@ func migrateBridgeFiles(db *sql.DB) {
 		downloaded_at DATETIME,
 		expires_at DATETIME NOT NULL
 	)`)
+	db.Exec("ALTER TABLE bridge_files ADD COLUMN uploaded_by TEXT")
+	db.Exec("ALTER TABLE bridge_files ADD COLUMN group_id TEXT NOT NULL DEFAULT 'anonymous'")
+	db.Exec(`CREATE TABLE IF NOT EXISTS bridge_file_downloads (
+		file_id TEXT NOT NULL,
+		user_name TEXT NOT NULL,
+		downloaded_at DATETIME NOT NULL,
+		PRIMARY KEY (file_id, user_name),
+		FOREIGN KEY (file_id) REFERENCES bridge_files(id) ON DELETE CASCADE
+	)`)
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_files_inbox ON bridge_files(project_id, target_network, expires_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_files_group_inbox ON bridge_files(project_id, target_network, group_id, expires_at)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_bridge_files_expiry ON bridge_files(expires_at)")
 }

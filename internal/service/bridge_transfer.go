@@ -17,6 +17,8 @@ var ErrInvalidBridgeManifest = errors.New("invalid bridge manifest")
 const (
 	BridgeNetworkExternal = "external"
 	BridgeNetworkInternal = "internal"
+	UnknownBridgeUserName = "알 수 없음"
+	DefaultBridgeGroupID  = "anonymous"
 )
 
 // NormalizeBridgeNetwork validates and canonicalizes a user-facing network role.
@@ -31,8 +33,29 @@ func NormalizeBridgeNetwork(network string) (string, bool) {
 	}
 }
 
+func normalizeBridgeUserName(userName string) string {
+	if userName = strings.TrimSpace(userName); userName == "" {
+		return UnknownBridgeUserName
+	}
+	return userName
+}
+
+func NormalizeBridgeGroupID(groupID string) string {
+	if groupID = strings.TrimSpace(groupID); groupID == "" {
+		return DefaultBridgeGroupID
+	}
+	return groupID
+}
+
+// BridgeDownload records the first successful download by one Agent user.
+type BridgeDownload struct {
+	UserName     string    `json:"userName"`
+	DownloadedAt time.Time `json:"downloadedAt"`
+}
+
 type BridgeManifest struct {
 	ProjectID     string `json:"projectId"`
+	GroupID       string `json:"groupId,omitempty"`
 	SourceNetwork string `json:"sourceNetwork"`
 	TargetNetwork string `json:"targetNetwork"`
 	SourceRef     string `json:"sourceRef"`
@@ -40,22 +63,26 @@ type BridgeManifest struct {
 	HeadSHA       string `json:"headSha"`
 	BaseSHA       string `json:"baseSha"`
 	BundleSHA256  string `json:"bundleSha256"`
+	UserName      string `json:"userName,omitempty"`
 }
 
 type BridgeTransfer struct {
-	ID            string     `json:"id"`
-	ProjectID     string     `json:"projectId"`
-	SourceNetwork string     `json:"sourceNetwork"`
-	TargetNetwork string     `json:"targetNetwork"`
-	SourceRef     string     `json:"sourceRef"`
-	TargetRef     string     `json:"targetRef"`
-	HeadSHA       string     `json:"headSha"`
-	BaseSHA       string     `json:"baseSha"`
-	BundleSHA256  string     `json:"bundleSha256"`
-	Size          int64      `json:"size"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	DownloadedAt  *time.Time `json:"downloadedAt,omitempty"`
-	ExpiresAt     time.Time  `json:"expiresAt"`
+	ID            string           `json:"id"`
+	ProjectID     string           `json:"projectId"`
+	GroupID       string           `json:"groupId"`
+	SourceNetwork string           `json:"sourceNetwork"`
+	TargetNetwork string           `json:"targetNetwork"`
+	SourceRef     string           `json:"sourceRef"`
+	TargetRef     string           `json:"targetRef"`
+	HeadSHA       string           `json:"headSha"`
+	BaseSHA       string           `json:"baseSha"`
+	BundleSHA256  string           `json:"bundleSha256"`
+	UploadedBy    string           `json:"uploadedBy"`
+	Size          int64            `json:"size"`
+	CreatedAt     time.Time        `json:"createdAt"`
+	DownloadedAt  *time.Time       `json:"downloadedAt,omitempty"`
+	Downloads     []BridgeDownload `json:"downloads"`
+	ExpiresAt     time.Time        `json:"expiresAt"`
 	storedName    string
 }
 
@@ -100,6 +127,8 @@ func (s *BridgeService) Create(ctx context.Context, manifest BridgeManifest, bun
 	}
 	manifest.SourceNetwork, _ = NormalizeBridgeNetwork(manifest.SourceNetwork)
 	manifest.TargetNetwork, _ = NormalizeBridgeNetwork(manifest.TargetNetwork)
+	manifest.GroupID = NormalizeBridgeGroupID(manifest.GroupID)
+	manifest.UserName = normalizeBridgeUserName(manifest.UserName)
 	storedName, size, _, err := s.storage.Store(bundle, manifest.BundleSHA256)
 	if err != nil {
 		return BridgeTransfer{}, err
@@ -107,16 +136,17 @@ func (s *BridgeService) Create(ctx context.Context, manifest BridgeManifest, bun
 
 	now := s.now().UTC()
 	transfer := BridgeTransfer{
-		ID: uuid.NewString(), ProjectID: manifest.ProjectID, SourceNetwork: manifest.SourceNetwork,
+		ID: uuid.NewString(), ProjectID: manifest.ProjectID, GroupID: manifest.GroupID, SourceNetwork: manifest.SourceNetwork,
 		TargetNetwork: manifest.TargetNetwork, SourceRef: manifest.SourceRef, TargetRef: manifest.TargetRef,
 		HeadSHA: manifest.HeadSHA, BaseSHA: manifest.BaseSHA, BundleSHA256: manifest.BundleSHA256,
-		Size: size, CreatedAt: now, ExpiresAt: now.Add(s.retention), storedName: storedName,
+		UploadedBy: manifest.UserName, Size: size, CreatedAt: now, ExpiresAt: now.Add(s.retention), storedName: storedName,
+		Downloads: []BridgeDownload{},
 	}
 	_, err = s.db.ExecContext(ctx, `INSERT INTO bridge_transfers
-		(id, project_id, source_network, target_network, source_ref, target_ref, head_sha, base_sha, bundle_sha256, stored_name, size, created_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		transfer.ID, transfer.ProjectID, transfer.SourceNetwork, transfer.TargetNetwork, transfer.SourceRef, transfer.TargetRef,
-		transfer.HeadSHA, transfer.BaseSHA, transfer.BundleSHA256, storedName, transfer.Size, transfer.CreatedAt, transfer.ExpiresAt)
+		(id, project_id, group_id, source_network, target_network, source_ref, target_ref, head_sha, base_sha, bundle_sha256, uploaded_by, stored_name, size, created_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		transfer.ID, transfer.ProjectID, transfer.GroupID, transfer.SourceNetwork, transfer.TargetNetwork, transfer.SourceRef, transfer.TargetRef,
+		transfer.HeadSHA, transfer.BaseSHA, transfer.BundleSHA256, transfer.UploadedBy, storedName, transfer.Size, transfer.CreatedAt, transfer.ExpiresAt)
 	if err != nil {
 		_ = s.storage.Delete(storedName)
 		return BridgeTransfer{}, fmt.Errorf("save bridge transfer: %w", err)
@@ -127,17 +157,24 @@ func (s *BridgeService) Create(ctx context.Context, manifest BridgeManifest, bun
 func scanBridgeTransfer(scanner interface{ Scan(...any) error }) (BridgeTransfer, error) {
 	var transfer BridgeTransfer
 	var downloaded sql.NullTime
-	err := scanner.Scan(&transfer.ID, &transfer.ProjectID, &transfer.SourceNetwork, &transfer.TargetNetwork,
+	var uploadedBy sql.NullString
+	err := scanner.Scan(&transfer.ID, &transfer.ProjectID, &transfer.GroupID, &transfer.SourceNetwork, &transfer.TargetNetwork,
 		&transfer.SourceRef, &transfer.TargetRef, &transfer.HeadSHA, &transfer.BaseSHA, &transfer.BundleSHA256,
-		&transfer.storedName, &transfer.Size, &transfer.CreatedAt, &downloaded, &transfer.ExpiresAt)
+		&uploadedBy, &transfer.storedName, &transfer.Size, &transfer.CreatedAt, &downloaded, &transfer.ExpiresAt)
+	transfer.UploadedBy = UnknownBridgeUserName
+	transfer.GroupID = NormalizeBridgeGroupID(transfer.GroupID)
+	if uploadedBy.Valid {
+		transfer.UploadedBy = normalizeBridgeUserName(uploadedBy.String)
+	}
+	transfer.Downloads = []BridgeDownload{}
 	if err == nil && downloaded.Valid {
 		transfer.DownloadedAt = &downloaded.Time
 	}
 	return transfer, err
 }
 
-const bridgeTransferColumns = `id, project_id, source_network, target_network, source_ref, target_ref, head_sha, base_sha,
-	bundle_sha256, stored_name, size, created_at, downloaded_at, expires_at`
+const bridgeTransferColumns = `id, project_id, group_id, source_network, target_network, source_ref, target_ref, head_sha, base_sha,
+	bundle_sha256, uploaded_by, stored_name, size, created_at, downloaded_at, expires_at`
 
 func (s *BridgeService) Get(ctx context.Context, id string) (BridgeTransfer, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT `+bridgeTransferColumns+` FROM bridge_transfers WHERE id = ? AND expires_at > ?`, id, s.now().UTC())
@@ -145,12 +182,16 @@ func (s *BridgeService) Get(ctx context.Context, id string) (BridgeTransfer, err
 	if errors.Is(err, sql.ErrNoRows) {
 		return BridgeTransfer{}, sql.ErrNoRows
 	}
-	return transfer, err
+	if err != nil {
+		return transfer, err
+	}
+	return s.loadDownloads(ctx, transfer)
 }
 
-func (s *BridgeService) List(ctx context.Context, projectID, targetNetwork string) ([]BridgeTransfer, error) {
+func (s *BridgeService) List(ctx context.Context, projectID, targetNetwork, groupID string) ([]BridgeTransfer, error) {
+	groupID = NormalizeBridgeGroupID(groupID)
 	rows, err := s.db.QueryContext(ctx, `SELECT `+bridgeTransferColumns+` FROM bridge_transfers
-		WHERE project_id = ? AND target_network = ? AND expires_at > ? ORDER BY created_at DESC`, projectID, targetNetwork, s.now().UTC())
+		WHERE project_id = ? AND target_network = ? AND group_id = ? AND expires_at > ? ORDER BY created_at DESC`, projectID, targetNetwork, groupID, s.now().UTC())
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +204,20 @@ func (s *BridgeService) List(ctx context.Context, projectID, targetNetwork strin
 		}
 		transfers = append(transfers, transfer)
 	}
-	return transfers, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	for index := range transfers {
+		transfer, err := s.loadDownloads(ctx, transfers[index])
+		if err != nil {
+			return nil, err
+		}
+		transfers[index] = transfer
+	}
+	return transfers, nil
 }
 
 func (s *BridgeService) Open(ctx context.Context, id string) (BridgeTransfer, io.ReadCloser, error) {
@@ -178,8 +232,14 @@ func (s *BridgeService) Open(ctx context.Context, id string) (BridgeTransfer, io
 	return transfer, file, nil
 }
 
-func (s *BridgeService) AcknowledgeDownload(ctx context.Context, id string) error {
-	result, err := s.db.ExecContext(ctx, `UPDATE bridge_transfers SET downloaded_at = COALESCE(downloaded_at, ?) WHERE id = ? AND expires_at > ?`, s.now().UTC(), id, s.now().UTC())
+func (s *BridgeService) AcknowledgeDownload(ctx context.Context, id, userName string) error {
+	now := s.now().UTC()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `UPDATE bridge_transfers SET downloaded_at = COALESCE(downloaded_at, ?) WHERE id = ? AND expires_at > ?`, now, id, now)
 	if err != nil {
 		return err
 	}
@@ -190,7 +250,10 @@ func (s *BridgeService) AcknowledgeDownload(ctx context.Context, id string) erro
 	if count == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO bridge_transfer_downloads (transfer_id, user_name, downloaded_at) VALUES (?, ?, ?)`, id, normalizeBridgeUserName(userName), now); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *BridgeService) Delete(ctx context.Context, id string) error {
@@ -200,6 +263,9 @@ func (s *BridgeService) Delete(ctx context.Context, id string) error {
 	}
 	if err := s.storage.Delete(transfer.storedName); err != nil {
 		return fmt.Errorf("delete bridge bundle: %w", err)
+	}
+	if _, err = s.db.ExecContext(ctx, "DELETE FROM bridge_transfer_downloads WHERE transfer_id = ?", id); err != nil {
+		return err
 	}
 	_, err = s.db.ExecContext(ctx, "DELETE FROM bridge_transfers WHERE id = ?", id)
 	return err
@@ -235,9 +301,28 @@ func (s *BridgeService) CleanupExpired(ctx context.Context) (int, error) {
 		if err := s.storage.Delete(transfer.storedName); err != nil {
 			return 0, err
 		}
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM bridge_transfer_downloads WHERE transfer_id = ?", transfer.ID); err != nil {
+			return 0, err
+		}
 		if _, err := s.db.ExecContext(ctx, "DELETE FROM bridge_transfers WHERE id = ?", transfer.ID); err != nil {
 			return 0, err
 		}
 	}
 	return len(expired), nil
+}
+
+func (s *BridgeService) loadDownloads(ctx context.Context, transfer BridgeTransfer) (BridgeTransfer, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT user_name, downloaded_at FROM bridge_transfer_downloads WHERE transfer_id = ? ORDER BY downloaded_at ASC, user_name ASC`, transfer.ID)
+	if err != nil {
+		return BridgeTransfer{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var download BridgeDownload
+		if err := rows.Scan(&download.UserName, &download.DownloadedAt); err != nil {
+			return BridgeTransfer{}, err
+		}
+		transfer.Downloads = append(transfer.Downloads, download)
+	}
+	return transfer, rows.Err()
 }
