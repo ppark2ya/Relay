@@ -89,7 +89,16 @@ func (h *BridgeHandler) Download(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BridgeHandler) AcknowledgeDownload(w http.ResponseWriter, r *http.Request) {
-	if err := h.bridge.AcknowledgeDownload(r.Context(), chi.URLParam(r, "id")); err != nil {
+	var payload struct {
+		UserName string `json:"userName"`
+	}
+	if r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			respondError(w, http.StatusBadRequest, "download acknowledgement must be valid JSON")
+			return
+		}
+	}
+	if err := h.bridge.AcknowledgeDownload(r.Context(), chi.URLParam(r, "id"), payload.UserName); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "bridge transfer not found")
 			return

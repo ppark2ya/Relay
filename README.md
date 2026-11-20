@@ -99,20 +99,26 @@ environment:
 메타데이터를 사용하며, GitLab/GitHub repository나 MR/PR을 직접 관리하지 않는다.
 
 ```text
-POST   /api/bridge/v1/transfers                         multipart: manifest + bundle
+POST   /api/bridge/v1/transfers                         multipart: manifest(userName 포함 가능) + bundle
 GET    /api/bridge/v1/transfers?projectId=...&targetNetwork=external|internal
 GET    /api/bridge/v1/transfers/:id/bundle
-POST   /api/bridge/v1/transfers/:id/download-ack
+POST   /api/bridge/v1/transfers/:id/download-ack        JSON: { "userName": "..." }
 DELETE /api/bridge/v1/transfers/:id
-POST   /api/bridge/v1/files                             multipart: manifest + file
+POST   /api/bridge/v1/files                             multipart: manifest(userName 포함 가능) + file
 GET    /api/bridge/v1/files?projectId=...&targetNetwork=external|internal
 GET    /api/bridge/v1/files/:id/content
-POST   /api/bridge/v1/files/:id/download-ack
+POST   /api/bridge/v1/files/:id/download-ack            JSON: { "userName": "..." }
 DELETE /api/bridge/v1/files/:id
 ```
 
-Bundle은 SHA-256 검증 후 저장되고 업로드 시점부터 30일 뒤 자동 삭제된다. 현재
-Bridge API는 배포망 ACL을 신뢰하며 사용자별 인증을 제공하지 않는다. 따라서 API에
+Bundle은 SHA-256 검증 후 저장되고 업로드 시점부터 30일 뒤 자동 삭제된다. 일반 파일은
+기본 14일 뒤 자동 삭제된다. `userName`이 제공되면 업로드자와 사용자별 최초 다운로드
+시각을 목록 응답의 `uploadedBy`, `downloads`에 기록한다. 구버전 Agent처럼 사용자명을
+보내지 않는 요청도 호환을 위해 허용하며 `알 수 없음`으로 표시한다. 전송이 만료되거나
+삭제되면 관련 사용자 이력도 함께 삭제된다.
+
+현재 Bridge API는 배포망 ACL을 신뢰하며 사용자별 인증을 제공하지 않는다. 따라서
+`userName`은 표시·추적용이며 권한 제어 또는 변조 방지 감사 수단이 아니다. API에
 접근 가능한 사용자가 transfer ID를 알면 삭제할 수 있으므로, Bridge 경로는 반드시
 인가된 A/B Network에만 노출해야 한다. 일반 파일도 SHA-256을 검증해 별도 저장소에
 보관하며 기본 500MiB·14일 정책을 사용한다. Relay는 파일을 검사·실행하지 않으므로

@@ -180,10 +180,18 @@ CREATE TABLE IF NOT EXISTS bridge_transfers (
     size INTEGER NOT NULL,
     created_at DATETIME NOT NULL,
     downloaded_at DATETIME,
+    uploaded_by TEXT,
     expires_at DATETIME NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_bridge_transfers_inbox ON bridge_transfers(project_id, target_network, expires_at);
 CREATE INDEX IF NOT EXISTS idx_bridge_transfers_expiry ON bridge_transfers(expires_at);
+CREATE TABLE IF NOT EXISTS bridge_transfer_downloads (
+    transfer_id TEXT NOT NULL,
+    user_name TEXT NOT NULL,
+    downloaded_at DATETIME NOT NULL,
+    PRIMARY KEY (transfer_id, user_name),
+    FOREIGN KEY (transfer_id) REFERENCES bridge_transfers(id) ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS bridge_files (
     id TEXT PRIMARY KEY,
@@ -196,10 +204,18 @@ CREATE TABLE IF NOT EXISTS bridge_files (
     size INTEGER NOT NULL,
     created_at DATETIME NOT NULL,
     downloaded_at DATETIME,
+    uploaded_by TEXT,
     expires_at DATETIME NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_bridge_files_inbox ON bridge_files(project_id, target_network, expires_at);
 CREATE INDEX IF NOT EXISTS idx_bridge_files_expiry ON bridge_files(expires_at);
+CREATE TABLE IF NOT EXISTS bridge_file_downloads (
+    file_id TEXT NOT NULL,
+    user_name TEXT NOT NULL,
+    downloaded_at DATETIME NOT NULL,
+    PRIMARY KEY (file_id, user_name),
+    FOREIGN KEY (file_id) REFERENCES bridge_files(id) ON DELETE CASCADE
+);
 `
 
 // SetupTestDB creates an in-memory SQLite database with all tables and returns a Queries instance.

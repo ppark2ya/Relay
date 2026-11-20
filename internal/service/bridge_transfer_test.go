@@ -18,7 +18,7 @@ func bridgeManifest(content []byte) BridgeManifest {
 	return BridgeManifest{
 		ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal",
 		SourceRef: "refs/heads/feature/payment", TargetRef: "refs/heads/main",
-		HeadSHA: "abcdef1234", BaseSHA: "1234abcdef", BundleSHA256: hex.EncodeToString(hash[:]),
+		HeadSHA: "abcdef1234", BaseSHA: "1234abcdef", BundleSHA256: hex.EncodeToString(hash[:]), UserName: "개발자 A",
 	}
 }
 
@@ -52,11 +52,14 @@ func TestBridgeServiceCreateListOpenAndAcknowledge(t *testing.T) {
 		t.Fatalf("stored bundle = %q, %v", loaded, err)
 	}
 
-	if err := service.AcknowledgeDownload(context.Background(), transfer.ID); err != nil {
+	if err := service.AcknowledgeDownload(context.Background(), transfer.ID, "배포 담당자"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.AcknowledgeDownload(context.Background(), transfer.ID, "배포 담당자"); err != nil {
 		t.Fatal(err)
 	}
 	transfers, err = service.List(context.Background(), "project-a", "internal")
-	if err != nil || transfers[0].DownloadedAt == nil {
+	if err != nil || transfers[0].DownloadedAt == nil || transfers[0].UploadedBy != "개발자 A" || len(transfers[0].Downloads) != 1 || transfers[0].Downloads[0].UserName != "배포 담당자" {
 		t.Fatalf("acknowledgement was not persisted: %v %#v", err, transfers)
 	}
 }
@@ -79,6 +82,29 @@ func TestBridgeServiceRejectsHashMismatchAndRemovesTemporaryFile(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Fatalf("hash mismatch left files behind: %#v", entries)
+	}
+}
+
+func TestBridgeServiceAcceptsLegacyRequestsWithoutUserName(t *testing.T) {
+	db, _ := testutil.SetupTestDBWithConn(t)
+	storage, err := NewBridgeStorage(t.TempDir(), 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewBridgeService(db, storage, time.Hour)
+	content := []byte("legacy bundle")
+	manifest := bridgeManifest(content)
+	manifest.UserName = ""
+	transfer, err := service.Create(context.Background(), manifest, bytes.NewReader(content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.AcknowledgeDownload(context.Background(), transfer.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	transfers, err := service.List(context.Background(), "project-a", "internal")
+	if err != nil || transfers[0].UploadedBy != UnknownBridgeUserName || len(transfers[0].Downloads) != 1 || transfers[0].Downloads[0].UserName != UnknownBridgeUserName {
+		t.Fatalf("legacy user handling = %#v, %v", transfers, err)
 	}
 }
 

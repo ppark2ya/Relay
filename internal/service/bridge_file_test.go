@@ -14,7 +14,7 @@ import (
 
 func bridgeFileManifest(content []byte) BridgeFileManifest {
 	hash := sha256.Sum256(content)
-	return BridgeFileManifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", Filename: "release.zip", SHA256: hex.EncodeToString(hash[:])}
+	return BridgeFileManifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", Filename: "release.zip", SHA256: hex.EncodeToString(hash[:]), UserName: "개발자 A"}
 }
 
 func TestBridgeFileServiceRoundTrip(t *testing.T) {
@@ -42,8 +42,12 @@ func TestBridgeFileServiceRoundTrip(t *testing.T) {
 	if err != nil || !bytes.Equal(received, content) {
 		t.Fatalf("Open = %q, %v", received, err)
 	}
-	if err := service.AcknowledgeDownload(context.Background(), transfer.ID); err != nil {
+	if err := service.AcknowledgeDownload(context.Background(), transfer.ID, "배포 담당자"); err != nil {
 		t.Fatal(err)
+	}
+	files, err = service.List(context.Background(), "project-a", "internal")
+	if err != nil || files[0].UploadedBy != "개발자 A" || len(files[0].Downloads) != 1 || files[0].Downloads[0].UserName != "배포 담당자" {
+		t.Fatalf("download history = %#v, %v", files, err)
 	}
 	if err := service.Delete(context.Background(), transfer.ID); err != nil {
 		t.Fatal(err)

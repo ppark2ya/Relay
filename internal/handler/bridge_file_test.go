@@ -42,7 +42,7 @@ func TestBridgeFileHandlerRoundTrip(t *testing.T) {
 	defer server.Close()
 	content := []byte("file payload")
 	hash := sha256.Sum256(content)
-	manifest, _ := json.Marshal(service.BridgeFileManifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", Filename: "note.txt", SHA256: hex.EncodeToString(hash[:])})
+	manifest, _ := json.Marshal(service.BridgeFileManifest{ProjectID: "project-a", SourceNetwork: "external", TargetNetwork: "internal", Filename: "note.txt", SHA256: hex.EncodeToString(hash[:]), UserName: "개발자 A"})
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	_ = writer.WriteField("manifest", string(manifest))
@@ -84,4 +84,18 @@ func TestBridgeFileHandlerRoundTrip(t *testing.T) {
 	if err != nil || !bytes.Equal(received, content) {
 		t.Fatalf("received = %q, %v", received, err)
 	}
+	acknowledgement := bytes.NewBufferString(`{"userName":"배포 담당자"}`)
+	response, err = http.Post(server.URL+"/api/bridge/v1/files/"+transfer.ID+"/download-ack", "application/json", acknowledgement)
+	if err != nil || response.StatusCode != http.StatusNoContent {
+		t.Fatalf("download acknowledgement = %v, %v", response, err)
+	}
+	response.Body.Close()
+	response, err = http.Get(server.URL + "/api/bridge/v1/files?projectId=project-a&targetNetwork=internal")
+	if err != nil || response.StatusCode != http.StatusOK {
+		t.Fatalf("list after acknowledgement = %v, %v", response, err)
+	}
+	if err := json.NewDecoder(response.Body).Decode(&files); err != nil || files[0].UploadedBy != "개발자 A" || len(files[0].Downloads) != 1 || files[0].Downloads[0].UserName != "배포 담당자" {
+		t.Fatalf("user history = %#v, %v", files, err)
+	}
+	response.Body.Close()
 }
